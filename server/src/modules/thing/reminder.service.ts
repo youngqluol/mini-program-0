@@ -2,18 +2,27 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   NotifyChannel,
+  NotifyStatus,
   NotifyType,
   RecurrenceType,
   RemindType,
   ReminderStatus,
+  ThingStatus,
   dbToEnum,
   enumToDb,
 } from '@shared/enums';
 import { DeliveryResult } from '@shared/dto/notify';
-import type { InboxItem, InboxResponse, NudgeResponse, ThingDetail } from '@shared/dto/thing';
+import type {
+  InboxItem,
+  InboxResponse,
+  NudgeResponse,
+  RecurrenceConfig,
+  ThingDetail,
+} from '@shared/dto/thing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotifyService } from '../notify/notify.service';
 import { SubscribeQuotaService } from '../notify/subscribe-quota.service';
+import type { TemplateContext } from '../notify/notify.templates';
 import { subKindOf } from '../notify/subscribe.templates';
 import { BusinessException } from '../../common/errors/business.exception';
 import {
@@ -24,6 +33,7 @@ import {
 import type { FamilyMemberContext } from '../families/family-context';
 import { ContentSecurityService } from '../wechat/content-security.service';
 import { ThingService } from './thing.service';
+import { nextOccurrence } from './recurrence';
 import { isBeijingDateTime } from './dto/thing.dto';
 import type { AddReminderDto, InboxQueryDto, NudgeDto } from './dto/reminder.dto';
 
@@ -31,6 +41,39 @@ import type { AddReminderDto, InboxQueryDto, NudgeDto } from './dto/reminder.dto
 const INBOX_LIMIT = 100;
 /** 「在册成员」的状态值 */
 const MEMBER_ACTIVE = 1;
+
+/**
+ * 一条**到点提醒**的下发结果（`fireDueReminder` 的返回值）。
+ *
+ * 与 `DeliveryResult` 的区别是多一个 `skipped`：
+ * 「这条不用发」（小事已结束 / 接收人已退出 / 已被抢先处理）**不是失败**，
+ * 调度器统计时必须分开，否则「失败数」里会混进一堆正常跳过，告警就废了。
+ */
+export type FireOutcome = 'sent' | 'not_bound' | 'no_quota' | 'failed' | 'skipped';
+
+/** `DeliveryResult` → `FireOutcome`。两者只差一个 `skipped`，但语义不同，不合并。 */
+function fireOutcomeOf(result: string): FireOutcome {
+  switch (result) {
+    case DeliveryResult.SENT:
+      return 'sent';
+    case DeliveryResult.NOT_BOUND:
+      return 'not_bound';
+    case DeliveryResult.NO_QUOTA:
+      return 'no_quota';
+    default:
+      return 'failed';
+  }
+}
+
+/**
+ * Prisma 的 Json 列取出来是 `JsonValue`，要收窄成 `RecurrenceConfig`。
+ * 存进去时是我们自己序列化的，但类型系统不知道 —— 过一道校验更安全，
+ * 脏数据只会让这条提醒「不再重复」，不会抛异常打断整个 tick。
+ */
+function asRecurrenceConfig(v: unknown): RecurrenceConfig | null {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return null;
+  return v as RecurrenceConfig;
+}
 
 /**
  * 提醒模块 —— docs/02 §五。
@@ -117,24 +160,11 @@ export class ReminderService {
     let deliveryStatus: string = DeliveryResult.FAILED;
     let deliveryChannel: string = channelName(NotifyChannel.IN_APP);
     try {
-      const familyName = await this.familyNameOf(ctx.familyId);
-      const [recipientRoleName, fromRoleName] = await Promise.all([
-        this.things.roleNameOfMember(recipient.id),
-        this.things.roleNameOfMember(ctx.memberId),
-      ]);
-
       const result = await this.notify.notifyReminder({
         userId: recipient.userId,
         familyId: ctx.familyId,
         thingId: thing.id,
-        ctx: {
-          roleName: recipientRoleName,
-          familyName,
-          thingTitle: thing.title,
-          thingContent: thing.content ?? undefined,
-          fromRoleName,
-          remindAt: now,
-        },
+        ctx: await this.reminderCtx(thing, recipient.id, now),
       });
 
       deliveryStatus = result.result;
@@ -166,6 +196,194 @@ export class ReminderService {
       deliveryChannel,
       quotaRemaining: await this.quotaRemaining(recipient.userId),
     };
+  }
+
+  // =============================================================
+  // 到点下发（M2-B20 —— 供调度器调用）
+  // =============================================================
+
+  /**
+   * 下发一条**到点**的提醒。
+   *
+   * 职责划分：调度器只管「什么时候发、发哪些、别重复发」，
+   * 「一条提醒该怎么发、发完状态怎么变」全在这里。
+   * 与 `nudge` 共用 `reminderCtx()`，所以两条路径的文案口径一定一致。
+   *
+   * 返回的 `skipped` 表示「这条不用发」（小事已结束 / 接收人已退出 / 已被抢先处理），
+   * **不算失败** —— 调度器统计时要分开，否则「失败数」里会混进一堆正常跳过。
+   */
+  async fireDueReminder(reminderId: bigint): Promise<FireOutcome> {
+    const reminder = await this.prisma.thingReminder.findUnique({ where: { id: reminderId } });
+    if (!reminder) return 'skipped';
+    // 并发下可能已被另一个 tick 或用户操作改掉 —— 谁先谁算，不抢
+    if (reminder.status !== ReminderStatus.PENDING) return 'skipped';
+
+    const thing = await this.prisma.familyThing.findUnique({ where: { id: reminder.thingId } });
+    if (!thing) return 'skipped';
+
+    const recipientUserId = await this.things.userIdOfMember(reminder.recipientMemberId);
+
+    // 小事已结束（完成 / 取消）或接收人已退出家庭 —— 这条提醒失去意义，直接收掉。
+    // 「活儿都干完了还叮我」是最招人烦的一类通知。
+    if (thing.status !== ThingStatus.PENDING || recipientUserId == null) {
+      await this.prisma.thingReminder.update({
+        where: { id: reminder.id },
+        data: { status: ReminderStatus.CANCELLED, nextRemindAt: null },
+      });
+      return 'skipped';
+    }
+
+    const now = new Date();
+    let outcome: FireOutcome = 'failed';
+    try {
+      const res = await this.notify.notifyReminder({
+        userId: recipientUserId,
+        familyId: thing.familyId,
+        thingId: thing.id,
+        ctx: await this.reminderCtx(thing, reminder.recipientMemberId, now),
+      });
+      outcome = fireOutcomeOf(res.result);
+    } catch (e) {
+      this.logger.warn(
+        `到点提醒下发异常 reminder=${reminder.id}：${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    await this.applyFireResult(reminder, outcome, now);
+    return outcome;
+  }
+
+  /**
+   * 组装一条提醒的文案上下文 —— **全模块唯一的一处**。
+   *
+   * `nudge`（用户点「叮一下」）与 `fireDueReminder`（调度器到点发）必须产出
+   * 完全一样的文案，否则同一条提醒会因为来源不同而说法不同。
+   */
+  private async reminderCtx(
+    thing: { familyId: bigint; title: string; content: string | null; creatorMemberId: bigint },
+    recipientMemberId: bigint,
+    remindAt: Date,
+  ): Promise<TemplateContext> {
+    const [familyName, recipientRoleName, fromRoleName] = await Promise.all([
+      this.familyNameOf(thing.familyId),
+      this.things.roleNameOfMember(recipientMemberId),
+      this.things.roleNameOfMember(thing.creatorMemberId),
+    ]);
+
+    return {
+      roleName: recipientRoleName,
+      familyName,
+      thingTitle: thing.title,
+      thingContent: thing.content ?? undefined,
+      fromRoleName,
+      remindAt,
+    };
+  }
+
+  /**
+   * 回写一条提醒的下发结果。两种情况**故意不同**：
+   *
+   *   - **失败**：不置 SENT、`next_remind_at` 置 null —— 与 `nudge` 保持一致，
+   *     **不自动重试**。靠站内消息兜底（消息中心一定看得到），
+   *     避免「悄悄重试」制造重复提醒。要补发就由运维层面的补偿任务来做。
+   *   - **成功**：重复提醒算出下一次时间并**留在 PENDING**；单次提醒置 SENT。
+   */
+  private async applyFireResult(
+    reminder: { id: bigint; recurrenceType: number; recurrenceConfig: unknown },
+    outcome: FireOutcome,
+    now: Date,
+  ): Promise<void> {
+    if (outcome === 'failed') {
+      await this.prisma.thingReminder.update({
+        where: { id: reminder.id },
+        data: { status: ReminderStatus.PENDING, nextRemindAt: null },
+      });
+      return;
+    }
+
+    const next = nextOccurrence(
+      reminder.recurrenceType,
+      asRecurrenceConfig(reminder.recurrenceConfig),
+      now,
+    );
+
+    await this.prisma.thingReminder.update({
+      where: { id: reminder.id },
+      data: {
+        // 重复提醒发完还要再发，所以留在 PENDING；单次提醒到此为止
+        status: next ? ReminderStatus.PENDING : ReminderStatus.SENT,
+        sentCount: { increment: 1 },
+        lastSentAt: now,
+        nextRemindAt: next,
+      },
+    });
+  }
+
+  // =============================================================
+  // 补偿重发（M2-B22 —— 供调度器调用）
+  // =============================================================
+
+  /**
+   * 重发一条「提醒」通知（补偿用）。
+   *
+   * **什么时候需要**：`dispatch` 把所有通道都试失败了，日志落成 FAILED。
+   * 此时提醒的 `next_remind_at` 已被置 null（`applyFireResult` 的约定：
+   * 不自动重试），**tick 永远不会再碰它** —— 这才是真正的永久丢失，
+   * 也是这个补偿任务存在的唯一理由。
+   *
+   * 三条硬约束：
+   *   ① **复用同一条日志**（`reuseLogId`）—— `notification_logs` 就是消息中心的
+   *      数据源，重发时新建会让用户看到两条一模一样的通知。
+   *   ② **`attempt=1`** —— `client_msg_id` 是**微信侧**的 24 小时去重键，
+   *      原样重发会被微信直接拦掉，补偿就成了空转。
+   *   ③ **只重建 REMINDER** —— 它的上下文能从 thingId 完整还原。派活 / 完成回执
+   *      需要「是否迟到」「谁完成的」等额外上下文，重建成本高而残留概率极低 ——
+   *      遇到就跳过，**不猜**。
+   *
+   * 返回值区分「真推到微信了」（`resent`）与「还是只有站内」（`degraded`）——
+   * 混成一个数字会让「补偿到底有没有用」看不出来。
+   */
+  async retryReminderNotification(
+    logId: bigint,
+  ): Promise<'resent' | 'degraded' | 'skipped' | 'failed'> {
+    const log = await this.prisma.notificationLog.findUnique({ where: { id: logId } });
+    if (!log) return 'skipped';
+    if (log.type !== NotifyType.REMINDER || log.thingId == null) return 'skipped';
+    if (log.familyId == null) return 'skipped';
+    // 已经被别人处理过（tick 重发 / 用户操作）—— 不抢
+    if (log.status !== NotifyStatus.PENDING && log.status !== NotifyStatus.FAILED) {
+      return 'skipped';
+    }
+
+    const thing = await this.prisma.familyThing.findUnique({ where: { id: log.thingId } });
+    if (!thing) return 'skipped';
+    // 事儿已经了了（完成 / 取消）就别补发了 —— 补一条「别忘了这件事」很讨嫌
+    if (thing.status !== ThingStatus.PENDING) return 'skipped';
+
+    // 找到「当初要通知的那个人」在本家庭的成员记录 —— 称谓只能从这儿来
+    const member = await this.prisma.familyMember.findFirst({
+      where: { familyId: log.familyId, userId: log.userId, status: MEMBER_ACTIVE },
+      select: { id: true },
+    });
+    if (!member) return 'skipped';
+
+    try {
+      const res = await this.notify.notifyReminder(
+        {
+          userId: log.userId,
+          familyId: log.familyId,
+          thingId: log.thingId,
+          ctx: await this.reminderCtx(thing, member.id, new Date()),
+        },
+        { reuseLogId: log.id, attempt: 1 },
+      );
+      return res.result === DeliveryResult.SENT ? 'resent' : 'degraded';
+    } catch (e) {
+      this.logger.warn(
+        `补偿重发异常 log=${log.id}：${e instanceof Error ? e.message : String(e)}`,
+      );
+      return 'failed';
+    }
   }
 
   // =============================================================
