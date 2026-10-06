@@ -79,6 +79,15 @@
   - 代价：直连数据库看数据是 UTC，比北京时间少 8 小时。
 - 页面里禁止直接调 `wx.request`，只能走 `services/request.ts`
 - 禁止硬编码密钥，全部环境变量
+- **⚠️ DTO 里的 `boolean` 字段必须挂 `@ParseBoolean()`**（`common/utils/query.util.ts`），
+  不要手写 `@Transform(toQueryBoolean)`。全局 `ValidationPipe` 开了
+  `enableImplicitConversion: true`，而 class-transformer 是**先隐式转换、后跑
+  `@Transform`** —— `boolean` 的 `design:type` 先把 `'false'` 变成 `true`，
+  `@Transform` 才拿到布尔值，原始字符串已丢。症状：`?flag=false` **静默等于 `true`**。
+  `@ParseBoolean()` 内部先 `@Type(() => String)` 把元数据类型改成 String。
+  **不能删 `enableImplicitConversion`** —— 有一批数字字段没写 `@Type`，正靠它把 `'5'` 转成 `5`。
+  详见 `docs/04 §5.3`。同类：可空数字 ID 用 `toNullableNumber`（`@Type(() => Number)`
+  对 `null` 安全但 `Number('') === 0`，`@Min(1)` 会误报）。
 
 ## 开发工作纪律（用户明确要求，2026-10-06 确立）
 - **每完成一个阶段任务，先提交代码，再进入下一阶段。** 别再积压成「一次性上百文件」的批量入库。
@@ -241,6 +250,7 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | `test-view.mjs` | **展示模型层的行为断言**（**127 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22） | 改了 `utils/thing-view.ts` / `utils/notice-view.ts` / `utils/mine-view.ts` / `utils/time.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
+| `smoke-m3-menu.mjs` | 吃啥呢冒烟（**102 断言**，夹具建**两个家庭**专验隔离；`excludeRecent` 有 5 条回归断言） | 改了 `menu` 模块后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
 | `probe-seccheck.mjs` | 实探文本内容安全，看 `suggest` / `label` | 排查 msgSecCheck 时 |
 | `test-wxpush.mjs` | 测公众号模板消息通道 | 排查推送时 |
@@ -261,14 +271,42 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 一致，`sub` 必须是 number）；夹具走 Prisma Client（见上方沙箱 EBUSY 那条）；
 需先起服务 + MySQL + Redis。提交 scope 用 `tools`（docs/04 §6.2 已登记）。
 
+**⚠️ 写冒烟断言的纪律：有随机性的接口，断言不能依赖单次结果。**
+`smoke-m3-menu.mjs` 用的是：① 比对 `poolSize`（确定性）；
+② 「连抽 60 次都不出现」；③ 「**包含**三类」而不是「恰好三类」。
+**这个纪律当天就抓到真 bug** —— `excludeRecent=false` 被全局隐式转换吃掉
+（见上方 `@ParseBoolean()` 那条），如果拿「这次抽到了什么」去断言，会被随机性掩盖。
+
+**验证新代码要另起端口**：用户可能正在 3000 端口跑旧代码，别去打扰 ——
+`PORT=3100 TZ=Asia/Shanghai npx --no-install ts-node -r tsconfig-paths/register src/main.ts`，
+再用 `SMOKE_BASE_URL=http://127.0.0.1:3100` 跑冒烟。
+探针：新路由在「未登录」时应回 **40100**；若回 **40400** 说明跑的还是旧代码。
+
 **提交纪律**：改完后端接口 → 跑冒烟 → 「编译通过」不等于「链路通」。
 改了小程序纯展示逻辑 → 跑 `check:view`。
 
 ## 工程目录约定（docs/04）
 Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` + `server/`（NestJS）。
-后端模块（已建）：`auth` / `families` / `wechat` / `notify` / `thing`（含 reminder）/ `scheduler` / `health`
-+ `prisma` / `redis` / `common`。（规划中）`menu` / `memory` / `upload`。
+后端模块（已建）：`auth` / `families` / `wechat` / `notify` / `thing`（含 reminder）/ `scheduler` /
+`health` / `menu` + `prisma` / `redis` / `common`。（规划中）`memory` / `upload`。
 Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现下划线字段**。
+
+**`menu` 模块现状（M3）**：`default-menu.ts`（系统菜谱常量 72 条，**不入库**，PRD §16.4）
++ `dto/menu.dto.ts` + `menu.service.ts` + `menu.controller.ts` + `menu.module.ts`。
+读接口 ✅：`GET /menu/random`（`count` 组合搭配 / `excludeRecent` 按**菜名**排除 /
+池子被排空时放宽）、`GET /menu/items`（系统 + 家庭合集，`canEdit` / `enabled`，
+**停用的也返回**，否则用户在 P17 找不到它去重新启用）、`POST /menu/decide`
+（写 `meal_records`，`name` 是历史快照、以请求为准）、`GET /menu/recent`（按日期 + 餐次归组）。
+写接口 ⏳：`POST /menu/items` / `PATCH /menu/items/{id}` / `PATCH /menu/items/{id}/enabled` /
+**`POST /menu/decide-and-assign`**（⚠️ 必须复用 `ThingService`，不能另写一份派活逻辑，
+否则字段口径会在两个入口各长一套）。
+冒烟：`pnpm run smoke:m3`（102 项断言，夹具建**两个家庭**专验隔离）。
+
+**五个分类是有语义的，改分类会改推荐行为**：`家常菜`=荤 / `素菜`=素 /
+`汤`+`主食`=第 3 道（共用一个位置）/ `外食` **不参与组合**。
+`MENU_CATEGORY` 的唯一来源是 `packages/shared/src/enums.ts`
+（`as const` 对象 + 联合类型，刻意不用 `enum` —— 消费方有 72 行字面量，
+用 enum 噪音大；联合类型打错字照样 TS2322）。
 
 ### 容易踩的工程坑（都已在 docs/04 写明）
 - **`prisma/schema.prisma` 每个字段都必须有 `@map`**（camelCase 字段名 → snake_case 列名）。
@@ -290,6 +328,15 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   `../packages/shared/src`，tsc 推断 `rootDir` 为仓库根，shared 编译产物进 `dist/packages/shared/`。
 - **小程序页面是扁平文件**：`pages/<模块>/<页面>.{ts,wxml,wxss,json}`（如 `pages/menu/index.ts`），
   不是「一页一目录」。以 `docs/03` 的页面路径表为准。
+- **⚠️ DTO 的 `boolean` 字段必须挂 `@ParseBoolean()`**（`common/utils/query.util.ts`），
+  不要手写 `@Transform(toQueryBoolean)`。全局 `ValidationPipe` 开了
+  `enableImplicitConversion: true`，class-transformer 是**先隐式转换、后跑 `@Transform`**：
+  `boolean` 的 `design:type` 先把 `'false'` 变成 `true`，`@Transform` 才拿到布尔值，
+  原始字符串已丢。症状：`?flag=false` **静默等于 `true`** —— 不报错、无日志，只有行为错。
+  `@ParseBoolean()` 内部先 `@Type(() => String)` 把元数据类型改成 String。
+  **不能删 `enableImplicitConversion`**：有一批数字字段没写 `@Type`，正靠它把 `'5'` 转成 `5`。
+  同类：可空数字 ID 用 `toNullableNumber`（`@Type(() => Number)` 对 `null` 安全，
+  但 `Number('') === 0` → `@Min(1)` 误报）。详见 `docs/04 §5.3`。
 - 全局前缀 `/api`（不是 `/api/v1`），以 `docs/02` 的 Base URL 为准。
 
 ### 小程序端专属的坑（都已在 docs/04 写明）
