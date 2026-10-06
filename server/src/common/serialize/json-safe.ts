@@ -26,23 +26,33 @@ export function sanitizeForJson(input: unknown, seen = new WeakSet<object>()): u
   // ② Date → 北京时间字符串
   if (input instanceof Date) return formatDateTime(input);
 
-  // ③ 循环引用保护（Prisma 的关联对象可能自引用）
+  // ③ 循环引用保护。
+  //
+  //    ⚠️ 这里记录的是「**当前递归路径上**正在访问的对象」，不是「访问过的所有对象」。
+  //    回溯时必须 `delete`，否则会误伤「同一个对象被多处引用」这种**正常**结构 ——
+  //    例如列表里多条小事共用一个 `ThingMemberBrief`（同一位家人的头像 + 称谓），
+  //    第二处引用会被当成环、整个键被吞掉，前端就出现「有的卡片没有称谓」这种
+  //    只在数据重复时才复现的怪现象。
   if (seen.has(input as object)) return undefined;
   seen.add(input as object);
 
-  // ④ 数组
-  if (Array.isArray(input)) {
-    return input.map((v) => sanitizeForJson(v, seen));
-  }
+  try {
+    // ④ 数组
+    if (Array.isArray(input)) {
+      return input.map((v) => sanitizeForJson(v, seen));
+    }
 
-  // ⑤ Buffer / TypedArray 等：原样交给 JSON.stringify 处理
-  if (ArrayBuffer.isView(input as ArrayBufferView)) return input;
+    // ⑤ Buffer / TypedArray 等：原样交给 JSON.stringify 处理
+    if (ArrayBuffer.isView(input as ArrayBufferView)) return input;
 
-  // ⑥ 普通对象（含 Prisma 返回的 model 实例）
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
-    const converted = sanitizeForJson(v, seen);
-    if (converted !== undefined) out[k] = converted;
+    // ⑥ 普通对象（含 Prisma 返回的 model 实例）
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+      const converted = sanitizeForJson(v, seen);
+      if (converted !== undefined) out[k] = converted;
+    }
+    return out;
+  } finally {
+    seen.delete(input as object);
   }
-  return out;
 }
