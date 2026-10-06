@@ -39,7 +39,7 @@
 | 01 技术架构 | **v0.2.3** | 06 环境准备 | **v0.2.3** |
 | 02 API 设计 | **v0.2.3** | 07 视觉规范 | v1.0 |
 | 03 页面原型 | v0.2.1 | 08 推送集成 | **v1.0.2** |
-| 04 工程规范 | v0.2.2 | 核心数据模型 / MySQL 设计 | v0.2.1 |
+| 04 工程规范 | **v0.2.3** | 核心数据模型 / MySQL 设计 | v0.2.1 |
 
 ### 配套资源
 
@@ -111,6 +111,8 @@
 | **用户可见 toast 里出现了禁用词「授权」**（`DELIVERY_TOAST[NO_QUOTA]` = 「微信限制需要补一次授权才能推给他」），违反 AGENTS.md §6 | 改为「已记下，{称谓}再开一次微信提醒就能收到」；PRD §6.5.6、docs/01 §5.2/§5.4、docs/02 §2.5/§5.3、docs/03 P08/P21、docs/05 M2-F14 一并统一 |
 | `GET /auth/subscribe-quota` 的 `templateName` 直接回微信后台模板标题（「待办事项提醒」），含禁用词「待办事项」 | 加 `displayName`（派活提醒 / 叮一下提醒 / 完成回执），API 只回产品化的名字 |
 | class-validator 的默认英文文案会漏给用户（`count must not be greater than 10`） | 新增 `common/pipes/validation.factory.ts`：无中文字符的校验文案统一换成通用中文提示 |
+| **`server/prisma/schema.prisma` 里 `mpOpenid` / `inviteCode` 两个字段漏了 `@map`** —— `prisma db push` 想把列名改成 camelCase（`DROP COLUMN` + `ADD COLUMN`，丢数据），且运行时查询会 `Unknown column`，**会让邀请功能与公众号绑定全部失效** | 补齐 `@map("mp_openid")` / `@map("invite_code")`；在 docs/04 §3.2 补对齐自查命令（`prisma migrate diff` 必须输出 `-- This is an empty migration.`） |
+| **pnpm 11 不再读 `package.json` 的 `pnpm` 字段**，`pnpm.onlyBuiltDependencies` 被静默忽略 → Prisma `postinstall` 不执行 → `@prisma/client` 不生成 → `prisma:push` 失败 | 白名单迁到 `pnpm-workspace.yaml` 的 `allowBuilds`；新增 docs/04 §3.3；移除 `package.json` 里已失效的字段 |
 
 ---
 
