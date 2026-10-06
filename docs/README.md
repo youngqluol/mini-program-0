@@ -39,7 +39,7 @@
 | 01 技术架构 | **v0.2.3** | 06 环境准备 | **v0.2.3** |
 | 02 API 设计 | **v0.2.3** | 07 视觉规范 | v1.0 |
 | 03 页面原型 | v0.2.1 | 08 推送集成 | **v1.0.2** |
-| 04 工程规范 | **v0.2.3** | 核心数据模型 / MySQL 设计 | v0.2.1 |
+| 04 工程规范 | **v0.2.4** | 核心数据模型 / MySQL 设计 | v0.2.1 |
 
 ### 配套资源
 
@@ -98,6 +98,13 @@
 | docs/02 §3.10 的 `sharePath` 写成 `pages/join-family/index`，docs/03 是 `pages/family/join` | 已统一为 `pages/family/join` |
 | `@shared` 的 `paths` 映射写成带 `.ts` 后缀，`nest build` 原样保留后缀，产物 `require(".../index.ts")` 直接 `MODULE_NOT_FOUND` | 去掉后缀，并在 docs/04 §一 写明这个坑 |
 | Dockerfile 的 `CMD ["node","dist/main.js"]` 路径不存在（实际是 `dist/server/src/main.js`） | 已修正，并在 docs/04 §一 说明产物布局的成因 |
+
+**v0.2.4 补充（2026-10-06）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| docs/04 §6.2 的提交 scope 新增 `tools` | 仓库根 `tools/` 下的自查与冒烟脚本不属于任何业务模块，硬塞 `server` / `db` 会让「按 scope 找改动」失效 |
+| docs/04 §5.1 与 §十 登记 `tools/smoke-m1.mjs` | 改完后端接口必须跑真实库端到端冒烟，「编译通过」不等于「链路通」 |
 
 **已消除的历史矛盾（v0.2.3 修复，2026-10-06）：**
 
