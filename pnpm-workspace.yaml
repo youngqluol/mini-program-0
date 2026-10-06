@@ -6,7 +6,9 @@ packages:
   - 'packages/*'
   - 'server'
   - 'miniprogram'
+# pnpm 10+ 不再读 package.json 里的 pnpm 字段，构建脚本白名单必须写在这里。
+# Prisma 需要执行 postinstall 生成 @prisma/client，否则 prisma:push / prisma:generate 会失败。
 allowBuilds:
-  '@prisma/client': set this to true or false
-  '@prisma/engines': set this to true or false
-  prisma: set this to true or false
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true

@@ -48,3 +48,5 @@ miniprogram/project.private.config.json
 *.tmp
 *.bak
 .tmp/
+# 工具（pnpm / prisma 等）在仓库根生成的临时文件，形如 _tmp_<pid>_<hex>
+_tmp_*
