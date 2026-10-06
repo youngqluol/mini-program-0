@@ -34,9 +34,9 @@ import * as userStore from '../../stores/user';
 import { guardEntry } from '../../utils/route';
 import {
   beijingAfterHours,
-  describeDay,
   hhmmOf,
   parseBeijingTime,
+  shortMoment,
   toBeijingString,
 } from '../../utils/time';
 import { toast, toastError } from '../../utils/toast';
@@ -54,18 +54,6 @@ function minusMinutes(base: string, minutes: number): string {
   if (!d) return '';
   d.setMinutes(d.getMinutes() - minutes);
   return toBeijingString(d);
-}
-
-/**
- * 提醒时刻说成人话：同一天只说「17:30」，跨天才带上「今天 / 明天」。
- *
- * 不直接显示 `describeDue(remindAt)`：在「今天 18:00 前完成」的语境下
- * 再写一遍「今天 17:30」是废话，还会把这一行挤长。
- */
-function remindTextOf(remindAt: string, dueAt: string): string {
-  if (!remindAt) return '';
-  const time = hhmmOf(remindAt);
-  return describeDay(remindAt) === describeDay(dueAt) ? time : `${describeDay(remindAt)} ${time}`;
 }
 
 Page({
@@ -158,7 +146,7 @@ Page({
       remindOn: keepOn ? true : this.data.remindOn,
       remindAt,
       remindTime: hhmmOf(remindAt),
-      remindText: remindTextOf(remindAt, dueAt),
+      remindText: shortMoment(remindAt, dueAt),
     });
   },
 
@@ -179,7 +167,7 @@ Page({
     this.setData({
       remindAt,
       remindTime: time,
-      remindText: remindTextOf(remindAt, this.data.dueAt),
+      remindText: shortMoment(remindAt, this.data.dueAt),
     });
   },
 

@@ -50,6 +50,30 @@ export function confirm(options: {
   });
 }
 
+/**
+ * 底部操作表式的确认（docs/03 P10 明确要求「底部 ActionSheet」）。
+ *
+ * 和 `confirm()`（居中弹窗）的区别只有**位置**，但位置就是意思：
+ * 从底部升起的操作表读起来是「我正在对这条内容做点什么」，
+ * 居中弹窗读起来是「系统在拦你」。低风险但仍需停一下的动作
+ * （取消这件事）用前者，用户不会被吓一跳，也仍然停了一下。
+ *
+ * ⚠️ `wx.showActionSheet` 的选项**不能单独染色**，做不了 iOS 那种红字
+ *    「删除」。所以破坏性的语义得靠文案自己说清楚（「确认取消」），
+ *    别指望颜色。
+ */
+export function confirmSheet(options: { message: string; actionText: string }): Promise<boolean> {
+  return new Promise((resolve) => {
+    wx.showActionSheet({
+      alertText: options.message,
+      itemList: [options.actionText],
+      success: (res) => resolve(res.tapIndex === 0),
+      // 点「取消」或点遮罩都会走 fail —— 都是「不继续」，不是错误
+      fail: () => resolve(false),
+    });
+  });
+}
+
 /** 轻量 loading（会自动配一个 hide） */
 export function showLoading(title = '稍等一下'): void {
   wx.showLoading({ title, mask: true });

@@ -93,6 +93,23 @@ export function describeDue(value: string | null): string {
   return time ? `${day} ${time}` : day;
 }
 
+/**
+ * 相对某一天的「时刻」：同一天只说 `18:05`，跨天才带上「昨天 18:05」。
+ *
+ * 用在**成对出现**的时间上 —— 「18:00 前完成」配「17:30 提醒」，
+ * 两条都写「今天」是废话，还会把这一行挤长。单说一个时刻的场景
+ * 用 `describeDue()`，那个要带上「今天 / 明天」才不至于有歧义。
+ *
+ * 不传 `base` 就与「今天」比。
+ */
+export function shortMoment(value: string, base?: string): string {
+  const time = hhmmOf(value);
+  if (!time) return '';
+  const day = describeDay(value);
+  if (!day) return time;
+  return day === describeDay(base || todayDate()) ? time : `${day} ${time}`;
+}
+
 /** Date → 后端要的 `"YYYY-MM-DD HH:mm:ss"`（北京时间） */
 export function toBeijingString(d: Date): string {
   return (
