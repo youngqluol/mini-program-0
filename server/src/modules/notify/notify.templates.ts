@@ -135,7 +135,14 @@ export interface TemplateContext {
 }
 
 export interface BuiltTemplate {
-  /** 通知标题（站内消息 / 消息中心用） */
+  /**
+   * 一句话摘要。
+   *
+   * ⚠️ **消息中心的列表只显示这个字段**（`content` 是多行正文，放不进列表），
+   *    所以它必须带上「是什么事」—— 不能只写「提醒你一下」，
+   *    那样列表里每一条都长一样，用户分不出哪条是哪条。
+   *    它同时被 wxpush Worker 用作中转页的标题。
+   */
   title: string;
   /** 纯文本正文（站内消息用） */
   content: string;
@@ -191,7 +198,7 @@ export function buildTemplate(type: NotifyType, ctx: TemplateContext): BuiltTemp
       const first = `${roleName}，有个活儿到你啦～`;
       const remark = '有空的时候弄一下就行 😊';
 
-      title = '有个活儿到你啦';
+      title = withWhat(fromRoleName, '派了个活', thingTitle);
       content = [
         first,
         `事项：${thingTitle || '—'}`,
@@ -221,7 +228,7 @@ export function buildTemplate(type: NotifyType, ctx: TemplateContext): BuiltTemp
       const first = `${roleName}，别忘了这件事`;
       const remark = '到时候了，提醒你一下～';
 
-      title = '提醒你一下';
+      title = withWhat(fromRoleName, '提醒你', thingTitle);
       content = [
         first,
         `事项：${thingTitle || '—'}`,
@@ -252,7 +259,7 @@ export function buildTemplate(type: NotifyType, ctx: TemplateContext): BuiltTemp
       const first = `${who}把「${thingTitle}」弄好啦`;
       const remark = '辛苦啦 🎉';
 
-      title = '有件事弄好啦';
+      title = `${who}把「${thingTitle || '那件事'}」弄好啦`;
       content = [first, `事项：${thingTitle || '—'}`, `完成人：${who}`, remark]
         .filter(Boolean)
         .join('\n');
@@ -271,7 +278,7 @@ export function buildTemplate(type: NotifyType, ctx: TemplateContext): BuiltTemp
     // 加入家庭 / 系统通知：无公众号模板，只出站内文案
     // -----------------------------------------------------------
     case NotifyType.JOIN_FAMILY: {
-      title = '欢迎加入';
+      title = `欢迎加入「${familyName || '这个家'}」`;
       content = [
         `欢迎加入「${familyName || '这个家'}」`,
         fromRoleName ? `邀请人：${fromRoleName}` : '',
@@ -284,7 +291,7 @@ export function buildTemplate(type: NotifyType, ctx: TemplateContext): BuiltTemp
 
     case NotifyType.SYSTEM:
     default: {
-      title = '家里有个消息';
+      title = thingTitle || '家里有个消息';
       content = [`${roleName}，家里有个消息`, thingTitle || '', '有空看一下～']
         .filter(Boolean)
         .join('\n');
@@ -311,6 +318,20 @@ export function buildTemplate(type: NotifyType, ctx: TemplateContext): BuiltTemp
 // ---------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------
+
+/**
+ * 拼一句「{谁} {做了什么}：{什么事}」。
+ *
+ * 存在的理由：消息中心的列表**只显示 `title`**，所以 title 必须自己带上
+ * 「是什么事」。原来派活写死成「有个活儿到你啦」、叮一下写死成「提醒你一下」，
+ * 列表里每一条都一模一样 —— 用户只能挨个点进去看，等于没有列表。
+ *
+ * 缺哪一段就省哪一段，不硬拼出「：」这种半个句子。
+ */
+function withWhat(from: string, action: string, what: string): string {
+  const head = from ? `${from} ${action}` : action;
+  return what ? `${head}：${what}` : head;
+}
 
 function toTemplateData(fields: Record<string, string>): Record<string, { value: string }> {
   const out: Record<string, { value: string }> = {};
