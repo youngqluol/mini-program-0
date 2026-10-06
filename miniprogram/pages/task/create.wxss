@@ -1,0 +1,49 @@
+/* P09 · 派个活 —— 页面级样式；通用样式在 app.wxss */
+
+.task__submit {
+  margin-top: 24px;
+}
+
+/* 提交中：按钮变淡且不再响应（防重复提交，docs/03 §五） */
+.task__submit--off {
+  opacity: 0.6;
+}
+
+/* ---------- 叮一下 ---------- */
+
+.nudge {
+  display: flex;
+  align-items: center;
+}
+
+.nudge__time {
+  margin-left: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.nudge__time--off {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.nudge__hint {
+  margin-left: 8px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ---------- 备注 ---------- */
+
+.field__textarea {
+  width: 100%;
+  min-height: 30px;
+  font-size: var(--fs-h2);
+  line-height: 1.6;
+  color: var(--ink-1);
+}

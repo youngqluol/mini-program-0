@@ -11,7 +11,8 @@
     "pages/family/members",
     "pages/family/invite",
     "pages/family/setting",
-    "pages/family/set-role"
+    "pages/family/set-role",
+    "pages/task/create"
   ],
   "window": {
     "backgroundTextStyle": "dark",

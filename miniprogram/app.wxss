@@ -77,7 +77,7 @@ page {
   justify-content: center;
   height: 48px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+  background: linear-gradient(135deg, #ff9db4 0%, #ffb59b 100%);
   color: #ffffff;
   font-size: var(--fs-h3);
   font-weight: 600;
@@ -152,6 +152,14 @@ page {
 .field__placeholder {
   color: var(--ink-3);
   font-size: var(--fs-h2);
+}
+
+/* 字段下方的解释 / 提示。用于「为什么这块现在不能用」这类说明 —— 
+   不要拿它写校验错误，那种情况走 toast。 */
+.field__hint {
+  margin-top: 8px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
 }
 
 /* 快捷选项 chips —— 点一下就填上，别让用户自己想 */

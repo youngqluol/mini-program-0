@@ -1,0 +1,106 @@
+<!-- P09 · 派个活 -->
+<view class="page">
+  <view class="card">
+    <!-- 干啥 -->
+    <view class="field">
+      <view class="field__label">干啥？</view>
+      <input
+        class="field__input"
+        value="{{title}}"
+        maxlength="200"
+        placeholder="帮我拿一下快递"
+        placeholder-class="field__placeholder"
+        bindinput="onTitleInput"
+      />
+    </view>
+
+    <!-- 派给谁 -->
+    <view class="field">
+      <view class="field__label">派给谁？</view>
+      <member-picker
+        list="{{members}}"
+        selectedId="{{assigneeMemberId}}"
+        selfLabel="我"
+        bind:select="onPickAssignee"
+      />
+    </view>
+
+    <!-- 什么时候 -->
+    <view class="field">
+      <view class="field__label">什么时候？</view>
+      <time-picker value="{{dueAt}}" bind:change="onDueChange" />
+    </view>
+
+    <!-- 重复 -->
+    <view class="field">
+      <view class="field__label">重复？</view>
+      <repeat-picker
+        value="{{repeatType}}"
+        baseAt="{{dueAt}}"
+        disabled="{{!dueAt}}"
+        bind:change="onRepeatChange"
+      />
+    </view>
+
+    <!-- 要不要叮一下 -->
+    <view class="field">
+      <view class="field__label">要不要叮一下？</view>
+      <view class="nudge">
+        <switch
+          checked="{{remindOn}}"
+          disabled="{{!dueAt}}"
+          color="#F97E9B"
+          bindchange="onRemindToggle"
+        />
+        <picker
+          mode="time"
+          value="{{remindTime}}"
+          disabled="{{!remindOn || !dueAt}}"
+          bindchange="onRemindTime"
+        >
+          <view class="nudge__time {{remindOn && dueAt ? '' : 'nudge__time--off'}}">
+            {{remindText}}
+          </view>
+        </picker>
+        <text class="nudge__hint">提前提醒</text>
+      </view>
+      <view wx:if="{{!dueAt}}" class="field__hint">先定个时间，才能到点提醒</view>
+    </view>
+
+    <!-- 备注 -->
+    <view class="field">
+      <view class="field__label">备注</view>
+      <textarea
+        class="field__textarea"
+        value="{{content}}"
+        maxlength="1000"
+        auto-height
+        placeholder="一楼驿站"
+        placeholder-class="field__placeholder"
+        bindinput="onContentInput"
+      />
+    </view>
+
+    <!-- 谁能看见 -->
+    <view class="field field--last">
+      <view class="field__label">谁能看见？</view>
+      <view class="chips">
+        <view
+          class="chip {{visibility === 'FAMILY' ? 'chip--on' : ''}}"
+          data-v="FAMILY"
+          bindtap="onPickVisibility"
+        >家里人都能看到</view>
+        <view
+          class="chip {{visibility === 'RELATED' ? 'chip--on' : ''}}"
+          data-v="RELATED"
+          bindtap="onPickVisibility"
+        >只有我俩</view>
+      </view>
+    </view>
+  </view>
+
+  <view
+    class="btn-primary task__submit {{submitting ? 'task__submit--off' : ''}}"
+    bindtap="onSubmit"
+  >{{submitting ? '派出去了…' : '派出去'}}</view>
+</view>
