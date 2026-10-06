@@ -250,7 +250,7 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | `test-view.mjs` | **展示模型层的行为断言**（**127 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22） | 改了 `utils/thing-view.ts` / `utils/notice-view.ts` / `utils/mine-view.ts` / `utils/time.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
-| `smoke-m3-menu.mjs` | 吃啥呢冒烟（**102 断言**，夹具建**两个家庭**专验隔离；`excludeRecent` 有 5 条回归断言） | 改了 `menu` 模块后 |
+| `smoke-m3-menu.mjs` | 吃啥呢冒烟（**180 断言**，夹具建**两个家庭**专验隔离；`excludeRecent` 有 5 条回归断言；第 8 节菜谱管理含 `enabled:"false"` 字符串回归；第 9 节一键派活逐字段比对与 `POST /family-things` 的一致） | 改了 `menu` 模块后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
 | `probe-seccheck.mjs` | 实探文本内容安全，看 `suggest` / `label` | 排查 msgSecCheck 时 |
 | `test-wxpush.mjs` | 测公众号模板消息通道 | 排查推送时 |
@@ -291,16 +291,23 @@ Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` 
 `health` / `menu` + `prisma` / `redis` / `common`。（规划中）`memory` / `upload`。
 Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现下划线字段**。
 
-**`menu` 模块现状（M3）**：`default-menu.ts`（系统菜谱常量 72 条，**不入库**，PRD §16.4）
+**`menu` 模块现状（M3 后端已全部完成）**：`default-menu.ts`（系统菜谱常量 72 条，**不入库**，PRD §16.4）
 + `dto/menu.dto.ts` + `menu.service.ts` + `menu.controller.ts` + `menu.module.ts`。
 读接口 ✅：`GET /menu/random`（`count` 组合搭配 / `excludeRecent` 按**菜名**排除 /
 池子被排空时放宽）、`GET /menu/items`（系统 + 家庭合集，`canEdit` / `enabled`，
 **停用的也返回**，否则用户在 P17 找不到它去重新启用）、`POST /menu/decide`
 （写 `meal_records`，`name` 是历史快照、以请求为准）、`GET /menu/recent`（按日期 + 餐次归组）。
-写接口 ⏳：`POST /menu/items` / `PATCH /menu/items/{id}` / `PATCH /menu/items/{id}/enabled` /
-**`POST /menu/decide-and-assign`**（⚠️ 必须复用 `ThingService`，不能另写一份派活逻辑，
-否则字段口径会在两个入口各长一套）。
-冒烟：`pnpm run smoke:m3`（102 项断言，夹具建**两个家庭**专验隔离）。
+写接口 ✅：`POST /menu/items`（同家庭菜名唯一 **40900**）/ `PATCH /menu/items/{id}` /
+`PATCH /menu/items/{id}/enabled` / **`POST /menu/decide-and-assign`**。
+- ⚠️ **`PATCH /items/:id` 两条都不挂 `FamilyMemberGuard`**（URL/body 没有 `familyId`），
+  改用 `contextForItem` 由资源反查家庭：不存在 **40400**、不是你家 **40300**
+  （照搬 `contextForThing`）。
+- ⚠️ **`decide-and-assign` 复用 `ThingService` 三段式**（`prepareThing` 事务外 /
+  `insertThing` 事务内 / `dispatchCreatedThing` 提交后），**没另写一份派活逻辑**。
+  冒烟逐字段比对两条路径产出的小事，键集合完全一致。
+- `buildPool()` 按**菜名**去重，家庭版覆盖系统版。
+- `summary`（今晚**吃**）与派活 `title`（今晚**做饭**）刻意不同。
+冒烟：`pnpm run smoke:m3`（**180 项断言**，夹具建**两个家庭**专验隔离）。
 
 **五个分类是有语义的，改分类会改推荐行为**：`家常菜`=荤 / `素菜`=素 /
 `汤`+`主食`=第 3 道（共用一个位置）/ `外食` **不参与组合**。
