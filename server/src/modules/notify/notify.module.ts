@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { WxpushClient } from './wxpush.client';
 import { NotifyService } from './notify.service';
 import { NotifyController } from './notify.controller';
+import { NotificationController } from './notification.controller';
+import { NotificationService } from './notification.service';
 import { SUBSCRIBE_MESSAGE_PORT } from './subscribe-message.port';
 import { SubscribeMessageAdapter } from './subscribe-message.adapter';
 import { SubscribeQuotaService } from './subscribe-quota.service';
@@ -15,6 +17,7 @@ import { WechatModule } from '../wechat/wechat.module';
  *   - `SubscribeMessageAdapter` 通道二：小程序订阅消息（辅助，实现 SubscribeMessagePort）
  *   - `SubscribeQuotaService`   通道二的额度池（Redis 记账）
  *   - `NotifyService`           通道选择 + 降级 + 写 notification_logs
+ *   - `NotificationService`     消息中心读侧（列表 / 未读数 / 全部已读）
  *
  * 依赖：
  *   - `PrismaService` / `RedisService`：全局模块，无需 import
@@ -25,15 +28,19 @@ import { WechatModule } from '../wechat/wechat.module';
  *   这样整条订阅消息链路（模板定义 → 额度池 → 下发 → 降级）都在一个模块里，
  *   依赖方向保持 notify → wechat 单向，不会成环。
  *
+ * 为什么消息中心的读侧也在这里：它读的就是本模块写进去的 `notification_logs`，
+ * 写与读放在一起，改字段时不会漏掉另一边。
+ *
  * 对外暴露 `NotifyService`（发通知）与 `SubscribeQuotaService`（AuthController
  * 上报/查询订阅额度用），供 thing / reminder / family / auth 模块调用。
  */
 @Module({
   imports: [WechatModule],
-  controllers: [NotifyController],
+  controllers: [NotifyController, NotificationController],
   providers: [
     WxpushClient,
     NotifyService,
+    NotificationService,
     SubscribeQuotaService,
     SubscribeMessageAdapter,
     {
