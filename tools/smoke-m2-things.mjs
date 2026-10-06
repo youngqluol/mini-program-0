@@ -1042,6 +1042,10 @@ async function main() {
   note('定时提醒的 next_remind_at 已写好，但**调度器尚未实现**（M2-B20），到点不会真发。');
   note('三档 deliveryStatus 目前只会出现 NOT_BOUND —— 因为没开微信提醒（mp_openid 为空）。');
   note('  等推送通道打通（M0-V1/V2）后，同一条 nudge 应返回 SENT + MP_TEMPLATE。');
+  note('内容安全（M2-B9）**本脚本验的是 fail-open 路径**：夹具 openid 是造的假值，');
+  note('  微信必然回 40003，于是走「判不了 → 放行」。所以这里只能保证「不误拦、不阻塞」，');
+  note('  验不了「违规被拦」。要看真实结论用 `node tools/probe-seccheck.mjs`（唯一能看到 suggest 的方式）。');
+  note('  确认链路真的被调用：跑完看服务日志里的 `[ContentSecurityService] 内容安全判不了，放行`。');
 
   // ---------- 汇总 ----------
   console.log(`\n${'='.repeat(66)}`);
