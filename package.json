@@ -17,6 +17,8 @@
     "check:shared": "node tools/check-shared.mjs",
     "check:mp": "node tools/check-mp.mjs",
     "check": "pnpm run check:ts && pnpm run check:links && pnpm run check:shared && pnpm run check:mp",
+    "smoke:m1": "node tools/smoke-m1.mjs",
+    "smoke:m2": "node tools/smoke-m2-things.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d",
