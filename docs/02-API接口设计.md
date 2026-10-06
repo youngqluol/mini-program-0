@@ -1,9 +1,14 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.3
+**版本：** v0.2.4
 **协议：** HTTPS + REST + JSON
 **Base URL：** `https://<云托管服务名>.ap-shanghai.run.tcloudbase.com/api`
 **鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
+
+**v0.2.4 变更：** §十 调度器接口按实现补全 —— §10.1 新增 `skipped` / `locked` 字段与字段语义表、
+恒等式；§10.2 把「扫描 `status=1` 重试」改写为实际的两类处理（FAILED 重发 + 幽灵 PENDING 收尾）
+与两条硬约束（复用日志、换 `client_msg_id`）；§10.3 标注归 M5-4 且尚未实现，
+并澄清「重复提醒」与「重复小事」是两件事。
 
 **v0.2.3 变更：** §2.4 / §2.5 补订阅额度的**实现口径** —— 服务端只接受已知模板 ID
 （防任意字符串灌 Redis）、`count` 上限 10 且服务端再钳一次、`quotas` 只列已配置模板的种类。
@@ -1381,10 +1386,31 @@ X-Internal-Secret: <INTERNAL_CRON_SECRET>
     "notBound": 1,
     "noQuota": 0,
     "failed": 1,
+    "skipped": 0,
+    "locked": false,
     "durationMs": 830
   }
 }
 ```
+
+**字段语义：**
+
+| 字段 | 含义 |
+| --- | --- |
+| `scanned` | 本轮扫到几条**到点**的提醒（`status=PENDING` 且 `next_remind_at <= now`） |
+| `sent` | 真的推到微信了 |
+| `notBound` | 对方没开微信提醒 → 已降级站内 |
+| `noQuota` | 订阅消息额度用完 → 已降级站内 |
+| `failed` | 所有通道都失败 |
+| `skipped` | **正常跳过**（小事已完成 / 已取消、接收人已退出家庭）—— 不是失败，必须与 `failed` 分开统计 |
+| `locked` | `true` = 没抢到 Redis 锁（另一个实例在跑），本轮什么都没做 |
+| `durationMs` | 本轮耗时 |
+
+恒等式：`scanned = sent + notBound + noQuota + failed + skipped`（`locked=true` 时全部为 0）。
+
+> ⚠️ `skipped` 与 `locked` 是 M2-B20 落地时**新增**的字段 —— 原文只有前 5 项，
+> 但「扫了 12 条只处理了 10 条」必须能说清另外 2 条去哪了，
+> 否则失败率告警会被正常跳过污染。加字段不破坏兼容，前端 / 运维脚本忽略即可。
 
 **建议 Cron：** `* * * * *`（每分钟一次）。
 
@@ -1392,9 +1418,48 @@ X-Internal-Secret: <INTERNAL_CRON_SECRET>
 
 ```http
 POST /internal/scheduler/compensate
+X-Internal-Secret: <INTERNAL_CRON_SECRET>
 ```
 
-扫描最近 24 小时内 `notification_logs.status=1` 且已过期的记录重试。
+**响应：**
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "scanned": 3,
+    "resent": 1,
+    "degraded": 1,
+    "skipped": 1,
+    "failed": 0,
+    "ghostsClosed": 2,
+    "locked": false,
+    "durationMs": 210
+  }
+}
+```
+
+**处理两类记录，理由完全不同：**
+
+| 扫什么 | 做什么 | 为什么需要 |
+| --- | --- | --- |
+| `notification_logs.status=FAILED`（最近 24 小时） | 重发一次 | 提醒 FAILED 后 `next_remind_at` 被置 null（产品侧明确「不自动重试」），**tick 永远不会再碰它** —— 这是真正的永久丢失 |
+| `notification_logs.status=PENDING` 且超过 30 分钟 | 收尾为 `FAILED`（计入 `ghostsClosed`） | `dispatch` 中途进程挂掉会留下「幽灵记录」，消息中心会一直显示「发送中」 |
+
+**两条硬约束（都在代码里写死了）：**
+
+1. **复用同一条日志**（`reuseLogId`）—— `notification_logs` 就是消息中心的数据源，
+   重发时新建会让用户在消息中心看到两条一模一样的通知。
+2. **换 `client_msg_id`**（加 `-r1` 后缀）—— 它是**微信侧**的 24 小时去重键，
+   原样重发会被微信直接拦掉，补偿就成了空转。
+
+> ⚠️ **只重建 `REMINDER` 类型**：它的上下文能从 `thingId` 完整还原。
+> 派活 / 完成回执需要「是否迟到」「谁完成的」等额外上下文，重建成本高而残留概率极低 ——
+> 遇到就跳过（计入 `skipped`），**不猜**。
+
+**建议 Cron：** `0 3 * * *`（每天凌晨 3 点一次）。低频是刻意的 ——
+补偿是**运维兜底**，不是产品行为。
 
 ### 10.3 重复任务生成
 
@@ -1403,6 +1468,12 @@ POST /internal/scheduler/recurring-things
 ```
 
 **建议 Cron：** `0 0 * * *`（每天 00:00），为重复任务生成下一条实例。
+
+> ⬜ **尚未实现**，归 **M5-4**（与云托管 Cron 配置一起做）。
+> M2 只做了 `tick` 与 `compensate`。
+> 注意：**重复提醒**（`thing_reminders.recurrence_type`）已由 `tick` 支持 ——
+> 发完一条会自己算出下一次。这里说的是**重复小事**（`family_things.recurrence_type`
+> 生成下一条独立实例），是两件事。
 
 ### 10.4 手工绑定公众号 openid（保底方案）
 
