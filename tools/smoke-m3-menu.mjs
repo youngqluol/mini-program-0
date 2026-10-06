@@ -140,11 +140,9 @@ function beijingToday() {
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-/** 北京时间「今天 + offset 天」的日期串（offset 可为负） */
-function beijingDayOffset(offset) {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** 北京时间「今天 + hh:mm」 → "YYYY-MM-DD HH:mm:ss"（与 server 的 beijing-time.ts 同口径） */
+function todayAt(hour, minute) {
+  return `${beijingToday()} ${pad(hour)}:${pad(minute)}:00`;
 }
 
 /**
@@ -922,8 +920,504 @@ async function main() {
     String(garbage.body?.data?.poolSize),
   );
 
-  // ---------- 8. 观察项 ----------
-  phase('8. 观察项（非阻塞）');
+  // ---------- 8. 菜谱管理（M3-5） ----------
+  phase('8. 菜谱管理 POST /menu/items + PATCH');
+  expectCode(
+    '无 token 加菜谱 → 40100',
+    await api('POST', '/api/menu/items', { body: { familyId: fx.familyA, name: '红烧鲫鱼' } }),
+    40100,
+  );
+  expectCode(
+    '非成员加菜谱 → 40300',
+    await api('POST', '/api/menu/items', {
+      token: t3,
+      body: { familyId: fx.familyA, name: '红烧鲫鱼' },
+    }),
+    40300,
+  );
+  expectCode(
+    '菜名空 → 40001',
+    await api('POST', '/api/menu/items', {
+      token: t1,
+      body: { familyId: fx.familyA, name: '   ' },
+    }),
+    40001,
+  );
+  expectCode(
+    '菜名超 100 字 → 40001',
+    await api('POST', '/api/menu/items', {
+      token: t1,
+      body: { familyId: fx.familyA, name: '菜'.repeat(101) },
+    }),
+    40001,
+  );
+  expectCode(
+    '分类非法 → 40001',
+    await api('POST', '/api/menu/items', {
+      token: t1,
+      body: { familyId: fx.familyA, name: '红烧鲫鱼', category: '甜点' },
+    }),
+    40001,
+  );
+
+  const added = await api('POST', '/api/menu/items', {
+    token: t1,
+    body: { familyId: fx.familyA, name: '红烧鲫鱼', category: '家常菜' },
+  });
+  expectCode('POST /menu/items 加菜谱', added, 0);
+  const newDish = added.body?.data ?? {};
+  check('返回 id 为正整数', Number.isInteger(newDish.id) && newDish.id > 0, String(newDish.id));
+  check('source=FAMILY', newDish.source === 'FAMILY', String(newDish.source));
+  check('canEdit=true', newDish.canEdit === true);
+  check('默认 enabled=true', newDish.enabled === true);
+  check('category 原样返回', newDish.category === '家常菜', String(newDish.category));
+  check('imageUrl 默认 null', newDish.imageUrl === null, String(newDish.imageUrl));
+
+  expectCode(
+    '同一个家里重名 → 40900（否则随机可能连出两个同名菜）',
+    await api('POST', '/api/menu/items', {
+      token: t1,
+      body: { familyId: fx.familyA, name: '红烧鲫鱼' },
+    }),
+    40900,
+  );
+  check(
+    '换一家加同名菜谱可以（重名只限本家庭）',
+    (
+      await api('POST', '/api/menu/items', {
+        token: t5,
+        body: { familyId: fx.familyB, name: '红烧鲫鱼' },
+      })
+    ).body?.code === 0,
+  );
+
+  // 加完之后池子应该 +1（甲乙两家的池子各 +1）
+  const poolAfterAdd = await api(
+    'GET',
+    `/api/menu/random?familyId=${fx.familyA}&excludeRecent=false`,
+    { token: t1 },
+  );
+  check(
+    '加菜谱后池子 +1',
+    poolAfterAdd.body?.data?.poolSize === poolSizeAll + 1,
+    `${poolSizeAll} → ${poolAfterAdd.body?.data?.poolSize}`,
+  );
+
+  // ---- 改 ----
+  expectCode(
+    '改不存在的菜谱 → 40400',
+    await api('PATCH', '/api/menu/items/99999999', { token: t1, body: { name: '幽灵菜' } }),
+    40400,
+  );
+  expectCode(
+    '改**别人家**的菜谱 → 40300（与小事模块 contextForThing 同一语义：' +
+      '「存在但你不在这个家」给准确原因，不涉及隐私内容）',
+    await api('PATCH', `/api/menu/items/${fx.dishB}`, { token: t1, body: { name: '我改' } }),
+    40300,
+  );
+  expectCode(
+    '改系统菜谱（系统菜谱没有 id，用不存在的 id 代替）→ 40400',
+    await api('PATCH', '/api/menu/items/1', { token: t1, body: { name: '我改' } }),
+    40400,
+  );
+  expectCode(
+    '菜谱 id 非数字 → 40001',
+    await api('PATCH', '/api/menu/items/abc', { token: t1, body: { name: '我改' } }),
+    40001,
+  );
+  expectCode(
+    '非成员改菜谱 → 40300',
+    await api('PATCH', `/api/menu/items/${newDish.id}`, { token: t3, body: { name: '我改' } }),
+    40300,
+  );
+
+  const renamed = await api('PATCH', `/api/menu/items/${newDish.id}`, {
+    token: t1,
+    body: { name: ' 清蒸鲈鱼 ', category: '家常菜' },
+  });
+  expectCode('改菜名（带空白）', renamed, 0);
+  check('菜名已 trim', renamed.body?.data?.name === '清蒸鲈鱼', String(renamed.body?.data?.name));
+
+  expectCode(
+    '改成自家另一道菜的名字 → 40900',
+    await api('PATCH', `/api/menu/items/${newDish.id}`, {
+      token: t1,
+      body: { name: '妈妈牌红烧肉' },
+    }),
+    40900,
+  );
+  check(
+    '改成**自己原来的**名字不算重名（exceptId 生效）',
+    (
+      await api('PATCH', `/api/menu/items/${newDish.id}`, {
+        token: t1,
+        body: { name: '清蒸鲈鱼' },
+      })
+    ).body?.code === 0,
+  );
+
+  const clearedCategory = await api('PATCH', `/api/menu/items/${newDish.id}`, {
+    token: t1,
+    body: { category: null },
+  });
+  expectCode('把分类清空', clearedCategory, 0);
+  check('category 变成 null', clearedCategory.body?.data?.category === null);
+  check('只传 category 时 name 不动', clearedCategory.body?.data?.name === '清蒸鲈鱼');
+
+  // ---- 启停 ----
+  expectCode(
+    'enabled 缺字段 → 40001',
+    await api('PATCH', `/api/menu/items/${newDish.id}/enabled`, { token: t1, body: {} }),
+    40001,
+  );
+  expectCode(
+    'enabled 传垃圾值 → 40001',
+    await api('PATCH', `/api/menu/items/${newDish.id}/enabled`, {
+      token: t1,
+      body: { enabled: 'maybe' },
+    }),
+    40001,
+  );
+  expectCode(
+    '非成员启停 → 40300',
+    await api('PATCH', `/api/menu/items/${newDish.id}/enabled`, {
+      token: t3,
+      body: { enabled: false },
+    }),
+    40300,
+  );
+
+  // ⚠️ 这里刻意传**字符串** 'false' —— 回归测试 `@ParseBoolean()`。
+  //    全局 enableImplicitConversion 会把 Boolean('false') 变成 true。
+  const disabled = await api('PATCH', `/api/menu/items/${newDish.id}/enabled`, {
+    token: t1,
+    body: { enabled: 'false' },
+  });
+  expectCode("enabled 传字符串 'false'（回归：不能被隐式转换吃成 true）", disabled, 0);
+  check(
+    'enabled=false',
+    disabled.body?.data?.enabled === false,
+    String(disabled.body?.data?.enabled),
+  );
+
+  const listAfterDisable = await api('GET', `/api/menu/items?familyId=${fx.familyA}&pageSize=200`, {
+    token: t1,
+  });
+  const disabledRow = (listAfterDisable.body?.data?.list ?? []).find((r) => r.id === newDish.id);
+  check('停用的菜谱**仍然出现在列表里**（否则用户找不到它去重新启用）', disabledRow != null);
+  check('列表里该行 enabled=false', disabledRow?.enabled === false);
+
+  const poolAfterDisable = await api(
+    'GET',
+    `/api/menu/random?familyId=${fx.familyA}&excludeRecent=false`,
+    { token: t1 },
+  );
+  check(
+    '停用后**不进随机池**（池子退回原大小）',
+    poolAfterDisable.body?.data?.poolSize === poolSizeAll,
+    String(poolAfterDisable.body?.data?.poolSize),
+  );
+
+  const reEnabled = await api('PATCH', `/api/menu/items/${newDish.id}/enabled`, {
+    token: t1,
+    body: { enabled: true },
+  });
+  expectCode('重新启用', reEnabled, 0);
+  check('enabled=true', reEnabled.body?.data?.enabled === true);
+
+  // ---------- 9. 一键派活（M3-7） ----------
+  phase('9. 一键派活 POST /menu/decide-and-assign');
+
+  expectCode(
+    '无 token → 40100',
+    await api('POST', '/api/menu/decide-and-assign', {
+      body: {
+        familyId: fx.familyA,
+        mealType: 'DINNER',
+        items: [{ name: '番茄炒蛋' }],
+        assigneeMemberId: fx.memberA2,
+      },
+    }),
+    40100,
+  );
+  expectCode(
+    '非成员 → 40300',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t3,
+      body: {
+        familyId: fx.familyA,
+        mealType: 'DINNER',
+        items: [{ name: '番茄炒蛋' }],
+        assigneeMemberId: fx.memberA2,
+      },
+    }),
+    40300,
+  );
+  expectCode(
+    '缺 assigneeMemberId → 40001',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t1,
+      body: { familyId: fx.familyA, mealType: 'DINNER', items: [{ name: '番茄炒蛋' }] },
+    }),
+    40001,
+  );
+  expectCode(
+    'items 空 → 40001',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t1,
+      body: { familyId: fx.familyA, mealType: 'DINNER', items: [], assigneeMemberId: fx.memberA2 },
+    }),
+    40001,
+  );
+  expectCode(
+    '派给不在这个家的人 → 40001',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t1,
+      body: {
+        familyId: fx.familyA,
+        mealType: 'DINNER',
+        items: [{ name: '番茄炒蛋' }],
+        assigneeMemberId: 99999999,
+      },
+    }),
+    40001,
+  );
+  expectCode(
+    'withReminder=true 但既没 remindAt 也没 dueAt → 40001（不猜一个时间）',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t1,
+      body: {
+        familyId: fx.familyA,
+        mealType: 'DINNER',
+        items: [{ name: '番茄炒蛋' }],
+        assigneeMemberId: fx.memberA2,
+        withReminder: true,
+      },
+    }),
+    40001,
+  );
+  expectCode(
+    'dueAt 格式不对 → 40001',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t1,
+      body: {
+        familyId: fx.familyA,
+        mealType: 'DINNER',
+        items: [{ name: '番茄炒蛋' }],
+        assigneeMemberId: fx.memberA2,
+        dueAt: '2026/09/28 18:00',
+      },
+    }),
+    40001,
+  );
+
+  // ---- 事务性：失败的请求不能留下任何半成品 ----
+  const mealsBefore = await prisma.mealRecord.count({ where: { familyId: BigInt(fx.familyA) } });
+  const thingsBefore = await prisma.familyThing.count({ where: { familyId: BigInt(fx.familyA) } });
+  expectCode(
+    '越权（拿别家 menuItemId）→ 40001',
+    await api('POST', '/api/menu/decide-and-assign', {
+      token: t1,
+      body: {
+        familyId: fx.familyA,
+        mealType: 'DINNER',
+        items: [{ menuItemId: fx.dishB, name: '乙家私房菜' }],
+        assigneeMemberId: fx.memberA2,
+      },
+    }),
+    40001,
+  );
+  check(
+    '失败的请求没写 meal_records',
+    (await prisma.mealRecord.count({ where: { familyId: BigInt(fx.familyA) } })) === mealsBefore,
+  );
+  check(
+    '失败的请求没写 family_things',
+    (await prisma.familyThing.count({ where: { familyId: BigInt(fx.familyA) } })) === thingsBefore,
+  );
+
+  // ---- 成功路径 ----
+  const assigned = await api('POST', '/api/menu/decide-and-assign', {
+    token: t1,
+    body: {
+      familyId: fx.familyA,
+      mealType: 'DINNER',
+      items: [{ name: '番茄炒蛋' }, { name: '炒青菜' }],
+      assigneeMemberId: fx.memberA2,
+    },
+  });
+  expectCode('POST /menu/decide-and-assign', assigned, 0);
+  const asg = assigned.body?.data ?? {};
+  check(
+    '返回 thingId 为正整数',
+    Number.isInteger(asg.thingId) && asg.thingId > 0,
+    String(asg.thingId),
+  );
+  check(
+    '返回 2 个 mealRecordIds',
+    (asg.mealRecordIds ?? []).length === 2,
+    JSON.stringify(asg.mealRecordIds),
+  );
+  check(
+    'title = 「今晚做饭：番茄炒蛋、炒青菜」',
+    asg.title === '今晚做饭：番茄炒蛋、炒青菜',
+    String(asg.title),
+  );
+
+  const assignedThing = await api('GET', `/api/family-things/${asg.thingId}`, { token: t1 });
+  expectCode('读回生成的小事', assignedThing, 0);
+  const at = assignedThing.body?.data ?? {};
+  check('type=TASK', at.type === 'TASK', String(at.type));
+  check('status=PENDING', at.status === 'PENDING', String(at.status));
+  check(
+    'visibility 默认 FAMILY（与 POST /family-things 一致）',
+    at.visibility === 'FAMILY',
+    String(at.visibility),
+  );
+  check('title 与响应一致', at.title === asg.title, String(at.title));
+  check('assignee 是阿妈', at.assignee?.roleName === '阿妈', String(at.assignee?.roleName));
+  check('creator 是阿爸', at.creator?.roleName === '阿爸', String(at.creator?.roleName));
+  check(
+    'content 为 null（菜名在 title 里，列表行才看得见）',
+    at.content === null,
+    String(at.content),
+  );
+  check('dueAt=null（P02 不问时间）', at.dueAt === null, String(at.dueAt));
+  check('hasReminder=false（没传 withReminder）', at.hasReminder === false);
+
+  // ⚠️ 「形状完全相同」是 docs/02 §6.8 的硬要求 —— 逐字段比对键集合
+  const plainThing = await api('POST', '/api/family-things', {
+    token: t1,
+    body: {
+      familyId: fx.familyA,
+      type: 'TASK',
+      title: '对照组：手工派活',
+      assigneeMemberId: fx.memberA2,
+    },
+  });
+  expectCode('对照组：直接 POST /family-things', plainThing, 0);
+  check(
+    '两条路径产出的小事**字段集合完全一致**（不另写一份派活逻辑）',
+    JSON.stringify(Object.keys(assignedThing.body?.data ?? {}).sort()) ===
+      JSON.stringify(Object.keys(plainThing.body?.data ?? {}).sort()),
+    `${JSON.stringify(Object.keys(assignedThing.body?.data ?? {}).sort())} vs ${JSON.stringify(Object.keys(plainThing.body?.data ?? {}).sort())}`,
+  );
+  check(
+    '两条路径的 visibility 一致',
+    assignedThing.body?.data?.visibility === plainThing.body?.data?.visibility,
+    `${assignedThing.body?.data?.visibility} vs ${plainThing.body?.data?.visibility}`,
+  );
+
+  const asgMeals = await prisma.mealRecord.findMany({
+    where: { familyId: BigInt(fx.familyA), name: { in: ['番茄炒蛋', '炒青菜'] } },
+    orderBy: { id: 'desc' },
+    take: 4,
+    select: { name: true, mealType: true },
+  });
+  check(
+    '用餐记录已写入（name 快照）',
+    asgMeals.some((r) => r.name === '番茄炒蛋') && asgMeals.some((r) => r.name === '炒青菜'),
+    JSON.stringify(asgMeals.map((r) => r.name)),
+  );
+  check(
+    '写入的 mealRecordIds 与库里的对得上',
+    (await prisma.mealRecord.count({
+      where: {
+        id: { in: (asg.mealRecordIds ?? []).map((id) => BigInt(id)) },
+        familyId: BigInt(fx.familyA),
+      },
+    })) === 2,
+  );
+
+  const asgLog = await prisma.notificationLog.findFirst({
+    where: { thingId: BigInt(asg.thingId), type: 1 },
+    orderBy: { id: 'desc' },
+  });
+  check('派活通知已写 notification_logs（type=TASK_ASSIGNED）', asgLog != null);
+  check('通知接收人是阿妈', Number(asgLog?.userId) === fx.m2, String(asgLog?.userId));
+
+  // ---- withReminder ----
+  const withReminder = await api('POST', '/api/menu/decide-and-assign', {
+    token: t1,
+    body: {
+      familyId: fx.familyA,
+      mealType: 'DINNER',
+      items: [{ name: '红烧带鱼' }],
+      assigneeMemberId: fx.memberA2,
+      withReminder: true,
+      remindAt: todayAt(17, 30),
+    },
+  });
+  expectCode('withReminder=true + remindAt', withReminder, 0);
+  const remThing = await api('GET', `/api/family-things/${withReminder.body?.data?.thingId}`, {
+    token: t1,
+  });
+  check('hasReminder=true', remThing.body?.data?.hasReminder === true);
+  check(
+    '提醒类型 SCHEDULED、时间对得上',
+    remThing.body?.data?.reminders?.[0]?.remindType === 'SCHEDULED' &&
+      remThing.body?.data?.reminders?.[0]?.remindAt === todayAt(17, 30),
+    JSON.stringify(remThing.body?.data?.reminders?.[0]),
+  );
+  check(
+    '提醒接收人默认是执行人（阿妈）',
+    Number(
+      (
+        await prisma.thingReminder.findFirst({
+          where: { thingId: BigInt(withReminder.body?.data?.thingId), remindType: 2 },
+          select: { recipientMemberId: true },
+        })
+      )?.recipientMemberId,
+    ) === fx.memberA2,
+  );
+
+  const dueOnly = await api('POST', '/api/menu/decide-and-assign', {
+    token: t1,
+    body: {
+      familyId: fx.familyA,
+      mealType: 'DINNER',
+      items: [{ name: '蒜蓉西兰花' }],
+      assigneeMemberId: fx.memberA2,
+      dueAt: todayAt(19, 0),
+      withReminder: true,
+    },
+  });
+  expectCode('withReminder=true 且只给 dueAt → 到点提醒', dueOnly, 0);
+  const dueOnlyThing = await api('GET', `/api/family-things/${dueOnly.body?.data?.thingId}`, {
+    token: t1,
+  });
+  check('dueAt 已写入', dueOnlyThing.body?.data?.dueAt === todayAt(19, 0));
+  check(
+    '提醒时间取 dueAt',
+    dueOnlyThing.body?.data?.reminders?.[0]?.remindAt === todayAt(19, 0),
+    String(dueOnlyThing.body?.data?.reminders?.[0]?.remindAt),
+  );
+
+  // 自己派给自己：不该产生派活通知
+  const selfAssign = await api('POST', '/api/menu/decide-and-assign', {
+    token: t1,
+    body: {
+      familyId: fx.familyA,
+      mealType: 'LUNCH',
+      items: [{ name: '蛋炒饭' }],
+      assigneeMemberId: fx.ownerA,
+    },
+  });
+  expectCode('派给自己', selfAssign, 0);
+  check(
+    'title 用「做午饭」前缀',
+    selfAssign.body?.data?.title === '做午饭：蛋炒饭',
+    String(selfAssign.body?.data?.title),
+  );
+  check(
+    '自己派给自己不发派活通知',
+    (await prisma.notificationLog.count({
+      where: { thingId: BigInt(selfAssign.body?.data?.thingId), type: 1 },
+    })) === 0,
+  );
+
+  // ---------- 10. 观察项 ----------
+  phase('10. 观察项（非阻塞）');
   note('「排除最近吃过的」判据是**菜名**，不是 id —— 所以改名 = 新增一道菜，');
   note('  旧的 meal_records 仍留改名前的快照（这正是历史快照想要的行为）。');
   note('随机是**真随机**：同一条件下连抽两次结果可能不同，脚本因此用 poolSize 与');
@@ -932,6 +1426,16 @@ async function main() {
   note('  所以断言写成「包含三类」而不是「恰好三类」。');
   note('系统菜谱共 72 条是 `default-menu.ts` 里的显式不变量；若有意增删，');
   note('  需同步更新本脚本的 SYSTEM_DISH_COUNT 与 docs 里的数字。');
+  note('菜谱管理（第 8 节）里 `enabled` 刻意传**字符串** `"false"` ——');
+  note('  这是 `@ParseBoolean()` 的回归测试：全局 enableImplicitConversion');
+  note('  会把 `Boolean("false")` 变成 `true`，参数过了校验但行为是反的。');
+  note('「一键派活」（第 9 节）逐字段比对了它生成的小事与 `POST /family-things`');
+  note('  生成的小事 —— 键集合必须**完全一致**（docs/02 §6.8 要求两条路径不各长一套）。');
+  note('⚠️ 事务回滚只验到「prepare 阶段失败不留半成品」这一档：');
+  note('  `prepareThing` 里有一次微信内容安全的网络往返，**必须在事务外**，');
+  note('  所以「越权 / 缺参数 / 时间格式错」都在开事务之前就抛了。');
+  note('  真正的「事务中途失败回滚」没法从公开接口触发（DTO 已经把能写坏数据的');
+  note('  输入都挡住了），只能靠代码结构保证：prepare → $transaction → dispatch。');
 
   // ---------- 汇总 ----------
   console.log(`\n${'='.repeat(66)}`);
