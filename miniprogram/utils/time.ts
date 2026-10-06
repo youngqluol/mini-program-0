@@ -20,6 +20,8 @@ export function parseBeijingTime(value: string): Date | null {
  *
  * 刻意不显示绝对时间（「10 月 9 日 12:00 过期」）—— 用户真正想知道的是
  * 「我现在还来得及吗」，相对时间才是这个问题的答案。
+ *
+ * 三档：分钟（P21 的绑定码只有 10 分钟）/ 小时 / 天（P15 的邀请码是 72 小时）。
  */
 export function describeExpire(expireAt: string): string {
   const d = parseBeijingTime(expireAt);
@@ -28,8 +30,11 @@ export function describeExpire(expireAt: string): string {
   const ms = d.getTime() - Date.now();
   if (ms <= 0) return '已经过期了';
 
+  const minutes = ms / 60000;
+  // 不足 1 分钟也说「1 分钟」：说「0 分钟后过期」等于告诉用户已经没了
+  if (minutes < 60) return `${Math.max(1, Math.floor(minutes))} 分钟后过期`;
+
   const hours = ms / 3600000;
-  if (hours < 1) return '1 小时内过期';
   if (hours < 24) return `${Math.floor(hours)} 小时后过期`;
   return `${Math.floor(hours / 24)} 天后过期`;
 }

@@ -12,6 +12,8 @@
  */
 
 import type { AuthUser, MyFamilyBrief } from '@shared/dto/auth';
+import type { MpBindStatus } from '@shared/dto/notify';
+import { describeExpire, describeMoment } from './time';
 
 // ---------------------------------------------------------------
 // 抬头（头像 + 名字 + 一行小字）
@@ -108,4 +110,79 @@ export function buildLeaveRow(isOwner: boolean): LeaveRowView {
     return { show: false, hint: '你是这个家的创建者，想结束的话去「家庭设置」解散这个家' };
   }
   return { show: true, hint: '' };
+}
+
+// ---------------------------------------------------------------
+// 「微信提醒」这一行（P20）
+// ---------------------------------------------------------------
+
+export interface NotifyRowView {
+  /** 「已开启」/「还没开」 */
+  text: string;
+  /** 没开时用 `--warning` 色：这是一件「还没做」的事，值得一眼看见 */
+  warn: boolean;
+}
+
+export function buildWechatNotifyRow(bound: boolean): NotifyRowView {
+  return bound ? { text: '已开启', warn: false } : { text: '还没开', warn: true };
+}
+
+// ---------------------------------------------------------------
+// 「微信提醒」页（P21）
+// ---------------------------------------------------------------
+
+/** `ON` = 已开启；`SETUP` = 还没开，要扫码 + 发数字 */
+export type WechatNotifyMode = 'ON' | 'SETUP';
+
+export interface WechatNotifyView {
+  mode: WechatNotifyMode;
+  /** 已开启时：「今天 21:03 开启」；取不到时间时退回一句「已经开启」 */
+  boundAtText: string;
+  /** 六位数字，每 3 位一组（「735 241」） */
+  codeText: string;
+  /** 「9 分钟后过期」 */
+  expireText: string;
+  /** 手里有没有一串可用的数字 —— 页面据此决定要不要渲染「②」那一块 */
+  hasCode: boolean;
+}
+
+/**
+ * 把绑定状态翻成页面要显示的那几个字段。
+ *
+ * ⚠️ 文案纪律（docs/03 P21）：**不许出现「绑定 / 授权 / 公众号 / openid /
+ *    订阅 / 模板消息 / 测试号」**。所以这里一个都没有 —— 数字就叫「数字」，
+ *    开好了就叫「已经开启啦」。用户不需要知道背后是谁在转发消息。
+ */
+export function buildWechatNotifyView(status: MpBindStatus): WechatNotifyView {
+  if (status.bound) {
+    const at = status.boundAt ? describeMoment(status.boundAt) : '';
+    return {
+      mode: 'ON',
+      // 后端理论上一定给 boundAt，但拿不到时不能说「 开启」这种半句话
+      boundAtText: at ? `${at} 开启` : '已经开启',
+      codeText: '',
+      expireText: '',
+      hasCode: false,
+    };
+  }
+
+  const code = status.bindCode ?? '';
+  return {
+    mode: 'SETUP',
+    boundAtText: '',
+    codeText: groupCode(code),
+    expireText: status.bindCodeExpireAt ? describeExpire(status.bindCodeExpireAt) : '',
+    hasCode: code.length > 0,
+  };
+}
+
+/**
+ * 「735241」→「735 241」。
+ *
+ * 每 3 位一组，因为用户要做的事是**看着屏幕、在微信里把这串数字打出来** ——
+ * 一长串连读容易念错，也容易看串行。分组之后一眼能数清是 6 位。
+ */
+function groupCode(code: string): string {
+  if (!code) return '';
+  return code.replace(/(.{3})(?=.)/g, '$1 ');
 }
