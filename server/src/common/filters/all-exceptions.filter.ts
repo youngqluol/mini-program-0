@@ -25,6 +25,7 @@ interface ErrorBody {
  *   HttpException 401  → 40100 未登录（同时返回 HTTP 401，供前端拦截）
  *   HttpException 403  → 40301 无权限
  *   HttpException 404  → 40400 资源不存在
+ *   HttpException 413  → 40001 文件过大（换成中文，见下方注释）
  *   其他 / 未知        → 50000 服务端异常（记完整堆栈，但不回传给用户）
  */
 @Catch()
@@ -69,6 +70,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // ② 其他 HttpException：按状态码归一到业务错误码
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
+
+      // 413 请求体过大 —— 全项目只有 `POST /upload/image` 会产生它
+      // （multer 的 `limits.fileSize` 在流式解析时中止超限上传）。
+      // ⚠️ 必须在这里换成中文：框架/multer 带的是英文原文
+      //    （`File too large`），会原样漏给用户看。
+      //    也**不能**走 50000 —— 那是用户的问题，不是服务端故障。
+      if (status === HttpStatus.PAYLOAD_TOO_LARGE) {
+        return {
+          code: ErrorCode.INVALID_PARAM,
+          message: '这个文件太大啦，换个小一点儿的吧',
+          status: httpStatusOf(ErrorCode.INVALID_PARAM),
+        };
+      }
+
       const code = this.mapStatus(status);
 
       // ValidationPipe 抛出的 message 是 string[]，取第一条最具体的信息
