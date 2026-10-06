@@ -126,6 +126,8 @@
   - 策略唯一出口 `server/src/modules/wechat/content-security.service.ts`：
     **`risky` 拦（40002），`review` 与「判不了」放行**（fail-open，理由见文件头）
   - ⚠️ 冒烟验不到「违规被拦」：夹具 openid 是假的（`smoke_xxx`）→ 微信必回 40003 → 走放行。别被全绿骗了
+- **`client_msg_id` 是微信侧的 24 小时去重键** —— 补偿重发必须换 ID（加 `-r{n}` 后缀），
+  原样重发会被微信直接拦掉，补偿就成了空转（见 `DispatchOptions.attempt`）
 - **已排除**：认证服务号模板消息（需企业主体）、企业微信、原生 App（PRD 6.5.4）
 
 ## V0.1 明确不做
