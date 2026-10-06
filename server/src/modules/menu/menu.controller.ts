@@ -1,19 +1,27 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FamilyMemberCtx } from '../families/decorators/family-member.decorator';
 import { FamilyMemberGuard } from '../families/guards/family-member.guard';
 import type { FamilyMemberContext } from '../families/family-context';
+import { parseBigInt } from '../../common/pipes/parse-bigint.pipe';
 import type {
+  DecideAndAssignResponse,
   DecideMenuResponse,
   ListMenuItemsResponse,
+  MenuItemRow,
   RandomMenuResponse,
   RecentMealGroup,
 } from '@shared/dto/menu';
 import { MenuService } from './menu.service';
 import {
+  CreateMenuItemDto,
+  DecideAndAssignDto,
   DecideMenuDto,
   ListMenuItemsQueryDto,
   RandomMenuQueryDto,
   RecentMealsQueryDto,
+  SetMenuItemEnabledDto,
+  UpdateMenuItemDto,
 } from './dto/menu.dto';
 
 /**
@@ -29,9 +37,14 @@ import {
  *   PATCH  /api/menu/items/:id          改家庭菜谱（M3-5）
  *   PATCH  /api/menu/items/:id/enabled  启停家庭菜谱（M3-5）
  *
- * **全部挂 `FamilyMemberGuard`**：吃啥呢的每个接口都以家庭为边界
- * （池子 = 系统菜谱 + **本家庭**菜谱），所以家庭上下文必须有，
- * 而且 `familyId` 都能从 query / body 直接读到，不需要反查。
+ * **除两个 `PATCH /items/:id` 之外，全部挂 `FamilyMemberGuard`**：
+ * 吃啥呢的每个接口都以家庭为边界（池子 = 系统菜谱 + **本家庭**菜谱），
+ * 所以家庭上下文必须有，而 `familyId` 都能从 query / body 直接读到，不需要反查。
+ *
+ * ⚠️ **两个 `PATCH /items/:id` 是例外**：它们的 URL 与 body 里都没有 `familyId`
+ * （body 只有 `name` / `category` / `imageUrl`），守卫无从下手。
+ * 改由 `MenuService.contextForItem(userId, id)` 从**菜谱本身**反查家庭 ——
+ * 与小事模块的 `PATCH /family-things/:id` 同一个模式。
  *
  * ⚠️ **数据权限过滤必须在服务端做**（AGENTS.md 铁律）：
  * 「这个菜谱是不是我家的」由 `MenuService` 在写库前校验，
@@ -79,5 +92,54 @@ export class MenuController {
     @Body() dto: DecideMenuDto,
   ): Promise<DecideMenuResponse> {
     return this.menu.decide(ctx, dto);
+  }
+
+  /** 一键派活（M3-7）—— 记录 + 派活 + 提醒，一个事务 */
+  @Post('decide-and-assign')
+  @UseGuards(FamilyMemberGuard)
+  async decideAndAssign(
+    @FamilyMemberCtx() ctx: FamilyMemberContext,
+    @Body() dto: DecideAndAssignDto,
+  ): Promise<DecideAndAssignResponse> {
+    return this.menu.decideAndAssign(ctx, dto);
+  }
+
+  /** 新增家庭菜谱（M3-5） */
+  @Post('items')
+  @UseGuards(FamilyMemberGuard)
+  async createItem(
+    @FamilyMemberCtx() ctx: FamilyMemberContext,
+    @Body() dto: CreateMenuItemDto,
+  ): Promise<MenuItemRow> {
+    return this.menu.createItem(ctx, dto);
+  }
+
+  /**
+   * 改家庭菜谱（M3-5）。
+   *
+   * ⚠️ **刻意不挂 `FamilyMemberGuard`**：URL 与 body 里都没有 `familyId`
+   * （body 只有 `name` / `category` / `imageUrl`），守卫拿不到家庭上下文。
+   * 改由 `contextForItem` 从**菜谱本身**反查 —— 菜谱自己就知道属于哪个家。
+   * 这与小事模块的 `PATCH /family-things/:id` 是同一个模式。
+   */
+  @Patch('items/:id')
+  async updateItem(
+    @CurrentUser('userId') userId: bigint,
+    @Param('id', parseBigInt('这道菜谱')) id: bigint,
+    @Body() dto: UpdateMenuItemDto,
+  ): Promise<MenuItemRow> {
+    const ctx = await this.menu.contextForItem(userId, id);
+    return this.menu.updateItem(ctx, id, dto);
+  }
+
+  /** 停用 / 启用家庭菜谱（M3-5）—— 同上，靠 `contextForItem` 反查 */
+  @Patch('items/:id/enabled')
+  async setItemEnabled(
+    @CurrentUser('userId') userId: bigint,
+    @Param('id', parseBigInt('这道菜谱')) id: bigint,
+    @Body() dto: SetMenuItemEnabledDto,
+  ): Promise<MenuItemRow> {
+    const ctx = await this.menu.contextForItem(userId, id);
+    return this.menu.setItemEnabled(ctx, id, dto.enabled);
   }
 }
