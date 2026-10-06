@@ -654,9 +654,10 @@ async function main() {
       assigneeMemberId: fx.member2Id,
     },
   });
+  const ownerCompletedId = forOwner.body?.data?.id;
   expectCode(
     '家庭创建者替执行人完成 → 0',
-    await api('POST', `/api/family-things/${forOwner.body?.data?.id}/complete`, { token: t1 }),
+    await api('POST', `/api/family-things/${ownerCompletedId}/complete`, { token: t1 }),
     0,
   );
 
@@ -763,11 +764,205 @@ async function main() {
   check('重开后 completedAt=null', reopenedDone.body?.data?.completedAt === null);
   check('重开后 completedBy=null', reopenedDone.body?.data?.completedBy === null);
 
-  // ---------- 11. 观察项 ----------
-  phase('11. 观察项（非阻塞）');
+  // ---------- 11. 提醒：立即叮一下 / 收件箱 / 加取消 ----------
+  phase('11. 提醒模块（M2-B17 / M2-B24 / docs/02 §5.1 / §5.2）');
+  const selfNudgeReminderId = selfNudge.body?.data?.reminders?.[0]?.id;
+
+  expectCode(
+    'nudge 既没有 thingId 也没有 content → 40001',
+    await api('POST', '/api/reminders/nudge', {
+      token: t1,
+      body: { familyId: fx.familyId, recipientMemberId: fx.member2Id },
+    }),
+    40001,
+  );
+  expectCode(
+    'nudge 叮一个不在这个家的人 → 40001',
+    await api('POST', '/api/reminders/nudge', {
+      token: t1,
+      body: { familyId: fx.familyId, recipientMemberId: 99999999, content: '喂' },
+    }),
+    40001,
+  );
+  expectCode(
+    'nudge 非成员调用 → 40300',
+    await api('POST', '/api/reminders/nudge', {
+      token: t3,
+      body: { familyId: fx.familyId, recipientMemberId: fx.member2Id, content: '喂' },
+    }),
+    40300,
+  );
+
+  const nudged = await api('POST', '/api/reminders/nudge', {
+    token: t1,
+    body: { familyId: fx.familyId, recipientMemberId: fx.member2Id, content: '顺路带瓶酱油' },
+  });
+  expectCode('nudge 纯叮一下（自动建 REMINDER 小事）', nudged, 0);
+  const nd = nudged.body?.data ?? {};
+  check('返回 thingId 与 reminderId', Number.isInteger(nd.thingId) && Number.isInteger(nd.reminderId));
+  check(
+    'deliveryStatus=NOT_BOUND（对方没开微信提醒）',
+    nd.deliveryStatus === 'NOT_BOUND',
+    String(nd.deliveryStatus),
+  );
+  check('deliveryChannel=IN_APP（站内兜底）', nd.deliveryChannel === 'IN_APP', String(nd.deliveryChannel));
+  check(
+    'quotaRemaining 为数字或 null',
+    nd.quotaRemaining === null || Number.isInteger(nd.quotaRemaining),
+    String(nd.quotaRemaining),
+  );
+
+  const nudgedThing = await api('GET', `/api/family-things/${nd.thingId}`, { token: t1 });
+  check('自动建的小事 type=REMINDER', nudgedThing.body?.data?.type === 'REMINDER');
+  check('自动建的小事 visibility=RELATED', nudgedThing.body?.data?.visibility === 'RELATED');
+  check('自动建的小事 title 取 content', nudgedThing.body?.data?.title === '顺路带瓶酱油');
+  check('自动建的小事 assignee 是阿妈', nudgedThing.body?.data?.assignee?.roleName === '阿妈');
+
+  const nudgeLog2 = await prisma.notificationLog.findFirst({
+    where: { thingId: BigInt(nd.thingId), type: 2 },
+  });
+  check('nudge 也写了 notification_logs', nudgeLog2 != null);
+
+  const nudgedOnExisting = await api('POST', '/api/reminders/nudge', {
+    token: t1,
+    body: { familyId: fx.familyId, recipientMemberId: fx.member2Id, thingId: nudge.id },
+  });
+  expectCode('nudge 关联已有小事', nudgedOnExisting, 0);
+  check('返回的 thingId 就是那条小事', nudgedOnExisting.body?.data?.thingId === nudge.id);
+
+  expectCode(
+    'nudge 一条已完成的小事 → 40900',
+    await api('POST', '/api/reminders/nudge', {
+      token: t1,
+      body: { familyId: fx.familyId, recipientMemberId: fx.member2Id, thingId: ownerCompletedId },
+    }),
+    40900,
+  );
+
+  // 收件箱
+  const inbox2 = await api('GET', `/api/reminders/inbox?familyId=${fx.familyId}`, { token: t2 });
+  expectCode('GET /reminders/inbox（阿妈）', inbox2, 0);
+  const inboxList = inbox2.body?.data?.list ?? [];
+  check('收件箱含刚叮给阿妈的那条', inboxList.some((x) => x.thingId === nd.thingId));
+  check('收件箱 unreadCount > 0', (inbox2.body?.data?.unreadCount ?? 0) > 0);
+  const inboxRow = inboxList.find((x) => x.thingId === nd.thingId) ?? {};
+  check('收件箱条目 fromRoleName=阿爸', inboxRow.fromRoleName === '阿爸', String(inboxRow.fromRoleName));
+  check('收件箱条目 isRead=false', inboxRow.isRead === false);
+  check('收件箱条目 remindAt 为北京时间格式', DATE_RE.test(inboxRow.remindAt ?? ''), String(inboxRow.remindAt));
+
+  const inbox1 = await api('GET', `/api/reminders/inbox?familyId=${fx.familyId}`, { token: t1 });
+  check(
+    '阿爸的收件箱里没有叮给阿妈的那条',
+    !(inbox1.body?.data?.list ?? []).some((x) => x.thingId === nd.thingId),
+  );
+
+  const unreadBefore = inbox2.body?.data?.unreadCount ?? 0;
+  expectCode(
+    '标记已读',
+    await api('POST', `/api/reminders/inbox/${inboxRow.id}/read`, { token: t2 }),
+    0,
+  );
+  const inboxAfter = await api('GET', `/api/reminders/inbox?familyId=${fx.familyId}`, { token: t2 });
+  const readRow = (inboxAfter.body?.data?.list ?? []).find((x) => x.id === inboxRow.id) ?? {};
+  check('标记后 isRead=true', readRow.isRead === true);
+  check(
+    '标记后 unreadCount 少 1',
+    inboxAfter.body?.data?.unreadCount === unreadBefore - 1,
+    `${unreadBefore} → ${inboxAfter.body?.data?.unreadCount}`,
+  );
+  expectCode(
+    '重复标记（幂等）',
+    await api('POST', `/api/reminders/inbox/${inboxRow.id}/read`, { token: t2 }),
+    0,
+  );
+  expectCode(
+    '标记别人收到的提醒 → 40400',
+    await api('POST', `/api/reminders/inbox/${selfNudgeReminderId}/read`, { token: t2 }),
+    40400,
+  );
+  expectCode(
+    '提醒 id 非数字 → 40001',
+    await api('POST', '/api/reminders/inbox/abc/read', { token: t2 }),
+    40001,
+  );
+
+  // 给已有小事加 / 取消提醒
+  const reminderHost = await api('POST', '/api/family-things', {
+    token: t1,
+    body: {
+      familyId: fx.familyId,
+      type: 'TASK',
+      title: '拿来加提醒的活',
+      assigneeMemberId: fx.member2Id,
+    },
+  });
+  const hostId = reminderHost.body?.data?.id;
+
+  expectCode(
+    '加提醒缺 remindAt 的 SCHEDULED → 40001',
+    await api('POST', `/api/family-things/${hostId}/reminders`, {
+      token: t1,
+      body: { remindType: 'SCHEDULED' },
+    }),
+    40001,
+  );
+  expectCode(
+    '同家成员但非创建者（阿公）加提醒 → 40301',
+    await api('POST', `/api/family-things/${hostId}/reminders`, {
+      token: t4,
+      body: { remindType: 'SCHEDULED', remindAt: todayAt(20, 0) },
+    }),
+    40301,
+  );
+
+  const added = await api('POST', `/api/family-things/${hostId}/reminders`, {
+    token: t1,
+    body: { remindType: 'SCHEDULED', remindAt: todayAt(20, 0) },
+  });
+  expectCode('创建者给小事补一条提醒', added, 0);
+  check(
+    '返回更新后的小事详情（reminders 多一条）',
+    (added.body?.data?.reminders ?? []).length === 1,
+    String((added.body?.data?.reminders ?? []).length),
+  );
+  check('hasReminder=true', added.body?.data?.hasReminder === true);
+  const addedReminderId = added.body?.data?.reminders?.[0]?.id;
+  check(
+    '新提醒接收人默认取执行人（阿妈）',
+    (await api('GET', `/api/reminders/inbox?familyId=${fx.familyId}`, { token: t2 })).body?.data?.list?.some(
+      (x) => x.id === addedReminderId,
+    ) === true,
+  );
+
+  expectCode(
+    '同家成员但非创建者（阿公）取消提醒 → 40301',
+    await api('DELETE', `/api/reminders/${addedReminderId}`, { token: t4 }),
+    40301,
+  );
+  expectCode(
+    '接收人本人（阿妈）可以取消叮自己的提醒',
+    await api('DELETE', `/api/reminders/${addedReminderId}`, { token: t2 }),
+    0,
+  );
+  const afterCancel = await api('GET', `/api/family-things/${hostId}`, { token: t1 });
+  check(
+    '取消后该条提醒 status=CANCELLED',
+    afterCancel.body?.data?.reminders?.find((r) => r.id === addedReminderId)?.status === 'CANCELLED',
+  );
+  check('取消后 hasReminder=false', afterCancel.body?.data?.hasReminder === false);
+  expectCode(
+    '取消不存在的提醒 → 40400',
+    await api('DELETE', '/api/reminders/99999999', { token: t1 }),
+    40400,
+  );
+
+  // ---------- 12. 观察项 ----------
+  phase('12. 观察项（非阻塞）');
   note('立即叮（remindType=NOW）在创建流程内同步下发，并把该条提醒置 SENT。');
   note('  若将来改为「入队后由调度器发」，这里的行为会变，冒烟脚本需同步调整。');
   note('定时提醒的 next_remind_at 已写好，但**调度器尚未实现**（M2-B20），到点不会真发。');
+  note('三档 deliveryStatus 目前只会出现 NOT_BOUND —— 因为没开微信提醒（mp_openid 为空）。');
+  note('  等推送通道打通（M0-V1/V2）后，同一条 nudge 应返回 SENT + MP_TEMPLATE。');
 
   // ---------- 汇总 ----------
   console.log(`\n${'='.repeat(66)}`);
