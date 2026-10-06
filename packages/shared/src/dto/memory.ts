@@ -117,12 +117,17 @@ export interface CreateMemoryRequest {
   thingId?: number | null;
 }
 
-/** `PATCH /memories/{id}` 请求（docs/02 §7.4）。只传要改的字段。 */
+/**
+ * `PATCH /memories/{id}` 请求（docs/02 §7.4）。只传要改的字段。
+ *
+ * ⚠️ **刻意没有 `attachments`** —— V0.1 的图片是**不可变**的。
+ *    「全库不做物理 DELETE，一律状态位逻辑删除」是铁律，而
+ *    `memory_attachments` 表没有状态位，无法逻辑删除旧行。
+ *    发错了就删掉重发（见 docs/未来需求池.md）。
+ */
 export interface UpdateMemoryRequest {
   content?: string;
   visibility?: MemoryVisibilityValue;
-  /** 传了就**全量替换**该记录的图片；不传则原样保留 */
-  attachments?: MemoryAttachmentInput[];
 }
 
 /** `GET /memories` 查询（docs/02 §7.2） */

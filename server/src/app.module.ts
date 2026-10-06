@@ -13,6 +13,7 @@ import { FamiliesModule } from './modules/families/families.module';
 import { ThingModule } from './modules/thing/thing.module';
 import { MenuModule } from './modules/menu/menu.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { MemoryModule } from './modules/memory/memory.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { WechatModule } from './modules/wechat/wechat.module';
 import { NotifyModule } from './modules/notify/notify.module';
@@ -71,6 +72,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     ThingModule,
     MenuModule,
     UploadModule,
+    MemoryModule,
     SchedulerModule,
   ],
   providers: [
