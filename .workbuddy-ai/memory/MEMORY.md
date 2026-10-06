@@ -4,13 +4,17 @@
 面向家庭成员的轻量事务协作微信小程序。四大模块：🔔叮一下 / 🎯派活 / 🍽️吃啥呢 / 📖留个念。
 核心闭环：吃啥呢 → 派活 → 叮一下 → 完成 → 留个念。
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
-**进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 ✅ / M3 ✅ —— 下一步 M4「留个念」**
+**进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 ✅ / M3 ✅ / M4 ✅ —— 下一步 M5「上线」**
 - 后端 B1–B26 + M3-1~M3-8 全部收口（只剩 **B23 云托管 Cron 配置**，需用户在控制台操作）。
 - 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P12 + P20 + P21 + **P02 + P17** 已完成 →
   **两条闭环都点通了**：① 首页 → 叮一下 / 派活 → 列表 → 详情 → 完成；
-  ② 吃啥呢 → 决定 → 一键派活 → 详情。消息中心与「我的」也都在了，**4 个 Tab 全部有内容**。
-- ⚠️ **M4 动工前先确认图片上传链路**（`POST /upload/image` + 云存储）——
-  M0 里**尚未验证**的假设 A7（云托管容器能否直连云开发云存储）。P03 / P18 / P19 都依赖它。
+  ② 吃啥呢 → 决定 → 一键派活 → 详情；③ 完成 → 「📖 记个念 →」→ 发布 → 时间线 → 详情。
+  消息中心与「我的」也都在了，**4 个 Tab 全部有内容**，21 个页面全部落地。
+- ⚠️ **M4 已完成，但「真机上传」验不了 —— 唯一的硬阻塞是 COS 凭证。**
+  `server/.env` 第 8 节的 `COS_BUCKET` / `COS_REGION` / `COS_SECRET_ID` / `COS_SECRET_KEY` 是空的。
+  **没有它代码也是完整的**（校验路径全部能跑，上传会明确报 50000 而不是假装成功）。
+  填好后跑 `node tools/smoke-m4-memory.mjs`，脚本会**自动补上**「真实上传 → 回读」那几条断言。
+  （原假设 A7「云托管容器能否直连云存储」随之作废 —— 实际走的是服务端 COS SDK-less 直传。）
 - **P20 刻意不露出的三样**（都写进了代码文件头 + 未来需求池）：
   ① ~~微信提醒那一行~~（已随 P21 补上）；② 隐私政策；③ 注销账号。
   后两样是**上线前**的事（`docs/06` §4.6 / §264），注销还需要后端删除链路。
@@ -22,7 +26,28 @@
 ## 技术栈（已确定，勿再变更）
 - 小程序：原生微信小程序 + TypeScript
 - 后端：微信云托管容器 + NestJS + Prisma
-- 数据库：云托管 MySQL 8.0（11 张表）｜缓存：腾讯云 Redis｜存储：云开发云存储 / COS
+- 数据库：云托管 MySQL 8.0（11 张表）｜缓存：腾讯云 Redis｜存储：**腾讯云 COS**
+  - **不引 `cos-nodejs-sdk-v5`**：只用 `PUT Object` 一个动作，签名是 HMAC-SHA1 +
+    SHA1 四步，`node:crypto` 足够（`server/src/modules/upload/cos-sign.ts`）。
+  - ⚠️ 签名错了 COS 只回 `SignatureDoesNotMatch`、**不告诉你哪一步错了**，而这条
+    链路**没有凭证就跑不了** → 拿**腾讯云官方文档的完整示例**逐项比对
+    （`server/scripts/check-upload.ts`，30 项，已并入 `pnpm run check`）。
+    文档示例的 SecretKey 是公开的 `BQYIM75p8x0iWVFSIgqEKwFprpRSVHlz`；
+    文档把 `Signature` 末 4 位打码成了 `1234`，所以只比前 28 位。
+  - 需要 `COS_BUCKET` / `COS_REGION` / `COS_SECRET_ID` / `COS_SECRET_KEY` 四个值
+    （`server/.env` 第 8 节，开通步骤写在 `.env.example` 里）。
+  - **未配置时明确报 50000，不降级、不写本地磁盘**（云托管容器文件系统是临时的，
+    写本地不是降级是丢数据）。
+  - **图片类型与宽高由服务端解析文件头**（`image-meta.ts`，零依赖）：
+    不信客户端的 `Content-Type`（把 `.exe` 改名成 `.png` 是零成本的），
+    解不出尺寸时给 `null` 而**不拒绝上传**。
+  - ⚠️ 图片内容安全用 `img_sec_check`（**1.0 版，微信 2021-09 起停止维护**），
+    因为它是唯一**同步**的接口。它有 **1MB 上限**（比产品允许的 5MB 小得多），
+    超限 = 「检测不了」→ fail-open 放行并记 warn。**P18 用
+    `sizeType: ['compressed']` 的真实原因就是这个**，不是省流量。
+  - ⚠️ 超限上传由 multer 的 `limits.fileSize` 在**流式解析时**中止
+    （手搓 `Request.formData()` 会先把整个大文件读进内存 —— 那是 DoS 面）。
+    所以业务层**不再重复判 5MB**；413 由 `AllExceptionsFilter` 归一成 40001 + 中文。
 - 定时任务：云托管 Cron 触发 HTTP 端点
 - 消息：**四通道降级**（v0.2.1）
   1. 公众号模板消息（wxpush / Cloudflare Workers）← **V0.1 验证期主力**，无限次、能推给别人
@@ -79,7 +104,33 @@
   - 唯一出口 `server/src/common/serialize/beijing-time.ts`；前端传入用 `parseBeijingDateTime()`。
   - 代价：直连数据库看数据是 UTC，比北京时间少 8 小时。
 - 页面里禁止直接调 `wx.request`，只能走 `services/request.ts`
+- **文件上传也走 `services/request.ts` 的 `upload()`**（`wx.uploadFile` 封装），
+  不另开 `services/upload.ts` —— 拼 URL / 带 token / 拆响应体 / 401 重登 / 错误归一
+  是同一个关注点。三个与 `wx.request` 不同的坑：① `res.data` 是**字符串**要自己
+  `JSON.parse`；② `success` 在 4xx/5xx 时也会进，成败要看响应体里的 `code`；
+  ③ 超时给 60s（半路超时会让服务端已写进桶、前端却显示失败，制造模糊状态）。
 - 禁止硬编码密钥，全部环境变量
+- **⚠️ 小程序端不能 import `@shared` 的运行时值**（只做类型擦除、不解析 tsconfig
+  `paths`）。`import type` 安全，`import { X }` 会 `require('@shared')` → 真机
+  `module not found`，**开发者工具和 `tsc` 都不报**。已在 `tools/check-ts.mjs` 静态拦下。
+  运行时的值要在 `miniprogram/constants/` 下再写一份，并加进 `check-shared.mjs` 的 PAIRS
+  （目前 4 份镜像：`ErrorCode` / `DELIVERY_TOAST` / `MENU_CATEGORY` / `MEMORY_LIMITS`）。
+  ⚠️ 要镜像**散落的常量**时，先打包成一个 `as const` 对象 —— 校验器按 `键: 值`
+  逐项比对，散落的 `export const X = 9` **没有可比对的形状**。
+- **⚠️ 游标分页用 `id`，不用时间戳。** `created_at` 是 `DATETIME(0)`（**秒**精度），
+  同一秒发两条就有相同时间戳，`created_at < cursor` 翻页会**静默漏掉**并列的那几条。
+  `CursorQuery.cursor` 语义已改（docs/02 §7.2）。
+- **⚠️ 子表能不能软删，看 DDL 给不给状态位。** `thing_reminders` 有 `status`，
+  所以能「全量替换（旧置 status=3）」；`memory_attachments` **没有**，
+  所以留念的图片**不可变**（`PATCH /memories/{id}` 刻意没有 `attachments`），
+  发错了只能删掉重发。「全库不做物理 DELETE」是铁律，不能绕。
+- **⚠️ 别人看不到的资源一律回 40400，不回 40300。** 40300 等于告诉对方
+  「这里有一条你看不到的东西」—— 那本身就是一次泄露。而且这类判断要在**服务层
+  再判一次**，不依赖调用方已经过了守卫：「调用方已经校验过」正是这条铁律
+  最容易被绕过的方式。
+- **⚠️ 跨字段规则（如「正文与图片至少给一样」）要放在 service，不要放 DTO。**
+  DTO 的 `@IsNotEmpty` 判的是**未 trim 的值**，`content: '   '` 能过校验、
+  trim 完却是空串（M4 冒烟真的抓到了这个 bug）。
 - **⚠️ DTO 里的 `boolean` 字段必须挂 `@ParseBoolean()`**（`common/utils/query.util.ts`），
   不要手写 `@Transform(toQueryBoolean)`。全局 `ValidationPipe` 开了
   `enableImplicitConversion: true`，而 class-transformer 是**先隐式转换、后跑
@@ -127,6 +178,16 @@
   不 spawn `query-engine.exe`），而不是 `docker exec mysql`。
 - `nest start --watch` 会因清空 `server/dist`（412 个文件）触发 WorkBuddy 批量删除保护
   （阈值 50）；改用 `pnpm run build` + `node dist/server/src/main.js` 起服务。
+- **⚠️⭐ 带沙箱升级的 `Bash` 命令会「执行两次」**：先沙箱跑一遍（被拦），再以
+  「Sandbox bypassed (escalation-approved)」跑第二遍。症状：`node -e "…splice 插入…"`
+  把内容**插入两遍**（M4 写文档时连中四次）。
+  **对策：所有「插入 / 追加」类脚本一律写成幂等的** —— 插入前先检查标记字符串
+  是否已存在，存在就 `console.log('已存在，跳过')` 并退出。加守卫后再没出问题。
+  只读命令与 `git` 命令不受影响（重复执行无副作用）。
+- **行尾不统一**：`docs/05` 是 **CRLF**，其余 docs 是 LF。`core.autocrlf=true`
+  会在提交时归一（diff 不会变整文件重写），但**拼接内容时要按文件自己的行尾**
+  （`raw.includes('\r\n') ? '\r\n' : '\n'`），否则会出现混合行尾。
+  `docs/` 与 `*.md` 在 `.prettierignore` 里 —— 文档**不参与 prettier 格式化**。
 
 ## 关键风险与待验证假设（M0 必须实测）
 - **A4** 订阅额度累积机制（勾选「总是保持以上选择」后静默 +1）
@@ -240,18 +301,20 @@
 vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 
 ## 自查与测试工具（`tools/`）
-一条命令跑全部：**`pnpm run check`**（= check:ts + check:links + check:shared + check:mp + check:view）。
+一条命令跑全部：**`pnpm run check`**（= check:ts + check:links + check:shared + check:mp +
+check:view + **check:upload**）。
 
 | 脚本 | 用途 | 何时跑 |
 | --- | --- | --- |
-| `check-ts.mjs` | TS 语法校验（不装 typescript 也能跑） | 提交前 |
+| `check-ts.mjs` | TS 语法校验（不装 typescript 也能跑）；**另拦「小程序端 import `@shared` 运行时值」**（这类错开发者工具与 `tsc` 都不报，只有真机崩） | 提交前 |
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
-| `check-shared.mjs` | 小程序侧常量镜像防漂移（**3 份**：`ErrorCode` 数值 + `DELIVERY_TOAST` 文案 + `MENU_CATEGORY` 分类） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
+| `check-shared.mjs` | 小程序侧常量镜像防漂移（**4 份 / 25 成员**：`ErrorCode` 数值 + `DELIVERY_TOAST` 文案 + `MENU_CATEGORY` 分类 + **`MEMORY_LIMITS` 数量上限**） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
 | `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用、**未读角标挂的 Tab 下标**、**二维码图片在不在**；另有 `notes` 通道打 `⏳` 提示，**只提示不判失败**） | 改了页面、组件、`app.json` 或 `config.ts` 后 |
-| `test-view.mjs` | **展示模型层的行为断言**（**195 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22 + **吃啥呢 68**） | 改了 `utils/thing-view.ts` / `notice-view.ts` / `mine-view.ts` / **`menu-view.ts`** / `time.ts` 后 |
+| `test-view.mjs` | **展示模型层的行为断言**（**256 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22 + 吃啥呢 68 + **留个念 61**） | 改了 `utils/thing-view.ts` / `notice-view.ts` / `mine-view.ts` / `menu-view.ts` / **`memory-view.ts`** / `time.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `smoke-m3-menu.mjs` | 吃啥呢冒烟（**180 断言**，夹具建**两个家庭**专验隔离；`excludeRecent` 有 5 条回归断言；第 8 节菜谱管理含 `enabled:"false"` 字符串回归；第 9 节一键派活逐字段比对与 `POST /family-things` 的一致） | 改了 `menu` 模块后 |
+| `smoke-m4-memory.mjs` | 留个念冒烟（**76 断言**：上传校验 7 + 发布 15 + 时间线 14 + 详情 6 + 编辑 10 + 删除 6 + 回查库 6）。真 PNG 用 `node:zlib` 现造（`crc32` + `deflateSync`），所以「上传 → 回读 → 字节一致」这条断言是有意义的。**COS 未配时那几条自动跳过并记 note**，配好后同一个脚本自动补上，不需要改脚本 | 改了 `memory` / `upload` 模块后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
 | `probe-seccheck.mjs` | 实探文本内容安全，看 `suggest` / `label` | 排查 msgSecCheck 时 |
 | `test-wxpush.mjs` | 测公众号模板消息通道 | 排查推送时 |
