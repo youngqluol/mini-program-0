@@ -101,6 +101,20 @@ export enum MealType {
   OTHER = 4,
 }
 
+/**
+ * 菜谱来源（接口字段 `source`）—— **不入库**，由 `menu_items.family_id` 是否为 NULL 推导。
+ *
+ * ⚠️ 系统菜谱是**代码常量**（`server/src/modules/menu/default-menu.ts`），
+ * `menu_items` 表里没有它们的行 —— 所以系统菜谱在接口上 **`id` 恒为 `null`**。
+ * 详见 docs/02 §6.1。
+ */
+export enum MenuSource {
+  /** 系统默认菜谱（代码常量，PRD §16.4） */
+  SYSTEM = 'SYSTEM',
+  /** 家庭自定义菜谱（`menu_items.family_id` 非空） */
+  FAMILY = 'FAMILY',
+}
+
 // ---------------------------------------------------------------
 // 留个念
 // ---------------------------------------------------------------
