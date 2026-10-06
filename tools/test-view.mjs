@@ -1,11 +1,12 @@
 /**
  * 展示模型的行为断言（`miniprogram/utils/*-view.ts`）
  *
- * 覆盖四个纯函数：
+ * 覆盖五个纯函数：
  *   - `buildThingDetailView()`     —— P10 详情页
  *   - `buildThingRowView()`        —— P11 列表行（卡片 + 左滑操作）
  *   - `buildTodayReminderRow()`    —— P01 首页「今天的提醒」行（卡片 + 完成圈）
  *   - `buildNoticeView()`          —— P12 消息中心（通知行 + 送达说明）
+ *   - `buildMineProfile()` / `buildUnreadBadge()` / `buildLeaveRow()` —— P20「我的」
  *
  * 为什么单独测这一层：它们全是纯函数，但分支不少（三种状态 × 我是执行人 /
  * 我是发起人 / 都与我无关 × 有没有提醒），而 `tsc` 只能保证**类型**对，
@@ -76,11 +77,12 @@ if (diagnostics.length > 0) {
 }
 
 // 产物已落盘，require 进来；临时目录留到脚本结束再删。
-// 一次编译同时产出两个模块 —— 加一个 view 文件只是多 require 一行，不用再编一遍。
+// 一次编译同时产出全部模块 —— 加一个 view 文件只是多 require 一行，不用再编一遍。
 const thingViewPath = join(outDir, 'miniprogram', 'utils', 'thing-view.js');
 const noticeViewPath = join(outDir, 'miniprogram', 'utils', 'notice-view.js');
+const mineViewPath = join(outDir, 'miniprogram', 'utils', 'mine-view.js');
 
-for (const p of [thingViewPath, noticeViewPath]) {
+for (const p of [thingViewPath, noticeViewPath, mineViewPath]) {
   if (!existsSync(p)) {
     console.error(`没找到编译产物：${p}`);
     console.error('（大概率是 tsconfig 的 include / rootDir 变了，需要同步这个脚本）');
@@ -91,6 +93,7 @@ for (const p of [thingViewPath, noticeViewPath]) {
 
 const { buildThingDetailView, buildThingRowView, buildTodayReminderRow } = require(thingViewPath);
 const { buildNoticeView } = require(noticeViewPath);
+const { buildLeaveRow, buildMineProfile, buildUnreadBadge } = require(mineViewPath);
 
 // ---------------------------------------------------------------
 // 小工具
@@ -588,6 +591,87 @@ function notice(over = {}) {
   const unknown = buildNoticeView(notice({ type: 'SOMETHING_NEW' }));
   check('通知 · 没见过的类型有兜底 emoji', unknown.emoji, '📢');
   check('通知 · 没见过的类型有兜底名字', unknown.typeLabel, '通知');
+}
+
+// ---------------------------------------------------------------
+// 14. P20「我的」：抬头 / 未读角标 / 退出家庭
+// ---------------------------------------------------------------
+
+/** 造一个「我加入的家庭」简要信息（`MyFamilyBrief`） */
+function brief(over = {}) {
+  return { familyId: 30001, familyName: '我们家', memberId: 20001, roleName: '阿爸', ...over };
+}
+
+/** 造一个登录用户（`AuthUser`）。默认**没有昵称** —— 昵称授权还没做，这是常态。 */
+function authUser(over = {}) {
+  return { id: 1, nickname: null, avatarUrl: null, ...over };
+}
+
+{
+  // 常态：昵称拿不到，大字那行就是称谓；小字那行**不再重复**它
+  const noNickname = buildMineProfile(authUser(), brief());
+  check('抬头 · 没昵称时用家庭称谓', noNickname.nickname, '阿爸');
+  check('抬头 · 没昵称时不把称谓说两遍', noNickname.roleLine, '在我们家');
+  check('抬头 · 有家庭', noNickname.hasFamily, true);
+
+  // 将来补上昵称授权之后的样子
+  const withNickname = buildMineProfile(authUser({ nickname: '老王' }), brief());
+  check('抬头 · 有昵称时用昵称', withNickname.nickname, '老王');
+  check('抬头 · 有昵称时小字报「家庭 · 称谓」', withNickname.roleLine, '在我们家 · 阿爸');
+
+  // 昵称恰好等于称谓 —— 和「没昵称」是同一个结果，不该重复
+  check(
+    '抬头 · 昵称和称谓相同时也不重复',
+    buildMineProfile(authUser({ nickname: '阿爸' }), brief()).roleLine,
+    '在我们家',
+  );
+
+  // 全是空白的昵称不能当成有昵称（否则大字那行会是空的）
+  check(
+    '抬头 · 空白昵称退回称谓',
+    buildMineProfile(authUser({ nickname: '   ' }), brief()).nickname,
+    '阿爸',
+  );
+
+  // 守卫理论上不会让这一页在没有家庭时渲染出来，但纯函数不该依赖调用方的自觉
+  const noFamily = buildMineProfile(null, null);
+  check('抬头 · 没有家庭时的大字', noFamily.nickname, '我');
+  check('抬头 · 没有家庭时的小字是空串', noFamily.roleLine, '');
+  check('抬头 · 没有家庭', noFamily.hasFamily, false);
+}
+
+{
+  // 0 条 = 不显示。显式移除角标，而不是显示一个「0」
+  const zero = buildUnreadBadge(0);
+  check('角标 · 0 条不显示', zero.show, false);
+  check('角标 · 0 条文案是空串', zero.text, '');
+  check('角标 · 负数也不显示', buildUnreadBadge(-3).show, false);
+
+  check('角标 · 1 条', buildUnreadBadge(1).text, '1');
+  check('角标 · 99 条仍是精确值', buildUnreadBadge(99).text, '99');
+
+  // 微信的 tabBar 角标最多显示 4 个字符，再多会截成看不懂的样子 —— 自己先说「99+」
+  check('角标 · 100 条改说 99+', buildUnreadBadge(100).text, '99+');
+  check('角标 · 上千条也是 99+', buildUnreadBadge(9999).text, '99+');
+  check('角标 · 99+ 时仍然显示', buildUnreadBadge(100).show, true);
+
+  // 向下取整，不能四舍五入 —— 2.7 条未读不该显示成 3 条
+  check('角标 · 小数向下取整', buildUnreadBadge(2.7).text, '2');
+}
+
+{
+  // 非创建者：给按钮
+  const member = buildLeaveRow(false);
+  check('退出家庭 · 成员能看到按钮', member.show, true);
+  check('退出家庭 · 成员不需要那行说明', member.hint, '');
+
+  // 创建者：后端会拒绝他退出，所以不给按钮，换成一行说明
+  const owner = buildLeaveRow(true);
+  check('退出家庭 · 创建者没有按钮', owner.show, false);
+  check('退出家庭 · 创建者看得到说明', owner.hint.length > 0, true);
+  check('退出家庭 · 说明指向真正的出口', owner.hint.indexOf('家庭设置') >= 0, true);
+  // 后端那句报错里有「转给别人」，但 V0.1 没有转让功能 —— 界面不能跟着说
+  check('退出家庭 · 不承诺「转给别人」这个不存在的出口', owner.hint.indexOf('转给') >= 0, false);
 }
 
 // ---------------------------------------------------------------
