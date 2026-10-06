@@ -4,17 +4,18 @@
 面向家庭成员的轻量事务协作微信小程序。四大模块：🔔叮一下 / 🎯派活 / 🍽️吃啥呢 / 📖留个念。
 核心闭环：吃啥呢 → 派活 → 叮一下 → 完成 → 留个念。
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
-**进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 进行中**
-- 后端 B1–B26 全部收口（只剩 **B23 云托管 Cron 配置**，需用户在控制台操作）。
-- 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P12 + **P20「我的」Tab** 已完成 →
-  **核心闭环四个方向都点通了**（首页 → 叮一下 / 派活 → 列表 → 详情 → 完成），
-  消息中心与「我的」也都在了，**4 个 Tab 全部有内容**。
-- 剩余：**只剩 P21 微信提醒（M2-F1）**；M2-F3 / M2-F14 明确不做（都已记入 `docs/未来需求池.md`）。
+**进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 ✅ / M3 ✅ —— 下一步 M4「留个念」**
+- 后端 B1–B26 + M3-1~M3-8 全部收口（只剩 **B23 云托管 Cron 配置**，需用户在控制台操作）。
+- 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P12 + P20 + P21 + **P02 + P17** 已完成 →
+  **两条闭环都点通了**：① 首页 → 叮一下 / 派活 → 列表 → 详情 → 完成；
+  ② 吃啥呢 → 决定 → 一键派活 → 详情。消息中心与「我的」也都在了，**4 个 Tab 全部有内容**。
+- ⚠️ **M4 动工前先确认图片上传链路**（`POST /upload/image` + 云存储）——
+  M0 里**尚未验证**的假设 A7（云托管容器能否直连云开发云存储）。P03 / P18 / P19 都依赖它。
 - **P20 刻意不露出的三样**（都写进了代码文件头 + 未来需求池）：
-  ① 微信提醒那一行（要跳 P21，随 M2-F1 一起加）；② 隐私政策；③ 注销账号。
+  ① ~~微信提醒那一行~~（已随 P21 补上）；② 隐私政策；③ 注销账号。
   后两样是**上线前**的事（`docs/06` §4.6 / §264），注销还需要后端删除链路。
   共同理由：**挂一个点了没反应的入口，比暂时不挂更糟**。
-- 还欠用户侧动作：**M1 真机验收**、**M2-B23 云托管 Cron**、Worker 4 个 secret +
+- 还欠用户侧动作：**M2 真机验收**、**M2-B23 云托管 Cron**、Worker 4 个 secret +
   `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN`、用真实 openid 跑 `tools/probe-subscribe.mjs` 验 47003。
 信息架构（v0.2）：底部 4 Tab = 家里 / 吃啥呢 / 留个念 / 我的。家庭管理在「我的」，为 V0.2 家庭切换预留。
 
@@ -245,9 +246,9 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | --- | --- | --- |
 | `check-ts.mjs` | TS 语法校验（不装 typescript 也能跑） | 提交前 |
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
-| `check-shared.mjs` | 小程序侧常量镜像防漂移（`ErrorCode` 数值 + `DELIVERY_TOAST` 文案） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
+| `check-shared.mjs` | 小程序侧常量镜像防漂移（**3 份**：`ErrorCode` 数值 + `DELIVERY_TOAST` 文案 + `MENU_CATEGORY` 分类） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
 | `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用、**未读角标挂的 Tab 下标**、**二维码图片在不在**；另有 `notes` 通道打 `⏳` 提示，**只提示不判失败**） | 改了页面、组件、`app.json` 或 `config.ts` 后 |
-| `test-view.mjs` | **展示模型层的行为断言**（**127 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22） | 改了 `utils/thing-view.ts` / `utils/notice-view.ts` / `utils/mine-view.ts` / `utils/time.ts` 后 |
+| `test-view.mjs` | **展示模型层的行为断言**（**195 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22 + **吃啥呢 68**） | 改了 `utils/thing-view.ts` / `notice-view.ts` / `mine-view.ts` / **`menu-view.ts`** / `time.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `smoke-m3-menu.mjs` | 吃啥呢冒烟（**180 断言**，夹具建**两个家庭**专验隔离；`excludeRecent` 有 5 条回归断言；第 8 节菜谱管理含 `enabled:"false"` 字符串回归；第 9 节一键派活逐字段比对与 `POST /family-things` 的一致） | 改了 `menu` 模块后 |
@@ -291,8 +292,10 @@ Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` 
 `health` / `menu` + `prisma` / `redis` / `common`。（规划中）`memory` / `upload`。
 Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现下划线字段**。
 
-**`menu` 模块现状（M3 后端已全部完成）**：`default-menu.ts`（系统菜谱常量 72 条，**不入库**，PRD §16.4）
-+ `dto/menu.dto.ts` + `menu.service.ts` + `menu.controller.ts` + `menu.module.ts`。
+**`menu` 模块现状（M3 全部完成 · 后端 + 小程序端）**：后端 `default-menu.ts`
+（系统菜谱常量 72 条，**不入库**，PRD §16.4）+ `dto/menu.dto.ts` + `menu.service.ts`
++ `menu.controller.ts` + `menu.module.ts`；小程序端 `services/menu.ts`
++ `constants/menu.ts`（镜像）+ `utils/menu-view.ts` + `pages/menu/{index,manage}`。
 读接口 ✅：`GET /menu/random`（`count` 组合搭配 / `excludeRecent` 按**菜名**排除 /
 池子被排空时放宽）、`GET /menu/items`（系统 + 家庭合集，`canEdit` / `enabled`，
 **停用的也返回**，否则用户在 P17 找不到它去重新启用）、`POST /menu/decide`
@@ -307,6 +310,16 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   冒烟逐字段比对两条路径产出的小事，键集合完全一致。
 - `buildPool()` 按**菜名**去重，家庭版覆盖系统版。
 - `summary`（今晚**吃**）与派活 `title`（今晚**做饭**）刻意不同。
+- ⚠️ **「今晚吃：…」这句话只写一遍**：只在 `POST /menu/decide` 的响应里（`summarize()`）。
+  P02 的确认层在**发请求之前**就要显示，拿不到响应 —— 所以它**只列菜名、不拼句子**。
+  `decide-and-assign` 的响应**刻意不加** `summary`（加了也用不上，是死字段）。
+- **P02 只在 `onLoad` 抽一次**（切 Tab 回来不该换菜）；**`mealType` 按时刻推断**
+  （`inferMealType`：10/15/21 点三个边界），它决定要不要凑「一荤一素一汤」、
+  也会记进 `meal_records`。
+- ⚠️ **P02 的确认层是页面自绘的底部面板**，不用 `wx.showActionSheet`（**最多 6 项**，
+  家里人多就选不全）。
+- **P17 自带菜谱不给开关也不给左滑**（`id` 恒为 `null`；`swipe-cell` 见空 `actions`
+  会完全不响应手势）；动作叫**「停用」不叫「删除」**。
 冒烟：`pnpm run smoke:m3`（**180 项断言**，夹具建**两个家庭**专验隔离）。
 
 **五个分类是有语义的，改分类会改推荐行为**：`家常菜`=荤 / `素菜`=素 /
