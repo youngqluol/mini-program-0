@@ -7,9 +7,11 @@
 **进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 进行中**
 - 后端 B1–B26 全部收口（只剩 **B23 云托管 Cron 配置**，需用户在控制台操作）。
 - 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P09 + **P10 详情 / P11 我的小事 /
-  P01 首页** 已完成 → **核心闭环四个方向都点通了**：首页 → 叮一下 / 派活 → 列表 → 详情 → 完成。
-- 剩余：**P12 消息中心（M2-F13）→ P20「我的」Tab（M2-F2）→ P21 微信提醒（M2-F1）**；
+  P01 首页 / P12 消息中心** 已完成 → **核心闭环四个方向都点通了**：首页 → 叮一下 / 派活 → 列表 → 详情 → 完成。
+- 剩余：**P20「我的」Tab（M2-F2）→ P21 微信提醒（M2-F1）**；
   M2-F3 / M2-F14 明确不做（都已记入 `docs/未来需求池.md`）。
+- **P12 留给 P20 的一件事**：未读数角标挂到底部「我的」Tab
+  （`wx.setTabBarBadge`，在 `onShow` 里用 `notifyApi.unreadCount()` 刷）。
 - 还欠用户侧动作：**M1 真机验收**、**M2-B23 云托管 Cron**、Worker 4 个 secret +
   `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN`、用真实 openid 跑 `tools/probe-subscribe.mjs` 验 47003。
 信息架构（v0.2）：底部 4 Tab = 家里 / 吃啥呢 / 留个念 / 我的。家庭管理在「我的」，为 V0.2 家庭切换预留。
@@ -176,6 +178,10 @@
   就变成**监督**了。已记入 `docs/未来需求池.md` 并写明「不要做」。
 - 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
   原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
+- **P12 未读角标是 P20 的活** —— 消息中心页内已显示未读条，但底部「我的」Tab 的
+  角标（`wx.setTabBarBadge`）要 P20 在 `onShow` 里用 `notifyApi.unreadCount()` 刷。
+  角标只在 > 0 时 `wx.setTabBarBadge`，为 0 用 `wx.removeTabBarBadge`（别传空串，
+  行为未实测）。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
   与 `MP_QRCODE_URL` 待用户配；`MP_CALLBACK_TOKEN` 待云托管部署后配。
 
@@ -202,20 +208,23 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
 | `check-shared.mjs` | 小程序侧常量镜像防漂移（`ErrorCode` 数值 + `DELIVERY_TOAST` 文案） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
 | `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用） | 改了页面或组件后 |
-| `test-thing-view.mjs` | **小事展示模型的行为断言**（**62 项**：详情 38 + 列表行 14 + 首页提醒行 10） | 改了 `utils/thing-view.ts` 后 |
+| `test-view.mjs` | **展示模型层的行为断言**（**80 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18） | 改了 `utils/thing-view.ts` 或 `utils/notice-view.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
 | `probe-seccheck.mjs` | 实探文本内容安全，看 `suggest` / `label` | 排查 msgSecCheck 时 |
 | `test-wxpush.mjs` | 测公众号模板消息通道 | 排查推送时 |
 
-**`test-thing-view.mjs` 的做法值得复用**（它是仓库里第一个行为断言工具）：
+**`test-view.mjs` 的做法值得复用**（它是仓库里第一个行为断言工具，原名 `test-thing-view.mjs`）：
 小程序端是 TS，node 不能直接 require → 用已有的 `typescript` 走**编译器 API 在进程内**
 （`readConfigFile` → `parseJsonConfigFileContent` → `createProgram` → `emit`）把
 `miniprogram/` 编到系统临时目录再 require 产物。**不要 spawn `tsc`**：
 本机执行环境会拦子进程（`.bin/tsc.cmd` → `EINVAL`，`process.execPath` → `EBUSY`）。
-产物路径是 `<out>/miniprogram/utils/thing-view.js`（tsc 推断 `rootDir` 为仓库根）。
-**为什么需要它**：`tsc` 只保证类型对，保证不了「不限时间前完成」这种语法通顺但意思错的文案。
+产物路径是 `<out>/miniprogram/utils/*.js`（tsc 推断 `rootDir` 为仓库根）。
+**一次编译同时产出 `thing-view.js` 与 `notice-view.js`**，两个模块一起断言
+（每遍编译 3.4s，分两次编就白花一倍时间）。**为什么需要它**：`tsc` 只保证类型对，
+保证不了「不限时间前完成」这种语法通顺但意思错的文案，也保证不了
+「谁该看到哪个操作」这种权限判断 —— 后者算错的后果很具体，点一下就是一次 403 toast。
 写它的当天就抓到一个空格级错误。**别只加断言，也要核对既有断言还成不成立。**
 
 `smoke-m1.mjs` 要点：用 `node:crypto` 手写 HS256 JWT（payload 与 `AuthService.signToken`
@@ -280,8 +289,10 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   只改本地 `status` 会让「🔔 17:30 提醒阿爸」留在一件已经做完的事上。
 - **toast 只说界面说不出来的事**：状态条已经变成「已完成 · 18:05 由阿爸完成」时，
   再弹一句「搞定啦」是重复。只有 `nextThingId` 这种界面表达不了的信息才补 toast。
-- **时间文案分两个出口**：`describeDue()` 给「单独出现的时刻」（要带「今天 / 明天」才不歧义），
-  `shortMoment(value, base?)` 给「成对出现的时间」（同一天只说「18:05」）。
+- **时间文案三个出口**：`describeMoment(value)` 给「单独出现的绝对时刻」（要带「今天 / 明天」
+  才不歧义，如消息列表的「今天 17:30」）；`shortMoment(value, base?)` 给「成对出现的时间」
+  （同一天只说「18:05」）；`describeDue(value | null)` 给「要求完成时间」（可为空 →「不限时间」，
+  有值时复用 `describeMoment`）。
   拼「X 前完成」时注意 `describeDue(null)` 是「不限时间」——直接拼会成「不限时间前完成」。
 - **页面路径以 `docs/03` §二 为准**：P08 = `pages/nudge/create`、P09 = `pages/task/create`、
   P10 = `pages/thing/detail`、P11 = `pages/thing/mine`、P12 = `pages/notice/index`、
@@ -306,6 +317,24 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   再套一层白卡片就是**白压白**，行与行分不出界线。列表用 `.rows / .row` 直接躺在页面背景上。
 - **`onLoad(query)` 要真的读入口参数**：P11 靠 `?tab=` 决定落在哪个 Tab
   （首页两个「更多 ›」都跳它）。**参数不认识要退回默认值**，不能因为一个错链接白屏。
+- **通知的送达判断必须同时看 `channel` 和 `status`。** `SENT` 只说明「这次发送成功了」，
+  而 `channel === 'IN_APP'` 的 `SENT` 意思是「只写进了站内」——只看 `status` 会把
+  「只在小程序里」说成「已发到微信」，是一句**安静的假话**（有专门断言）。
+  判据在 `utils/notice-view.ts` 的 `deliveryTextOf()`：`SENT` 且渠道在
+  `WECHAT_CHANNELS = ['MP_TEMPLATE','SUBSCRIBE']` 里 → 返回空串（页面据此不显示标签）。
+- **通知类型 emoji 是列表可辨识性的关键**：五种两两不同（🎯派活 / 🔔叮一下 / ❤️搞定了 /
+  🏠家庭 / 📢通知），有断言。`NOTICE_TYPE_META` 用 `Record<NotificationItem['type'], …>`
+  做**编译期穷举**，漏键 `tsc` 直接报错 —— **所以不需要额外的防漂移脚本**。
+- **消息中心的未读用「加法」，不做「已读置灰」。** 标题 600 加粗 + 右侧 8px 粉点。
+  理由：`thing-card` 的「已完成整条 `opacity .55`」是对的（少数、语义明确），
+  但消息列表里**已读的是大多数** —— 把大多数压暗是在惩罚用户。
+- **「全部已读」就地改本地状态，不重拉。** 这是「动作之后重拉」那条规律的**例外**：
+  判断依据是「**有没有连带副作用**」，不是「是不是写操作」。全部已读不影响任何小事状态，
+  重拉会闪、还会把刚上拉出来的第三页收回第一页。理由写在 `pages/notice/index.ts` 文件头。
+- **列表只显示一个字段时，那个字段必须能独立说明白一件事。** 消息中心的列表只显示
+  `title`，而后端原本把 `title` 写死成「提醒你一下」这种不含事项名的短语 →
+  20 条通知长得一模一样，**这一页等于白做**。改成 `withWhat(from, action, what)` 拼出
+  「阿妈 派了个活：买酱油」。**展示层字段的措辞属于实现责任**，不是「先随便写、以后再说」。
 
 ## 设计风格
 v1.0「柔光粉彩」，完整规范见 `docs/07`。主色粉桃渐变 `#FF9DB4 → #FFB59B`，背景 `#FDF6F7`，
