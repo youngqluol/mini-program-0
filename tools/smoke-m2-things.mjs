@@ -223,8 +223,8 @@ function tokenFor(userId, openid) {
   return signJwt({ sub: userId, openid, iat: now, exp: now + 3600 }, env.JWT_SECRET);
 }
 
-async function api(method, path, { token, body } = {}) {
-  const headers = {};
+async function api(method, path, { token, body, headers: extraHeaders } = {}) {
+  const headers = { ...(extraHeaders ?? {}) };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (token) headers.authorization = `Bearer ${token}`;
 
@@ -1035,17 +1035,324 @@ async function main() {
     40300,
   );
 
-  // ---------- 13. 观察项 ----------
-  phase('13. 观察项（非阻塞）');
+  // ---------- 13. 调度器（M2-B20 / B21 / B22） ----------
+  phase('13. 调度器（tick / 分布式锁 / 补偿）');
+
+  const internal = { 'x-internal-secret': env.INTERNAL_CRON_SECRET };
+
+  // --- 鉴权 ---
+  const noSecret = await api('POST', '/api/internal/scheduler/tick');
+  expectCode('tick 不带密钥 → 40301', noSecret, 40301);
+  const badSecret = await api('POST', '/api/internal/scheduler/tick', {
+    headers: { 'x-internal-secret': 'definitely-not-the-secret' },
+  });
+  expectCode('tick 密钥不对 → 40301', badSecret, 40301);
+
+  // --- 到点下发 ---
+  const dueThing = await prisma.familyThing.create({
+    data: {
+      familyId: BigInt(fx.familyId),
+      creatorMemberId: BigInt(fx.ownerMemberId),
+      assigneeMemberId: BigInt(fx.member2Id),
+      type: 1,
+      title: '到点该提醒的活',
+      visibility: 1,
+      status: 1,
+    },
+    select: { id: true },
+  });
+  const dueReminder = await prisma.thingReminder.create({
+    data: {
+      thingId: dueThing.id,
+      recipientMemberId: BigInt(fx.member2Id),
+      remindType: 2, // SCHEDULED
+      nextRemindAt: new Date(Date.now() - 60_000), // 一分钟前就该发
+      status: 1, // PENDING
+      recurrenceType: 0, // NONE
+    },
+    select: { id: true },
+  });
+
+  const tick1 = await api('POST', '/api/internal/scheduler/tick', { headers: internal });
+  expectCode('tick 带正确密钥 → 0', tick1, 0);
+  const tick1d = tick1.body?.data ?? {};
+  check(
+    'tick 返回 scanned / sent / notBound / noQuota / failed / skipped',
+    ['scanned', 'sent', 'notBound', 'noQuota', 'failed', 'skipped'].every(
+      (k) => typeof tick1d[k] === 'number',
+    ),
+  );
+  check('tick 返回 durationMs', typeof tick1d.durationMs === 'number');
+  check('tick 返回 locked', typeof tick1d.locked === 'boolean');
+  check('tick 扫到了刚造的到点提醒', tick1d.scanned >= 1, `scanned=${tick1d.scanned}`);
+
+  const afterTick = await prisma.thingReminder.findUnique({
+    where: { id: dueReminder.id },
+    select: { status: true, nextRemindAt: true, sentCount: true, lastSentAt: true },
+  });
+  check('到点提醒已置 SENT', afterTick.status === 2, `status=${afterTick.status}`);
+  check('到点提醒 nextRemindAt 已清空', afterTick.nextRemindAt === null);
+  check('到点提醒 sentCount=1', afterTick.sentCount === 1);
+  check('到点提醒 lastSentAt 有值', afterTick.lastSentAt != null);
+  check(
+    'tick 给这条写了 notification_logs',
+    (await prisma.notificationLog.count({ where: { thingId: dueThing.id } })) === 1,
+  );
+  check(
+    '结果落在「未绑定」档（夹具没开微信提醒）',
+    tick1d.notBound >= 1,
+    `notBound=${tick1d.notBound}`,
+  );
+
+  const tick2 = await api('POST', '/api/internal/scheduler/tick', { headers: internal });
+  expectCode('重复 tick → 0', tick2, 0);
+  check(
+    '重复 tick 不会再发一条（不重复推送）',
+    (await prisma.notificationLog.count({ where: { thingId: dueThing.id } })) === 1,
+  );
+
+  // --- 重复提醒：发完留在 PENDING 并算出下一次 ---
+  const recurThing = await prisma.familyThing.create({
+    data: {
+      familyId: BigInt(fx.familyId),
+      creatorMemberId: BigInt(fx.ownerMemberId),
+      assigneeMemberId: BigInt(fx.member2Id),
+      type: 1,
+      title: '每天的活',
+      visibility: 1,
+      status: 1,
+    },
+    select: { id: true },
+  });
+  const recurReminder = await prisma.thingReminder.create({
+    data: {
+      thingId: recurThing.id,
+      recipientMemberId: BigInt(fx.member2Id),
+      remindType: 2,
+      nextRemindAt: new Date(Date.now() - 60_000),
+      status: 1,
+      recurrenceType: 1, // DAILY
+      recurrenceConfig: { time: '09:00' },
+    },
+    select: { id: true },
+  });
+
+  await api('POST', '/api/internal/scheduler/tick', { headers: internal });
+  const afterRecur = await prisma.thingReminder.findUnique({
+    where: { id: recurReminder.id },
+    select: { status: true, nextRemindAt: true, sentCount: true },
+  });
+  check('重复提醒发完仍是 PENDING', afterRecur.status === 1, `status=${afterRecur.status}`);
+  check(
+    '重复提醒算出了下一次（未来时间）',
+    afterRecur.nextRemindAt != null && afterRecur.nextRemindAt.getTime() > Date.now(),
+    `next=${afterRecur.nextRemindAt?.toISOString()}`,
+  );
+  check('重复提醒 sentCount=1', afterRecur.sentCount === 1);
+
+  // --- 小事已结束 → 提醒被收掉，不发 ---
+  const doneThing = await prisma.familyThing.create({
+    data: {
+      familyId: BigInt(fx.familyId),
+      creatorMemberId: BigInt(fx.ownerMemberId),
+      assigneeMemberId: BigInt(fx.member2Id),
+      type: 1,
+      title: '已经干完的活',
+      visibility: 1,
+      status: 2, // COMPLETED
+    },
+    select: { id: true },
+  });
+  const doneReminder = await prisma.thingReminder.create({
+    data: {
+      thingId: doneThing.id,
+      recipientMemberId: BigInt(fx.member2Id),
+      remindType: 2,
+      nextRemindAt: new Date(Date.now() - 60_000),
+      status: 1,
+      recurrenceType: 0,
+    },
+    select: { id: true },
+  });
+
+  const tick3 = await api('POST', '/api/internal/scheduler/tick', { headers: internal });
+  expectCode('tick（含已完成小事）→ 0', tick3, 0);
+  const afterDone = await prisma.thingReminder.findUnique({
+    where: { id: doneReminder.id },
+    select: { status: true },
+  });
+  check('小事已完成 → 提醒被取消', afterDone.status === 3, `status=${afterDone.status}`);
+  check(
+    '小事已完成 → 不发通知（「活儿都干完了还叮我」最招人烦）',
+    (await prisma.notificationLog.count({ where: { thingId: doneThing.id } })) === 0,
+  );
+  check('tick 的 skipped 计数 ≥ 1', (tick3.body?.data?.skipped ?? 0) >= 1);
+
+  // --- 分布式锁：并发 tick，后面的必须被挡住 ---
+  // 先造几条到点提醒，让第一个 tick 的处理耗时长到足以让后两个请求撞上锁
+  for (let i = 0; i < 5; i++) {
+    const t = await prisma.familyThing.create({
+      data: {
+        familyId: BigInt(fx.familyId),
+        creatorMemberId: BigInt(fx.ownerMemberId),
+        assigneeMemberId: BigInt(fx.member2Id),
+        type: 1,
+        title: `并发锁测试 ${i}`,
+        visibility: 1,
+        status: 1,
+      },
+      select: { id: true },
+    });
+    await prisma.thingReminder.create({
+      data: {
+        thingId: t.id,
+        recipientMemberId: BigInt(fx.member2Id),
+        remindType: 2,
+        nextRemindAt: new Date(Date.now() - 60_000),
+        status: 1,
+        recurrenceType: 0,
+      },
+    });
+  }
+
+  const concurrent = await Promise.all([
+    api('POST', '/api/internal/scheduler/tick', { headers: internal }),
+    api('POST', '/api/internal/scheduler/tick', { headers: internal }),
+    api('POST', '/api/internal/scheduler/tick', { headers: internal }),
+  ]);
+  const lockedOnes = concurrent.filter((r) => r.body?.data?.locked === true);
+  check('并发 tick 时至少有一次被锁挡住', lockedOnes.length >= 1, `locked=${lockedOnes.length}/3`);
+  check(
+    '被挡住的那次什么都没扫（scanned=0）',
+    lockedOnes.length === 0 || lockedOnes.every((r) => r.body?.data?.scanned === 0),
+  );
+  check(
+    '没被挡住的那次正常扫到了到点提醒',
+    concurrent.some((r) => (r.body?.data?.scanned ?? 0) >= 5),
+    `scanned=${concurrent.map((r) => r.body?.data?.scanned).join('/')}`,
+  );
+
+  // --- 补偿：FAILED 的 REMINDER 日志重发 ---
+  const compThing = await prisma.familyThing.create({
+    data: {
+      familyId: BigInt(fx.familyId),
+      creatorMemberId: BigInt(fx.ownerMemberId),
+      assigneeMemberId: BigInt(fx.member2Id),
+      type: 1,
+      title: '补偿测试的活',
+      visibility: 1,
+      status: 1,
+    },
+    select: { id: true },
+  });
+  const failedLog = await prisma.notificationLog.create({
+    data: {
+      userId: BigInt(fx.u2),
+      familyId: BigInt(fx.familyId),
+      thingId: compThing.id,
+      type: 2, // REMINDER
+      title: '提醒你一下',
+      content: '补偿测试',
+      channel: 2, // IN_APP
+      status: 3, // FAILED —— 所有通道都失败了
+    },
+    select: { id: true },
+  });
+
+  const comp = await api('POST', '/api/internal/scheduler/compensate', { headers: internal });
+  expectCode('compensate → 0', comp, 0);
+  const compd = comp.body?.data ?? {};
+  check(
+    'compensate 返回 scanned / resent / degraded / skipped / failed / ghostsClosed',
+    ['scanned', 'resent', 'degraded', 'skipped', 'failed', 'ghostsClosed'].every(
+      (k) => typeof compd[k] === 'number',
+    ),
+  );
+  check('compensate 返回 locked / durationMs', typeof compd.locked === 'boolean' && typeof compd.durationMs === 'number');
+  check('compensate 扫到了那条 FAILED 日志', compd.scanned >= 1, `scanned=${compd.scanned}`);
+  check('重发后仍只有站内（夹具没绑微信）→ degraded', compd.degraded >= 1, `degraded=${compd.degraded}`);
+  check(
+    '补偿**复用同一条日志**（新建会让消息中心出现两条重复通知）',
+    (await prisma.notificationLog.count({ where: { thingId: compThing.id } })) === 1,
+    `logs=${await prisma.notificationLog.count({ where: { thingId: compThing.id } })}`,
+  );
+  const logAfterComp = await prisma.notificationLog.findUnique({
+    where: { id: failedLog.id },
+    select: { status: true },
+  });
+  check('补偿后该日志不再是 FAILED', logAfterComp.status !== 3, `status=${logAfterComp.status}`);
+
+  // --- 补偿幂等 ---
+  const comp2 = await api('POST', '/api/internal/scheduler/compensate', { headers: internal });
+  expectCode('重复 compensate → 0', comp2, 0);
+  check(
+    '重复补偿不再重发（状态已不是 FAILED）',
+    (comp2.body?.data?.degraded ?? 0) === 0,
+    `degraded=${comp2.body?.data?.degraded}`,
+  );
+
+  // --- 不支持的日志类型 → skipped，不猜上下文 ---
+  await prisma.notificationLog.create({
+    data: {
+      userId: BigInt(fx.u2),
+      familyId: BigInt(fx.familyId),
+      thingId: compThing.id,
+      type: 1, // TASK_ASSIGNED
+      title: '派活通知',
+      content: '派活通知',
+      channel: 2,
+      status: 3,
+    },
+  });
+  const comp3 = await api('POST', '/api/internal/scheduler/compensate', { headers: internal });
+  expectCode('compensate（含派活类型）→ 0', comp3, 0);
+  check(
+    '派活 / 完成回执的 FAILED 日志 → skipped（上下文重建成本高，不猜）',
+    (comp3.body?.data?.skipped ?? 0) >= 1,
+    `skipped=${comp3.body?.data?.skipped}`,
+  );
+
+  // --- 幽灵 PENDING 收尾 ---
+  const ghostLog = await prisma.notificationLog.create({
+    data: {
+      userId: BigInt(fx.u2),
+      familyId: BigInt(fx.familyId),
+      type: 2,
+      title: '幽灵记录',
+      content: '幽灵记录',
+      channel: 2,
+      status: 1, // PENDING
+      createdAt: new Date(Date.now() - 60 * 60_000), // 一小时前（超过 30 分钟阈值）
+    },
+    select: { id: true },
+  });
+  const comp4 = await api('POST', '/api/internal/scheduler/compensate', { headers: internal });
+  expectCode('compensate（含幽灵记录）→ 0', comp4, 0);
+  const ghostAfter = await prisma.notificationLog.findUnique({
+    where: { id: ghostLog.id },
+    select: { status: true },
+  });
+  check(
+    '超过 30 分钟的幽灵 PENDING 被收尾为 FAILED',
+    ghostAfter.status === 3,
+    `status=${ghostAfter.status}`,
+  );
+  check('ghostsClosed 计数 ≥ 1', (comp4.body?.data?.ghostsClosed ?? 0) >= 1);
+
+  // ---------- 14. 观察项 ----------
+  phase('14. 观察项（非阻塞）');
   note('立即叮（remindType=NOW）在创建流程内同步下发，并把该条提醒置 SENT。');
   note('  若将来改为「入队后由调度器发」，这里的行为会变，冒烟脚本需同步调整。');
-  note('定时提醒的 next_remind_at 已写好，但**调度器尚未实现**（M2-B20），到点不会真发。');
+  note('调度器（M2-B20）已实现：到点提醒由 tick 发出，重复提醒会算出下一次。');
+  note('  但**真机上的 Cron 触发**要等云托管配置（M2-B23），现在只能手动打接口验。');
   note('三档 deliveryStatus 目前只会出现 NOT_BOUND —— 因为没开微信提醒（mp_openid 为空）。');
   note('  等推送通道打通（M0-V1/V2）后，同一条 nudge 应返回 SENT + MP_TEMPLATE。');
   note('内容安全（M2-B9）**本脚本验的是 fail-open 路径**：夹具 openid 是造的假值，');
   note('  微信必然回 40003，于是走「判不了 → 放行」。所以这里只能保证「不误拦、不阻塞」，');
   note('  验不了「违规被拦」。要看真实结论用 `node tools/probe-seccheck.mjs`（唯一能看到 suggest 的方式）。');
   note('  确认链路真的被调用：跑完看服务日志里的 `[ContentSecurityService] 内容安全判不了，放行`。');
+  note('补偿任务（M2-B22）只重建 REMINDER 类型 —— 派活 / 完成回执需要「是否迟到」');
+  note('  「谁完成的」等上下文，重建成本高而 PENDING/FAILED 残留概率极低，遇到就跳过。');
 
   // ---------- 汇总 ----------
   console.log(`\n${'='.repeat(66)}`);
