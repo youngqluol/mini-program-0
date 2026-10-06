@@ -1,0 +1,29 @@
+<!--
+  左滑露出操作
+
+  `offset` 由组件自己算（跟手 + 吸附），「哪一行开着」由页面通过 `openId` 管。
+  `actions` 为空时 `width` 为 0 —— 抽屉宽度 0，手势也直接返回，
+  所以这一行就是滑不动，不会滑出一个空抽屉。
+-->
+<view class="swipe">
+  <view class="swipe__actions" style="width: {{width}}px;">
+    <view
+      wx:for="{{actions}}"
+      wx:key="key"
+      class="swipe__action swipe__action--{{item.tone}}"
+      data-key="{{item.key}}"
+      bindtap="onAction"
+    >{{item.label}}</view>
+  </view>
+
+  <view
+    class="swipe__body"
+    style="transform: translateX({{offset}}px); transition: {{dragging ? 'none' : 'transform 180ms ease-out'}};"
+    bindtouchstart="onTouchStart"
+    bindtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchEnd"
+  >
+    <slot></slot>
+  </view>
+</view>

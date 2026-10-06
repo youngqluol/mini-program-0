@@ -1,0 +1,54 @@
+/*
+  左滑露出操作
+
+  ⚠️ `.swipe__action` 的宽度必须与 index.ts 里的 ACTION_WIDTH 一致 ——
+     抽屉宽度是算出来的（操作个数 × 宽度），对不上就会出现
+     「滑到底了还露着一条白边」或者「操作被裁掉一半」。
+*/
+
+:host {
+  display: block;
+}
+
+.swipe {
+  position: relative;
+  overflow: hidden;
+  /* 圆角与 thing-card 一致，否则滑开时能看见抽屉的直角从卡片圆角外冒出来 */
+  border-radius: var(--radius-md);
+}
+
+.swipe__actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: flex;
+}
+
+.swipe__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 100%;
+  font-size: var(--fs-h3);
+  color: #ffffff;
+}
+
+.swipe__action--normal {
+  background: var(--brand-1);
+}
+
+.swipe__action--danger {
+  background: var(--danger);
+}
+
+.swipe__action:active {
+  opacity: 0.86;
+}
+
+.swipe__body {
+  position: relative;
+  /* 必须有不透明底色，否则抽屉会从卡片底下透出来 */
+  background: var(--bg);
+}
