@@ -4,8 +4,14 @@
 面向家庭成员的轻量事务协作微信小程序。四大模块：🔔叮一下 / 🎯派活 / 🍽️吃啥呢 / 📖留个念。
 核心闭环：吃啥呢 → 派活 → 叮一下 → 完成 → 留个念。
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
-**进度（2026-10-06）：M0 ✅ / M1 ✅** —— 后端 B1–B15 + 小程序 F1–F13 全部完成。
-下一步：M1 真机验收（开发者工具打开 `miniprogram/`，按 docs/05 §三 的四步走）→ M2 核心闭环。
+**进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 进行中**
+- 后端 B1–B26 全部收口（只剩 **B23 云托管 Cron 配置**，需用户在控制台操作）。
+- 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P09 + **P10 详情 / P11 我的小事 /
+  P01 首页** 已完成 → **核心闭环四个方向都点通了**：首页 → 叮一下 / 派活 → 列表 → 详情 → 完成。
+- 剩余：**P12 消息中心（M2-F13）→ P20「我的」Tab（M2-F2）→ P21 微信提醒（M2-F1）**；
+  M2-F3 / M2-F14 明确不做（都已记入 `docs/未来需求池.md`）。
+- 还欠用户侧动作：**M1 真机验收**、**M2-B23 云托管 Cron**、Worker 4 个 secret +
+  `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN`、用真实 openid 跑 `tools/probe-subscribe.mjs` 验 47003。
 信息架构（v0.2）：底部 4 Tab = 家里 / 吃啥呢 / 留个念 / 我的。家庭管理在「我的」，为 V0.2 家庭切换预留。
 
 ## 技术栈（已确定，勿再变更）
@@ -139,8 +145,10 @@
   但 M2 做「家庭切换 / 历史家庭」会读到脏数据。M2 前决定是否一并 `updateMany` 置 LEFT。
 - `/api/health/templates` 的**公众号通道** `templates[].name` 仍回微信后台标题
   （含禁用词「待办事项」）；订阅通道已用 `displayName` 规避。运维接口，暂不阻塞。
-- `notification_logs` / `thing_reminders` 缺 `read_at`，docs/02 §9 要求「已读 / 未读数 /
-  全部已读」，M2 前需决定。
+- **消息中心没有「单条已读」接口** —— `read_at` 字段（`notification_logs` /
+  `thing_reminders`）已就绪，docs/02 §9 只定义了「全部已读」。**这是接口契约缺口、
+  不是技术缺口**。后果：点开一条通知不会清角标，只能靠「全部已读」（会连带清掉没看的）。
+  已记入 `docs/未来需求池.md`。
 - docs/04 里 `husky + lint-staged` / `commitlint` 仍标「M1 接入」，尚未接入。
 - **`pnpm run format:check` 目前不通过：43 个文件**（含 `server/`）—— 前几轮手写时
   没跑 prettier 留下的（`tools/smoke-m2-things.mjs` 一个文件就要改 178 行）。
@@ -157,9 +165,15 @@
   页面只能拿执行人拼「🔔 17:30 提醒阿爸」。V0.1 成立（P08 / P09 都不传接收人，
   后端默认取执行人），但 docs/02 §5.1 允许显式指定 —— 哪天做「提醒别人」，
   这一行会说**安静的假话**。已记入 `docs/未来需求池.md`。
-- **P10 详情页目前没有入口** —— 两个入口分别在 M2-F11（P01 首页今日汇总条目）
-  与 M2-F10（P11 我的小事列表行），都还没做。手验只能在开发者工具里跳
-  `/pages/thing/detail?id=<真实 thingId>`。
+- **M2-F3（首页「未开微信提醒」提示条）不做** —— docs/03 要求它出现在「**别人**
+  没开微信提醒」时，但 `GET /notify/mp-bind/status` 只回**我自己**的状态，
+  后端**没有「家庭成员谁开了」的接口**（这个条件算不出来）；且它要跳 P21（未做）。
+  已记入 `docs/未来需求池.md`。做 P21 时一起做，注意**只暴露「开 / 没开」布尔值**，
+  不要把 `mp_openid` 漏给前端（机制词，用户界面禁用）。
+- **P01 首页不显示 `stats.overdue`（过期未完成数）—— 刻意的，别改回来** ——
+  「今天有 2 件事已经过了时间」是**催办话**（AGENTS.md §6 禁用词有「逾期」）。
+  单条小事上**变红的时间保留**（那是信息：本来定在几点），聚合成一个数字挂页面顶部
+  就变成**监督**了。已记入 `docs/未来需求池.md` 并写明「不要做」。
 - 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
   原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
@@ -188,7 +202,7 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
 | `check-shared.mjs` | 小程序侧常量镜像防漂移（`ErrorCode` 数值 + `DELIVERY_TOAST` 文案） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
 | `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用） | 改了页面或组件后 |
-| `test-thing-view.mjs` | **小事展示模型的行为断言**（38 项，纯函数） | 改了 `utils/thing-view.ts` 后 |
+| `test-thing-view.mjs` | **小事展示模型的行为断言**（**62 项**：详情 38 + 列表行 14 + 首页提醒行 10） | 改了 `utils/thing-view.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
@@ -272,6 +286,26 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
 - **页面路径以 `docs/03` §二 为准**：P08 = `pages/nudge/create`、P09 = `pages/task/create`、
   P10 = `pages/thing/detail`、P11 = `pages/thing/mine`、P12 = `pages/notice/index`、
   P20 = `pages/mine/index`、P21 = `pages/mine/wechat-notify`。**不是** `pages/thing/create`。
+- **列表页用 `onShow` 取数，不用 `onLoad`**：从创建页 / 详情页返回时必须反映刚才的操作。
+  代价是分页位置会收回到第一页 —— **数据正确优先于位置保留**。
+- **列表请求必须防「过期响应」**：快速连点两个 Tab 时先发的那次可能后到 →
+  「Tab 高亮着 A，列表里却是 B」，而且**不报错**。做法：请求前记下筛选条件，
+  响应回来对不上就丢弃；`loadMore` 还要检查分页号没被中间那次 `reload` 接上。
+  ⚠️ **`reload()` 里不能加 `if (loading) return`** —— 它会把「过期的首次请求」
+  变成一道闸门，后续刷新全被堵死。防重复靠条件判断，不靠锁。
+- **`swipe-cell` 左滑组件（第 5 个组件）的三个设计点**：
+  ① **横滑与竖滚要仲裁** —— 判据是「位移先超过 6px 的那个方向」，判成纵向就彻底不管，
+  把滚动还给页面；为此用 `bindtouchmove` 而非 `catchtouchmove`（后者会吃掉事件、
+  列表就再也滚不动）。② **同一时刻只允许开一行** → 「哪一行开着」由**页面**持有
+  （`openId`），组件只回答「我这一行该不该开着」（**受控组件**）。
+  ③ **`actions` 为空 = 这一行不可滑**（真的不响应手势），不是「滑开一个空抽屉」。
+  ⚠️ **`ACTION_WIDTH = 84` 是 ts 与 wxss 的跨文件耦合**（`.swipe__action { width: 84px }`）。
+  ⚠️ 手势中间态（`touchStartX/Y` 等）**放进 `data`，不挂 `this.xxx`** ——
+  小程序组件的 TS 类型里没有自定义实例字段的位置。
+- **自定义组件的行不要套在 `.card` 里**：`thing-card` / `swipe-cell` 自身就是白底圆角，
+  再套一层白卡片就是**白压白**，行与行分不出界线。列表用 `.rows / .row` 直接躺在页面背景上。
+- **`onLoad(query)` 要真的读入口参数**：P11 靠 `?tab=` 决定落在哪个 Tab
+  （首页两个「更多 ›」都跳它）。**参数不认识要退回默认值**，不能因为一个错链接白屏。
 
 ## 设计风格
 v1.0「柔光粉彩」，完整规范见 `docs/07`。主色粉桃渐变 `#FF9DB4 → #FFB59B`，背景 `#FDF6F7`，
