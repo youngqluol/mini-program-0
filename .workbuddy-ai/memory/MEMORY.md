@@ -142,6 +142,12 @@
 - `notification_logs` / `thing_reminders` 缺 `read_at`，docs/02 §9 要求「已读 / 未读数 /
   全部已读」，M2 前需决定。
 - docs/04 里 `husky + lint-staged` / `commitlint` 仍标「M1 接入」，尚未接入。
+- **`pnpm run format:check` 目前不通过：43 个文件**（含 `server/`）—— 前几轮手写时
+  没跑 prettier 留下的。2026-10-06 **刻意没做整仓重排**（`tools/smoke-m2-things.mjs`
+  一个文件就要改 178 行，会淹掉真正的改动）。**待用户拍板后单独一个 `style:` 提交。**
+  已记入 docs/README 的「已知偏差」。
+- 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
+  原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
   与 `MP_QRCODE_URL` 待用户配；`MP_CALLBACK_TOKEN` 待云托管部署后配。
 
@@ -176,8 +182,8 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 
 ## 工程目录约定（docs/04）
 Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` + `server/`（NestJS）。
-后端模块（已建）：`auth` / `families` / `wechat` / `notify` / `health` + `prisma` / `redis` / `common`。
-（规划中）`thing` / `reminder` / `menu` / `memory` / `upload` / `scheduler`。
+后端模块（已建）：`auth` / `families` / `wechat` / `notify` / `thing`（含 reminder）/ `scheduler` / `health`
++ `prisma` / `redis` / `common`。（规划中）`menu` / `memory` / `upload`。
 Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现下划线字段**。
 
 ### 容易踩的工程坑（都已在 docs/04 写明）
@@ -216,6 +222,17 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
 - 小程序**没有全局路由钩子**，守卫只能写成普通函数在页面 `onShow` 里调
   （`utils/route.ts` 的 `guardEntry`）。
 - 真机调试时 `localhost` 指向手机自己 —— `config.ts` 的 `BASE_URL` 要换成电脑局域网 IP。
+- **组件是「一个组件一个目录」，入口固定 `index.*`**（`components/<kebab-case>/index.{ts,wxml,wxss,json}`），
+  和页面的扁平文件布局不是一套，别记混。
+- **自定义组件抛事件必须避开原生事件名**：`triggerEvent('tap')` 会和原生 tap 冒泡撞车，
+  页面写 `bindtap` 会收到**两次**回调。卡片用 `click` + `complete`。
+- **组件不读 store、不发请求**（项目约定）：页面决定「给谁选、拿什么数据」，
+  组件只把「选了什么 / 点了什么」抛回去。组件一旦自己去查成员列表就没法复用了。
+- **`thing-card` 只吃 `utils/thing-view.ts` 归一化出来的 `ThingCardItem`**，不认识任何后端 DTO。
+  后端三种小事形状（`ThingListItem` / `TodayTask` / `TodayReminder`）的差异只在归一化层处理一次。
+- **页面路径以 `docs/03` §二 为准**：P08 = `pages/nudge/create`、P09 = `pages/task/create`、
+  P10 = `pages/thing/detail`、P11 = `pages/thing/mine`、P12 = `pages/notice/index`、
+  P20 = `pages/mine/index`、P21 = `pages/mine/wechat-notify`。**不是** `pages/thing/create`。
 
 ## 设计风格
 v1.0「柔光粉彩」，完整规范见 `docs/07`。主色粉桃渐变 `#FF9DB4 → #FFB59B`，背景 `#FDF6F7`，
