@@ -4,6 +4,8 @@
 面向家庭成员的轻量事务协作微信小程序。四大模块：🔔叮一下 / 🎯派活 / 🍽️吃啥呢 / 📖留个念。
 核心闭环：吃啥呢 → 派活 → 叮一下 → 完成 → 留个念。
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
+**进度（2026-10-06）：M0 ✅ / M1 ✅** —— 后端 B1–B15 + 小程序 F1–F13 全部完成。
+下一步：M1 真机验收（开发者工具打开 `miniprogram/`，按 docs/05 §三 的四步走）→ M2 核心闭环。
 信息架构（v0.2）：底部 4 Tab = 家里 / 吃啥呢 / 留个念 / 我的。家庭管理在「我的」，为 V0.2 家庭切换预留。
 
 ## 技术栈（已确定，勿再变更）
@@ -73,10 +75,11 @@
 - 提交粒度：**一个逻辑单元一个 commit**，不要 `git add -A` 一把梭。
 - 提交信息 `<type>(<scope>): <subject>`，见 `docs/04` §6.2。
   - type ∈ `feat` / `fix` / `docs` / `style` / `refactor` / `perf` / `test` / `chore`
-  - scope ∈ `auth` / `family` / `thing` / `reminder` / `menu` / `memory` / `upload` / `notify` / `mp` / `wxpush` / `db`
-    （基础设施工地用 `server`；不在列表里的新 scope 先补 docs/04 §6.2 再用）
+  - scope ∈ `auth` / `family` / `thing` / `reminder` / `menu` / `memory` / `upload` / `notify` / `mp` / `wxpush` / `db` / `tools`
+    （基础设施工地用 `server`；`tools` 给仓库根的自查与冒烟脚本）
 - 提交前核对：`git check-ignore -v server/.env` 必须命中；`.env.example` 必须入库。
 - 每次 commit 后核对：`git log --oneline -1` + `git status --porcelain -uall | wc -l`。
+- **只提交，不推送。`git push` 由用户自己做**（2026-10-06 用户明确要求）。
 
 ## 本机开发环境（2026-10-06 实测）
 - Windows 10 **专业版** 22H2（Build 19045），物理机 ASUS，PowerShell 有管理员权限。
@@ -190,6 +193,21 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
 - **小程序页面是扁平文件**：`pages/<模块>/<页面>.{ts,wxml,wxss,json}`（如 `pages/menu/index.ts`），
   不是「一页一目录」。以 `docs/03` 的页面路径表为准。
 - 全局前缀 `/api`（不是 `/api/v1`），以 `docs/02` 的 Base URL 为准。
+
+### 小程序端专属的坑（都已在 docs/04 写明）
+- **不能 import `@shared` 的运行时值，只能 `import type`。**
+  微信开发者工具的 TS 编译由 `@babel/plugin-transform-typescript` 实现，官方文档写明
+  它「仅仅是移除了 ts 代码中类型声明等信息」——**只做类型擦除，不解析 tsconfig 的 paths**。
+  `import type` 整条被擦除（安全）；`import { X }` 会保留 `require('@shared')` → 运行时崩。
+  常量的做法：在 `miniprogram/constants/` 下做**镜像**（用 `as const` 对象，不用 `enum`
+  —— Babel 默认不转换 enum），由 `node tools/check-shared.mjs` 防漂移。
+- **`wx.request` 的类型定义里没有 PATCH**（官方文档只列 OPTIONS/GET/HEAD/POST/PUT/
+  DELETE/TRACE/CONNECT），但底层支持。在 `services/request.ts` 断言一次即可。
+- **iOS 不认 `new Date('2026-10-06 12:00:00')`**（返回 Invalid Date），必须先把 `-`
+  换成 `/`。**只在真机 iOS 暴露**，模拟器与安卓都不报错。见 `utils/time.ts`。
+- 小程序**没有全局路由钩子**，守卫只能写成普通函数在页面 `onShow` 里调
+  （`utils/route.ts` 的 `guardEntry`）。
+- 真机调试时 `localhost` 指向手机自己 —— `config.ts` 的 `BASE_URL` 要换成电脑局域网 IP。
 
 ## 设计风格
 v1.0「柔光粉彩」，完整规范见 `docs/07`。主色粉桃渐变 `#FF9DB4 → #FFB59B`，背景 `#FDF6F7`，
