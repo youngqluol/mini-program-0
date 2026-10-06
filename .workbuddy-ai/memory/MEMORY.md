@@ -147,6 +147,19 @@
   2026-10-06 **用户已拍板：「先不用，记录下」** → 不做整仓重排，已记入 docs/README 的「已知偏差」。
   **沿用纪律：只格式化自己新增/改动的文件**（提交前 `npx prettier --check <本次改动>`），
   不动历史欠账。若日后要做，单独开一个 `style:` 提交。
+- **P10 不露出「家庭创建者也能完成 / 取消」这条后端兜底** —— 服务端
+  `complete` / `cancel` / `reopen` 都允许 `ctx.isOwner` 越过身份操作，那是防止一件事
+  因执行人退出家庭而永远卡住的**数据阀门**；界面只认「我是执行人 / 我是发起人」
+  （「只提醒，不监督」）。代价：极少见的死锁（发起人与执行人都已不在家庭时，
+  创建者打开 P10 什么都做不了）。已记入 `docs/未来需求池.md`，
+  **修复时不要把权限判断搬到前端**（详情响应加一个服务端判定字段）。
+- **P10 的提醒行假定「接收人 = 执行人」** —— `ThingDetail.reminders` 里没有接收人字段，
+  页面只能拿执行人拼「🔔 17:30 提醒阿爸」。V0.1 成立（P08 / P09 都不传接收人，
+  后端默认取执行人），但 docs/02 §5.1 允许显式指定 —— 哪天做「提醒别人」，
+  这一行会说**安静的假话**。已记入 `docs/未来需求池.md`。
+- **P10 详情页目前没有入口** —— 两个入口分别在 M2-F11（P01 首页今日汇总条目）
+  与 M2-F10（P11 我的小事列表行），都还没做。手验只能在开发者工具里跳
+  `/pages/thing/detail?id=<真实 thingId>`。
 - 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
   原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
@@ -167,19 +180,36 @@
 vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 
 ## 自查与测试工具（`tools/`）
+一条命令跑全部：**`pnpm run check`**（= check:ts + check:links + check:shared + check:mp + check:view）。
+
 | 脚本 | 用途 | 何时跑 |
 | --- | --- | --- |
 | `check-ts.mjs` | TS 语法校验（不装 typescript 也能跑） | 提交前 |
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
-| `smoke-m1.mjs` | **M1 家庭链路端到端冒烟**（14 阶段 / 83 断言） | 改完后端接口后 |
+| `check-shared.mjs` | 小程序侧常量镜像防漂移（`ErrorCode` 数值 + `DELIVERY_TOAST` 文案） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
+| `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用） | 改了页面或组件后 |
+| `test-thing-view.mjs` | **小事展示模型的行为断言**（38 项，纯函数） | 改了 `utils/thing-view.ts` 后 |
+| `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
+| `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
+| `probe-seccheck.mjs` | 实探文本内容安全，看 `suggest` / `label` | 排查 msgSecCheck 时 |
 | `test-wxpush.mjs` | 测公众号模板消息通道 | 排查推送时 |
+
+**`test-thing-view.mjs` 的做法值得复用**（它是仓库里第一个行为断言工具）：
+小程序端是 TS，node 不能直接 require → 用已有的 `typescript` 走**编译器 API 在进程内**
+（`readConfigFile` → `parseJsonConfigFileContent` → `createProgram` → `emit`）把
+`miniprogram/` 编到系统临时目录再 require 产物。**不要 spawn `tsc`**：
+本机执行环境会拦子进程（`.bin/tsc.cmd` → `EINVAL`，`process.execPath` → `EBUSY`）。
+产物路径是 `<out>/miniprogram/utils/thing-view.js`（tsc 推断 `rootDir` 为仓库根）。
+**为什么需要它**：`tsc` 只保证类型对，保证不了「不限时间前完成」这种语法通顺但意思错的文案。
+写它的当天就抓到一个空格级错误。**别只加断言，也要核对既有断言还成不成立。**
 
 `smoke-m1.mjs` 要点：用 `node:crypto` 手写 HS256 JWT（payload 与 `AuthService.signToken`
 一致，`sub` 必须是 number）；夹具走 Prisma Client（见上方沙箱 EBUSY 那条）；
 需先起服务 + MySQL + Redis。提交 scope 用 `tools`（docs/04 §6.2 已登记）。
 
-**提交纪律**：改完后端接口 → 跑 `smoke-m1.mjs` → 「编译通过」不等于「链路通」。
+**提交纪律**：改完后端接口 → 跑冒烟 → 「编译通过」不等于「链路通」。
+改了小程序纯展示逻辑 → 跑 `check:view`。
 
 ## 工程目录约定（docs/04）
 Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` + `server/`（NestJS）。
@@ -231,6 +261,14 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   组件只把「选了什么 / 点了什么」抛回去。组件一旦自己去查成员列表就没法复用了。
 - **`thing-card` 只吃 `utils/thing-view.ts` 归一化出来的 `ThingCardItem`**，不认识任何后端 DTO。
   后端三种小事形状（`ThingListItem` / `TodayTask` / `TodayReminder`）的差异只在归一化层处理一次。
+  **P10 详情页的 `buildThingDetailView()` 也放这里** —— 同一层的纯函数，好处是可断言。
+- **改了小事状态后整页重拉，不就地打补丁**：完成一件小事会连带取消它下面所有未发出的提醒，
+  只改本地 `status` 会让「🔔 17:30 提醒阿爸」留在一件已经做完的事上。
+- **toast 只说界面说不出来的事**：状态条已经变成「已完成 · 18:05 由阿爸完成」时，
+  再弹一句「搞定啦」是重复。只有 `nextThingId` 这种界面表达不了的信息才补 toast。
+- **时间文案分两个出口**：`describeDue()` 给「单独出现的时刻」（要带「今天 / 明天」才不歧义），
+  `shortMoment(value, base?)` 给「成对出现的时间」（同一天只说「18:05」）。
+  拼「X 前完成」时注意 `describeDue(null)` 是「不限时间」——直接拼会成「不限时间前完成」。
 - **页面路径以 `docs/03` §二 为准**：P08 = `pages/nudge/create`、P09 = `pages/task/create`、
   P10 = `pages/thing/detail`、P11 = `pages/thing/mine`、P12 = `pages/notice/index`、
   P20 = `pages/mine/index`、P21 = `pages/mine/wechat-notify`。**不是** `pages/thing/create`。
