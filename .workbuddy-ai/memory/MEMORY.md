@@ -96,6 +96,12 @@
 - WorkBuddy 工具限制（这台机器上）：`wsl.exe` / `reg.exe` / `schtasks.exe` 在程序黑名单里无法执行；
   `dism.exe` 经 PowerShell 调用**可用**；PowerShell 工具 stdout 常为空，
   **必须把结果 `Out-File` 到临时文件再用 Read 读**。
+- **沙箱 hook 了 Node 的 `child_process`：Node 进程创建任何子进程都 EBUSY**
+  （`execFileSync(process.execPath, ['-v'])`、`execSync('echo hi')`、`spawnSync(docker, ...)` 全部失败）。
+  而 `Bash` 工具起 docker 正常 —— 限制只作用于当前 Node 进程的 spawn，不是程序黑名单。
+  **推论：Node 脚本想碰外部系统，只能走「进程内协议」—— HTTP / Prisma(N-API) / Redis 客户端。**
+  例：`tools/smoke-m1.mjs` 的数据库夹具用 **Prisma Client**（Prisma 6 默认 N-API library 引擎，
+  不 spawn `query-engine.exe`），而不是 `docker exec mysql`。
 - `nest start --watch` 会因清空 `server/dist`（412 个文件）触发 WorkBuddy 批量删除保护
   （阈值 50）；改用 `pnpm run build` + `node dist/server/src/main.js` 起服务。
 
@@ -116,18 +122,46 @@
 ## V0.1 明确不做
 编辑 / 撤回 / 状态回滚 / 多家庭切换 / 「每天」重复 / 通知节流与汇总 —— 全部 V0.2。
 
+## 已知待决项
+- **`FamiliesService.dissolve()` 只改 `families.status=0`，没把成员置 LEFT** ——
+  解散后 `family_members` 仍 `ACTIVE`。用户视角无影响（`listMine` 按家庭状态过滤），
+  但 M2 做「家庭切换 / 历史家庭」会读到脏数据。M2 前决定是否一并 `updateMany` 置 LEFT。
+- `/api/health/templates` 的**公众号通道** `templates[].name` 仍回微信后台标题
+  （含禁用词「待办事项」）；订阅通道已用 `displayName` 规避。运维接口，暂不阻塞。
+- `notification_logs` / `thing_reminders` 缺 `read_at`，docs/02 §9 要求「已读 / 未读数 /
+  全部已读」，M2 前需决定。
+- docs/04 里 `husky + lint-staged` / `commitlint` 仍标「M1 接入」，尚未接入。
+- Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
+  与 `MP_QRCODE_URL` 待用户配；`MP_CALLBACK_TOKEN` 待云托管部署后配。
+
 ## 文档结构
 **根目录只放 `AGENTS.md` + `README.md` 两个 md**（工具约定要求它们必须在根），其余文档全在 `docs/`：
 - `docs/README.md` — 索引 + **文档权威性表**（一份信息只有一个权威来源，防矛盾机制）
 - `docs/产品需求文档.md` — ★ 产品需求唯一权威来源
 - `docs/核心数据模型与业务流程.md` / `docs/MySQL 数据库设计.md` — 设计基线（v0.2.1）
-- 文档版本**按篇独立**：v0.2.2 = PRD / 01 / 02 / 04 / 05 / 06；08 = v1.0.1；03 / 07 / 核心数据模型 / MySQL 设计 仍 v0.2.1
+- 文档版本**按篇独立**：04 = **v0.2.4**；PRD / 01 / 02 / 05 / 06 = v0.2.3；08 = v1.0.1；
+  03 / 07 / 核心数据模型 / MySQL 设计 仍 v0.2.1
 - `docs/未来需求池.md` — 超出 V0.1 的想法一律记这里
 - `docs/01~08` — 架构 / API / 页面 / 工程规范 / 开发计划 / 上线准备 / 视觉设计规范 / wxpush 推送集成方案
 - 配套：`db/schema.sql`（DDL 唯一真相）、`packages/shared/src/enums.ts`（枚举唯一来源）、`prototypes/prototype.html`、`wxpush/`、`tools/`
 
 **文档移动/重命名后必须跑 `node tools/check-links.mjs`**（Markdown 相对链接失效不会报错）。
 vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
+
+## 自查与测试工具（`tools/`）
+| 脚本 | 用途 | 何时跑 |
+| --- | --- | --- |
+| `check-ts.mjs` | TS 语法校验（不装 typescript 也能跑） | 提交前 |
+| `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
+| `smoke-m1.mjs` | **M1 家庭链路端到端冒烟**（14 阶段 / 83 断言） | 改完后端接口后 |
+| `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
+| `test-wxpush.mjs` | 测公众号模板消息通道 | 排查推送时 |
+
+`smoke-m1.mjs` 要点：用 `node:crypto` 手写 HS256 JWT（payload 与 `AuthService.signToken`
+一致，`sub` 必须是 number）；夹具走 Prisma Client（见上方沙箱 EBUSY 那条）；
+需先起服务 + MySQL + Redis。提交 scope 用 `tools`（docs/04 §6.2 已登记）。
+
+**提交纪律**：改完后端接口 → 跑 `smoke-m1.mjs` → 「编译通过」不等于「链路通」。
 
 ## 工程目录约定（docs/04）
 Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` + `server/`（NestJS）。
