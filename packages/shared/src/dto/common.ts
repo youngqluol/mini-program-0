@@ -9,6 +9,27 @@ export interface ApiResponse<T = unknown> {
   data: T | null;
 }
 
+/**
+ * 家庭成员简写 —— **跨模块共用的一种形状**。
+ *
+ * 只带「文案与头像会用到」的三样：成员 ID、家庭称谓、头像。
+ * 小事（`ThingMemberBrief`）与留个念（`MemoryCreatorBrief`）都是它的别名 ——
+ * 两个模块各写一份结构相同的接口，改一处忘一处时编译器不会报错，
+ * 所以这里只留一个定义（与「枚举只有一个来源」是同一条纪律）。
+ *
+ * ⚠️ **`roleName` 是家庭称谓（「阿妈」），不是微信昵称。**
+ * 文案里一律用称谓 —— 家人才知道谁是谁（PRD §31 术语表）。
+ * 需要昵称请用 `FamilyMember`（那是成员管理页的形状）。
+ *
+ * `avatarUrl` 可为空，前端用称谓首字兜底。
+ */
+export interface MemberBrief {
+  memberId: number;
+  /** 家庭称谓，例如「阿妈」 */
+  roleName: string;
+  avatarUrl: string | null;
+}
+
 /** 分页请求参数 */
 export interface PageQuery {
   /** 页码，从 1 开始 */

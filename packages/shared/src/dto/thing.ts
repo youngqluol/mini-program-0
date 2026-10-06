@@ -10,6 +10,7 @@
  * 由后端 `beijing-time.ts` 统一格式化；前端传入时也按同一格式。
  */
 
+import type { MemberBrief } from './common';
 import type {
   RecurrenceType,
   RemindType,
@@ -36,13 +37,8 @@ export type ReminderStatusValue = keyof typeof ReminderStatus;
 // 通用片段
 // ---------------------------------------------------------------
 
-/** 小事里出现的成员简写（创建人 / 执行人）。头像可空，前端用称谓首字兜底。 */
-export interface ThingMemberBrief {
-  memberId: number;
-  /** 家庭称谓，例如「阿妈」—— 文案里用它，不用昵称 */
-  roleName: string;
-  avatarUrl: string | null;
-}
+/** 小事里出现的成员简写（创建人 / 执行人）。定义见 `dto/common.ts` 的 `MemberBrief`。 */
+export type ThingMemberBrief = MemberBrief;
 
 /**
  * 重复规则。
