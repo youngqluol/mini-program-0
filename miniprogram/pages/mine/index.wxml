@@ -35,13 +35,19 @@
     </view>
   </view>
 
-  <!-- 消息与提醒。微信提醒那一行要跳 P21（M2-F1），等它做了一起加 -->
+  <!-- 消息与提醒 -->
   <view class="section-title">消息与提醒</view>
   <view class="card cells">
     <view class="cell" bindtap="onNotice">
       <text class="cell__emoji">💬</text>
       <text class="cell__label">消息中心</text>
       <text class="cell__badge" wx:if="{{unread.show}}">{{unread.text}}</text>
+      <text class="cell__arrow">›</text>
+    </view>
+    <view class="cell" bindtap="onWechatNotify">
+      <text class="cell__emoji">🔔</text>
+      <text class="cell__label">微信提醒</text>
+      <text class="cell__extra {{wechat.warn ? 'cell__extra--warn' : ''}}">{{wechat.text}}</text>
       <text class="cell__arrow">›</text>
     </view>
   </view>

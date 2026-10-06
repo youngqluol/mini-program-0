@@ -21,9 +21,8 @@
  *    后端会拒绝创建者退出，给一个点了就报错的按钮是差交互；
  *    换成一行说明，告诉他真正的出口在「家庭设置」。
  *
- * 4. **微信提醒这一行等 M2-F1 一起加。** 它要跳 P21，而 P21 还没做 ——
- *    挂一个点了没反应的入口，比暂时不挂更糟（和首页 M2-F3 的处理同一个道理）。
- *    「还没开微信提醒」这件事目前由 P12 消息中心在送达失败时告诉你。
+ * 4. **微信提醒这一行随 M2-F1 一起加。** 它要跳 P21 —— 那一页做出来之前不挂，
+ *    因为「挂一个点了没反应的入口，比暂时不挂更糟」（和首页 M2-F3 同一个道理）。
  *
  * ⚠️ 「关于 / 隐私政策 / 注销账号」里的后两项**这一轮不露出**：
  *    隐私政策需要一份真实的合规文案，注销账号需要后端的删除链路
@@ -34,8 +33,18 @@
 import * as familyApi from '../../services/family';
 import * as notifyApi from '../../services/notify';
 import * as userStore from '../../stores/user';
-import type { LeaveRowView, MineProfileView, UnreadBadgeView } from '../../utils/mine-view';
-import { buildLeaveRow, buildMineProfile, buildUnreadBadge } from '../../utils/mine-view';
+import type {
+  LeaveRowView,
+  MineProfileView,
+  NotifyRowView,
+  UnreadBadgeView,
+} from '../../utils/mine-view';
+import {
+  buildLeaveRow,
+  buildMineProfile,
+  buildUnreadBadge,
+  buildWechatNotifyRow,
+} from '../../utils/mine-view';
 import { goCreateFamily, guardEntry } from '../../utils/route';
 import { syncUnreadBadge } from '../../utils/tab-badge';
 import { confirm, toast, toastError } from '../../utils/toast';
@@ -51,6 +60,7 @@ Page({
     memberCountText: '',
 
     unread: { show: false, text: '' } as UnreadBadgeView,
+    wechat: { text: '还没开', warn: true } as NotifyRowView,
     leave: { show: true, hint: '' } as LeaveRowView,
 
     /** 有请求在路上：挡住重复点「退出家庭」 */
@@ -73,16 +83,17 @@ Page({
   },
 
   /**
-   * 要联网的两件事。`getDetail` 只为拿 `memberCount` 与 `isOwner` ——
+   * 要联网的三件事。`getDetail` 只为拿 `memberCount` 与 `isOwner` ——
    * store 里存的是 `MyFamilyBrief`，刻意不含这两个字段（见 `stores/user.ts` 顶部）。
    */
   async load() {
     const family = userStore.getCurrentFamily();
     if (!family) return;
 
-    const [detail, unread] = await Promise.all([
+    const [detail, unread, mp] = await Promise.all([
       familyApi.getDetail(family.familyId).catch(() => null),
       notifyApi.unreadCount().catch(() => null),
+      notifyApi.getMpBindStatus().catch(() => null),
     ]);
 
     if (detail) {
@@ -97,6 +108,8 @@ Page({
       this.setData({ unread: buildUnreadBadge(unread.unreadCount) });
       syncUnreadBadge(unread.unreadCount);
     }
+
+    if (mp) this.setData({ wechat: buildWechatNotifyRow(mp.bound) });
   },
 
   // ---------------------------------------------------------------
@@ -125,6 +138,10 @@ Page({
 
   onNotice() {
     wx.navigateTo({ url: '/pages/notice/index' });
+  },
+
+  onWechatNotify() {
+    wx.navigateTo({ url: '/pages/mine/wechat-notify' });
   },
 
   // ---------------------------------------------------------------
