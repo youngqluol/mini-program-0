@@ -26,6 +26,7 @@ import type {
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotifyService } from '../notify/notify.service';
 import { FamiliesService } from '../families/families.service';
+import { ContentSecurityService } from '../wechat/content-security.service';
 import { BusinessException } from '../../common/errors/business.exception';
 import {
   beijingDayRange,
@@ -64,6 +65,9 @@ const MEMBER_ACTIVE = 1;
  *      在 `where` 里就被排除，不是查出来再过滤 —— 后者一旦有人漏写 if 就泄了。
  *   ② **不做物理删除**。取消是 `status=3`，历史留着。
  *   ③ **推送失败不阻塞用户操作**。通知是「尽力而为」，异常只记日志。
+ *
+ * 内容安全（M2-B9）在**写库之前**做：检测不通过要能整体拦下，
+ * 不留半条数据；策略（拦什么、放什么）统一在 `ContentSecurityService`。
  */
 @Injectable()
 export class ThingService {
@@ -73,6 +77,7 @@ export class ThingService {
     private readonly prisma: PrismaService,
     private readonly families: FamiliesService,
     private readonly notify: NotifyService,
+    private readonly contentSecurity: ContentSecurityService,
   ) {}
 
   // =============================================================
@@ -90,6 +95,14 @@ export class ThingService {
     const type = requireThingType(dto.type);
     const title = dto.title.trim();
     if (!title) throw BusinessException.invalidParam('要写点什么呢');
+    const content = dto.content?.trim() || null;
+
+    // 内容安全（M2-B9）：写库前拦掉确定违规的内容。
+    // 两段**并发**检测 —— 串行会让用户在创建页白等一次往返。
+    await Promise.all([
+      this.contentSecurity.assertTextSafe(ctx.userId, title, '小事的标题'),
+      this.contentSecurity.assertTextSafe(ctx.userId, content, '小事的说明'),
+    ]);
 
     const assignee = await this.assertAssigneeInFamily(ctx.familyId, dto.assigneeMemberId);
     const visibility =
@@ -110,7 +123,7 @@ export class ThingService {
           creatorMemberId: ctx.memberId,
           type,
           title,
-          content: dto.content?.trim() || null,
+          content,
           assigneeMemberId: assignee.id,
           visibility,
           status: ThingStatus.PENDING,
@@ -215,12 +228,25 @@ export class ThingService {
 
     const data: Prisma.FamilyThingUpdateInput = {};
 
-    if (dto.title !== undefined) {
-      const title = dto.title.trim();
-      if (!title) throw BusinessException.invalidParam('标题不能空着');
-      data.title = title;
+    const nextTitle = dto.title !== undefined ? dto.title.trim() : undefined;
+    if (nextTitle !== undefined) {
+      if (!nextTitle) throw BusinessException.invalidParam('标题不能空着');
+      data.title = nextTitle;
     }
-    if (dto.content !== undefined) data.content = dto.content?.trim() || null;
+    // null 表示「用户清空了说明」，undefined 表示「没传这个字段」—— 两者不能混
+    const nextContent = dto.content !== undefined ? dto.content?.trim() || null : undefined;
+    if (nextContent !== undefined) data.content = nextContent;
+
+    // 内容安全（M2-B9）：只检测**本次真的改了**的字段，不为没动的字段白跑一次微信
+    await Promise.all([
+      ...(nextTitle !== undefined
+        ? [this.contentSecurity.assertTextSafe(ctx.userId, nextTitle, '小事的标题')]
+        : []),
+      ...(nextContent !== undefined
+        ? [this.contentSecurity.assertTextSafe(ctx.userId, nextContent, '小事的说明')]
+        : []),
+    ]);
+
     if (dto.dueAt !== undefined) data.dueAt = this.parseDueAt(dto.dueAt);
     if (dto.visibility !== undefined) data.visibility = requireVisibility(dto.visibility);
     if (dto.recurrenceType !== undefined) {

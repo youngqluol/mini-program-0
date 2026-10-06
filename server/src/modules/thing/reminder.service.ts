@@ -22,6 +22,7 @@ import {
   toNumberRequired,
 } from '../../common/serialize/beijing-time';
 import type { FamilyMemberContext } from '../families/family-context';
+import { ContentSecurityService } from '../wechat/content-security.service';
 import { ThingService } from './thing.service';
 import { isBeijingDateTime } from './dto/thing.dto';
 import type { AddReminderDto, InboxQueryDto, NudgeDto } from './dto/reminder.dto';
@@ -50,6 +51,7 @@ export class ReminderService {
     private readonly things: ThingService,
     private readonly notify: NotifyService,
     private readonly quota: SubscribeQuotaService,
+    private readonly contentSecurity: ContentSecurityService,
   ) {}
 
   // =============================================================
@@ -79,6 +81,10 @@ export class ReminderService {
     } else {
       const title = dto.content?.trim();
       if (!title) throw BusinessException.invalidParam('要叮点什么呢');
+
+      // 内容安全（M2-B9）：叮一下的正文是用户输入，同样要过检测。
+      // 带 thingId 的那条路径不改内容，所以不需要 —— 别做无用的微信调用。
+      await this.contentSecurity.assertTextSafe(ctx.userId, title, '叮一下的内容');
 
       thing = await this.prisma.familyThing.create({
         data: {
