@@ -83,9 +83,10 @@ if (diagnostics.length > 0) {
 const thingViewPath = join(outDir, 'miniprogram', 'utils', 'thing-view.js');
 const noticeViewPath = join(outDir, 'miniprogram', 'utils', 'notice-view.js');
 const mineViewPath = join(outDir, 'miniprogram', 'utils', 'mine-view.js');
+const menuViewPath = join(outDir, 'miniprogram', 'utils', 'menu-view.js');
 const timePath = join(outDir, 'miniprogram', 'utils', 'time.js');
 
-for (const p of [thingViewPath, noticeViewPath, mineViewPath, timePath]) {
+for (const p of [thingViewPath, noticeViewPath, mineViewPath, menuViewPath, timePath]) {
   if (!existsSync(p)) {
     console.error(`没找到编译产物：${p}`);
     console.error('（大概率是 tsconfig 的 include / rootDir 变了，需要同步这个脚本）');
@@ -103,6 +104,18 @@ const {
   buildWechatNotifyRow,
   buildWechatNotifyView,
 } = require(mineViewPath);
+const {
+  assignDoneToast,
+  buildAssignChoices,
+  buildDishCard,
+  buildDishCards,
+  buildMenuItemRowView,
+  buildRecentMealRow,
+  describeMealDate,
+  describeMealNames,
+  inferMealType,
+  splitMenuGroups,
+} = require(menuViewPath);
 const { describeExpire } = require(timePath);
 
 // ---------------------------------------------------------------
@@ -767,6 +780,280 @@ function expiresInMinutes(n) {
   // 不足 1 分钟也说「1 分钟」—— 说「0 分钟后过期」等于告诉用户已经没了
   check('过期 · 不到 1 分钟也说 1 分钟', describeExpire(expiresInMinutes(0)), '1 分钟后过期');
   check('过期 · 已经过去了', describeExpire(expiresInMinutes(-1)), '已经过期了');
+}
+
+// ---------------------------------------------------------------
+// 吃啥呢 · P02 随机卡片 / 最近吃过 / 确认层 / P17 菜谱行
+// （miniprogram/utils/menu-view.ts）
+// ---------------------------------------------------------------
+
+{
+  // --- 随机卡片 ---
+  const sys = buildDishCard({
+    id: null,
+    name: '番茄炒蛋',
+    category: '家常菜',
+    imageUrl: null,
+    source: 'SYSTEM',
+  });
+  check('吃啥呢 · 家常菜的 emoji', sys.emoji, '🍖');
+  check('吃啥呢 · 分类文字照常透出', sys.category, '家常菜');
+  check('吃啥呢 · 系统菜 id 为 null', sys.id, null);
+  check(
+    '吃啥呢 · 家庭菜带真实 id',
+    buildDishCard({
+      id: 30012,
+      name: '可乐鸡翅',
+      category: '家常菜',
+      imageUrl: null,
+      source: 'FAMILY',
+    }).id,
+    30012,
+  );
+
+  // 分类为空 / null / 只有空格 → 空串 + 兜底 emoji（不假装知道是荤是素）
+  const noCat = buildDishCard({
+    id: null,
+    name: '随便',
+    category: null,
+    imageUrl: null,
+    source: 'SYSTEM',
+  });
+  check('吃啥呢 · 没有分类时分类文字为空串', noCat.category, '');
+  check('吃啥呢 · 没有分类时用兜底 emoji', noCat.emoji, '🍽️');
+  check(
+    '吃啥呢 · 分类只有空格也算没有',
+    buildDishCard({
+      id: 1,
+      name: '随便',
+      category: '  ',
+      imageUrl: null,
+      source: 'FAMILY',
+    }).category,
+    '',
+  );
+
+  // 分类是后端新加的、镜像还没跟上 → 兜底 emoji，不能崩、也不能吞掉文字
+  const unknownCat = buildDishCard({
+    id: 1,
+    name: '新菜',
+    category: '凉菜',
+    imageUrl: null,
+    source: 'FAMILY',
+  });
+  check('吃啥呢 · 不认识的分类用兜底 emoji', unknownCat.emoji, '🍽️');
+  check('吃啥呢 · 不认识的分类文字照常透出', unknownCat.category, '凉菜');
+
+  check('吃啥呢 · 空数组映射为空数组', JSON.stringify(buildDishCards([])), '[]');
+  check('吃啥呢 · 传 undefined 不崩', JSON.stringify(buildDishCards(undefined)), '[]');
+  check(
+    '吃啥呢 · 三道菜映射成三张卡',
+    buildDishCards([
+      { id: null, name: 'a', category: null, imageUrl: null, source: 'SYSTEM' },
+      { id: null, name: 'b', category: null, imageUrl: null, source: 'SYSTEM' },
+      { id: null, name: 'c', category: null, imageUrl: null, source: 'SYSTEM' },
+    ]).length,
+    3,
+  );
+
+  // --- 最近吃过 ---
+  check(
+    '吃啥呢 · 菜名用间隔号连接',
+    describeMealNames(['红烧肉', '紫菜蛋花汤']),
+    '红烧肉 · 紫菜蛋花汤',
+  );
+  check('吃啥呢 · 单道菜不加分隔号', describeMealNames(['饺子']), '饺子');
+  check('吃啥呢 · 空数组是空串', describeMealNames([]), '');
+  check('吃啥呢 · 菜名里的空值被丢掉', describeMealNames(['饺子', '', null]), '饺子');
+
+  check('吃啥呢 · 日期 + 晚餐', describeMealDate('2026-09-27', 'DINNER'), '9/27 晚');
+  check('吃啥呢 · 日期 + 早餐', describeMealDate('2026-10-06', 'BREAKFAST'), '10/6 早');
+  // 月 / 日不补零 —— 「9/27」而不是「09/27」（docs/03 P02 的草图）
+  check('吃啥呢 · 月日不补零', describeMealDate('2026-01-05', 'LUNCH'), '1/5 午');
+  // OTHER 没有短名，只说日期，不说「9/27 其他」
+  check('吃啥呢 · OTHER 只说日期', describeMealDate('2026-09-27', 'OTHER'), '9/27');
+  // 格式不认识时原样透出，不吞掉
+  check('吃啥呢 · 认不出的日期原样透出', describeMealDate('2026/09/27', 'DINNER'), '2026/09/27 晚');
+  check('吃啥呢 · 空日期只剩餐次', describeMealDate('', 'DINNER'), '晚');
+
+  const recent = buildRecentMealRow({
+    mealDate: '2026-09-27',
+    mealType: 'DINNER',
+    names: ['红烧肉', '紫菜蛋花汤'],
+  });
+  check('吃啥呢 · 最近吃过日期行', recent.dateText, '9/27 晚');
+  check('吃啥呢 · 最近吃过菜名行', recent.namesText, '红烧肉 · 紫菜蛋花汤');
+}
+
+{
+  // --- 确认层（「就吃这个」的底部面板）---
+  const members = [
+    { memberId: 20001, roleName: '阿爸' },
+    { memberId: 20002, roleName: '阿妈' },
+    { memberId: 20003, roleName: '小明' },
+  ];
+  const choices = buildAssignChoices(members, 20002);
+
+  check('吃啥呢 · 选项数 = 成员数 + 1', choices.length, 4);
+  check('吃啥呢 · 第一项是派给阿爸', choices[0].label, '派给阿爸');
+  check('吃啥呢 · 自己显示成「我自己来」', choices[1].label, '我自己来');
+  check('吃啥呢 · 自己那一项仍是派活', choices[1].kind, 'assign');
+  check('吃啥呢 · 最后一项是不用派', choices[3].label, '不用派，自己解决');
+  check('吃啥呢 · 不用派的 memberId 是 0', choices[3].memberId, 0);
+  check('吃啥呢 · 不用派的 kind 是 skip', choices[3].kind, 'skip');
+  // 顺序就是成员顺序 —— 与 P08 / P09 的成员选择器一致，不重排
+  check(
+    '吃啥呢 · 顺序就是成员顺序',
+    choices.map((c) => c.memberId).join(','),
+    '20001,20002,20003,0',
+  );
+
+  const solo = buildAssignChoices([{ memberId: 1, roleName: '我' }], 1);
+  check('吃啥呢 · 一个人时只有两项', solo.length, 2);
+  check('吃啥呢 · 一个人时第一项是我自己来', solo[0].label, '我自己来');
+
+  // 成员接口挂了 / 返回空 —— 至少还能「不用派」，不能崩
+  const none = buildAssignChoices([], 1);
+  check('吃啥呢 · 没有成员时只剩不用派', none.length, 1);
+  check('吃啥呢 · 没有成员时那一项是不用派', none[0].label, '不用派，自己解决');
+
+  // 派活成功后的 toast。DINNER 用「今晚」—— 与 docs/03 P02 的文案一致
+  check(
+    '吃啥呢 · 派给别人（晚餐）',
+    assignDoneToast('阿妈', false, 'DINNER'),
+    '已经派给阿妈啦，今晚有口福～',
+  );
+  check(
+    '吃啥呢 · 派给别人（午饭）',
+    assignDoneToast('阿妈', false, 'LUNCH'),
+    '已经派给阿妈啦，午饭有口福～',
+  );
+  check('吃啥呢 · 派给自己', assignDoneToast('阿爸', true, 'DINNER'), '自己的饭，记下啦～');
+}
+
+{
+  // --- 这一餐是哪一餐（决定要不要凑「一荤一素一汤」、以及记进 meal_records 的餐次）---
+  const clockAt = (h) => {
+    const d = new Date();
+    d.setHours(h, 30, 0, 0);
+    return d;
+  };
+
+  check('吃啥呢 · 0 点算早饭', inferMealType(clockAt(0)), 'BREAKFAST');
+  check('吃啥呢 · 7 点算早饭', inferMealType(clockAt(7)), 'BREAKFAST');
+  check('吃啥呢 · 9:30 还算早饭', inferMealType(clockAt(9)), 'BREAKFAST');
+  check('吃啥呢 · 10 点算午饭', inferMealType(clockAt(10)), 'LUNCH');
+  check('吃啥呢 · 14:30 还算午饭', inferMealType(clockAt(14)), 'LUNCH');
+  check('吃啥呢 · 15 点算晚饭', inferMealType(clockAt(15)), 'DINNER');
+  check('吃啥呢 · 20:30 还算晚饭', inferMealType(clockAt(20)), 'DINNER');
+  check('吃啥呢 · 21 点算其他', inferMealType(clockAt(21)), 'OTHER');
+  check('吃啥呢 · 23 点算其他', inferMealType(clockAt(23)), 'OTHER');
+}
+
+{
+  // --- P17 菜谱行 ---
+  const sysRow = buildMenuItemRowView({
+    id: null,
+    name: '番茄炒蛋',
+    category: '家常菜',
+    imageUrl: null,
+    source: 'SYSTEM',
+    enabled: true,
+    canEdit: false,
+  });
+  check('P17 · 系统菜不可编辑', sysRow.canEdit, false);
+  check('P17 · 系统菜没有任何操作（滑不动）', sysRow.actions.length, 0);
+  check('P17 · 系统菜 id 落成 0（swipe-cell 只收 Number）', sysRow.id, 0);
+  check('P17 · 系统菜的 key 用菜名', sysRow.key, 's:番茄炒蛋');
+  check('P17 · 启用中的系统菜不置灰', sysRow.dim, false);
+
+  const onRow = buildMenuItemRowView({
+    id: 30012,
+    name: '可乐鸡翅',
+    category: '家常菜',
+    imageUrl: null,
+    source: 'FAMILY',
+    enabled: true,
+    canEdit: true,
+  });
+  check('P17 · 家庭菜可编辑', onRow.canEdit, true);
+  check('P17 · 家庭菜的 key 用 id', onRow.key, 'f:30012');
+  check('P17 · 家庭菜有两个操作', onRow.actions.map((a) => a.label).join(','), '编辑,停用');
+  check('P17 · 停用是危险色', onRow.actions[1].tone, 'danger');
+  check('P17 · 启用中的家庭菜不置灰', onRow.dim, false);
+
+  const offRow = buildMenuItemRowView({
+    id: 30012,
+    name: '可乐鸡翅',
+    category: '家常菜',
+    imageUrl: null,
+    source: 'FAMILY',
+    enabled: false,
+    canEdit: true,
+  });
+  check('P17 · 停用后置灰', offRow.dim, true);
+  check('P17 · 停用后操作变成「启用」', offRow.actions[1].label, '启用');
+  check('P17 · 启用不是危险色', offRow.actions[1].tone, 'normal');
+
+  // `canEdit` 与 `id` 必须同时成立 —— 声称可编辑却没有 id 是数据异常，宁可不给操作
+  const weird = buildMenuItemRowView({
+    id: null,
+    name: '怪东西',
+    category: null,
+    imageUrl: null,
+    source: 'FAMILY',
+    enabled: true,
+    canEdit: true,
+  });
+  check('P17 · 声称可编辑但没有 id → 不给操作', weird.actions.length, 0);
+  check('P17 · 声称可编辑但没有 id → canEdit 落成 false', weird.canEdit, false);
+
+  // 分组：顺序照搬接口，只分组不排序
+  const groups = splitMenuGroups([
+    {
+      id: null,
+      name: 'S1',
+      category: null,
+      imageUrl: null,
+      source: 'SYSTEM',
+      enabled: true,
+      canEdit: false,
+    },
+    {
+      id: 11,
+      name: 'F1',
+      category: null,
+      imageUrl: null,
+      source: 'FAMILY',
+      enabled: true,
+      canEdit: true,
+    },
+    {
+      id: null,
+      name: 'S2',
+      category: null,
+      imageUrl: null,
+      source: 'SYSTEM',
+      enabled: true,
+      canEdit: false,
+    },
+    {
+      id: 12,
+      name: 'F2',
+      category: null,
+      imageUrl: null,
+      source: 'FAMILY',
+      enabled: false,
+      canEdit: true,
+    },
+  ]);
+  check('P17 · 系统组 2 条', groups.system.length, 2);
+  check('P17 · 家庭组 2 条', groups.family.length, 2);
+  check('P17 · 系统组保持接口顺序', groups.system.map((r) => r.name).join(','), 'S1,S2');
+  check('P17 · 家庭组保持接口顺序', groups.family.map((r) => r.name).join(','), 'F1,F2');
+
+  const emptyGroups = splitMenuGroups([]);
+  check('P17 · 空列表两组都空', emptyGroups.system.length + emptyGroups.family.length, 0);
 }
 
 // ---------------------------------------------------------------

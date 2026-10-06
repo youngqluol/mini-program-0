@@ -55,6 +55,20 @@ const PAIRS = [
     sourcePattern: /^\s*\[DeliveryResult\.([A-Z_]+)\]:\s*'([^']*)'/gm,
     mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*'([^']*)'/gm,
   },
+  {
+    // 菜谱分类。两边写法完全一样（`as const` 对象），只是必须逐字一致：
+    // 值会写进 `menu_items.category` 入库、也是后端「一荤一素一汤」组合的判据，
+    // 漂移了不会报错，只会让某一类菜悄悄不参与推荐。
+    // ⚠️ 只比对「键 → 值」，**不比对顺序**（这里是按 Map 比的）——
+    //    但两边的顺序也该一致：P17 的分类下拉直接用镜像的声明顺序。
+    name: 'MENU_CATEGORY',
+    source: 'packages/shared/src/enums.ts',
+    mirror: 'miniprogram/constants/menu.ts',
+    sourceBlock: 'export const MENU_CATEGORY = {',
+    mirrorBlock: 'export const MENU_CATEGORY = {',
+    sourcePattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*'([^']*)'/gm,
+    mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*'([^']*)'/gm,
+  },
 ];
 
 function read(rel) {
