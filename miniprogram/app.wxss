@@ -232,6 +232,23 @@ page {
   color: var(--warning);
 }
 
+/* 数字角标（P20 消息中心行）。文案来自 utils/mine-view.ts 的 buildUnreadBadge()，
+   与底部 Tab 的角标同一个数字 —— 两处各算一遍迟早会不一致。 */
+.cell__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-right: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-ink);
+  color: #ffffff;
+  font-size: var(--fs-cap);
+  line-height: 1;
+}
+
 .cell__arrow {
   color: var(--ink-3);
   font-size: 14px;

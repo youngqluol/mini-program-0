@@ -43,6 +43,41 @@
 /* 列表行（.cell / .cell__*）与「我的」以外页面共用，
    统一定义在 app.wxss，这里不再重复 —— 两份定义迟早会走偏。 */
 
+/* ---------- 退出家庭 ---------- */
+
+/*
+  弱化成描边按钮，不是实心红：退出是「结束这段关系」，不是「执行一个操作」。
+  但也不能弱到看不见 —— 它是这一页唯一的破坏性动作，得让人找得到、也停一下
+  （二次确认在 index.ts 里）。
+*/
+.leave {
+  margin-top: 28px;
+}
+
+.leave__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--danger);
+  font-size: var(--fs-h3);
+}
+
+.leave__btn:active {
+  opacity: 0.7;
+}
+
+/* 创建者看到的是这一行而不是按钮：把「为什么没有这个按钮」说清楚 */
+.leave__hint {
+  padding: 0 12px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
 .version {
   margin-top: 24px;
   text-align: center;

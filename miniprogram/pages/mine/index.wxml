@@ -1,11 +1,11 @@
 <!-- P20 · 我的（Tab 4） -->
 <view class="page">
-  <!-- 个人 + 家庭抬头 -->
+  <!-- 抬头：家庭称谓 + 在哪个家 -->
   <view class="profile">
     <view class="profile__avatar">👤</view>
     <view class="profile__info">
-      <view class="profile__name">{{nickname}}</view>
-      <view class="profile__role">{{roleLine || '还没加入家庭'}}</view>
+      <view class="profile__name">{{profile.nickname}}</view>
+      <view class="profile__role">{{profile.roleLine}}</view>
     </view>
   </view>
 
@@ -14,7 +14,7 @@
   <view class="card cells">
     <view class="cell" bindtap="onFamilyInfo">
       <text class="cell__emoji">🏡</text>
-      <text class="cell__label">{{familyName || '我的家'}}</text>
+      <text class="cell__label">{{familyName}}</text>
       <text class="cell__extra">{{memberCountText}}</text>
       <text class="cell__arrow">›</text>
     </view>
@@ -35,18 +35,13 @@
     </view>
   </view>
 
-  <!-- 消息与提醒 -->
+  <!-- 消息与提醒。微信提醒那一行要跳 P21（M2-F1），等它做了一起加 -->
   <view class="section-title">消息与提醒</view>
   <view class="card cells">
     <view class="cell" bindtap="onNotice">
       <text class="cell__emoji">💬</text>
       <text class="cell__label">消息中心</text>
-      <text class="cell__arrow">›</text>
-    </view>
-    <view class="cell" bindtap="onWechatNotify">
-      <text class="cell__emoji">🔔</text>
-      <text class="cell__label">微信提醒</text>
-      <text class="cell__extra cell__extra--warn">还没开</text>
+      <text class="cell__badge" wx:if="{{unread.show}}">{{unread.text}}</text>
       <text class="cell__arrow">›</text>
     </view>
   </view>
@@ -59,6 +54,12 @@
       <text class="cell__label">关于「家有小事」</text>
       <text class="cell__arrow">›</text>
     </view>
+  </view>
+
+  <!-- 退出家庭：创建者没有这个按钮，换成一行说明（判据在 utils/mine-view.ts） -->
+  <view class="leave">
+    <view class="leave__btn" wx:if="{{leave.show}}" bindtap="onLeave">退出家庭</view>
+    <view class="leave__hint" wx:else>{{leave.hint}}</view>
   </view>
 
   <view class="version">家有小事 · v0.1</view>
