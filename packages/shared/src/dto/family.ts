@@ -83,6 +83,24 @@ export interface UpdateMyRoleRequest {
   roleName: string;
 }
 
+/**
+ * GET /families/{id}/members/me 响应（M2-B26）。
+ *
+ * 存在的理由：消息文案要用**家庭称谓**（「阿妈，有个活儿到你啦」），
+ * 而不是微信昵称。后端发通知时自己查得到，但小程序端在「我的」页面、
+ * 首页抬头这些地方也要显示称谓 —— 与其让前端从成员列表里筛出自己，
+ * 不如给一个「我的身份」的直读接口。
+ */
+export interface MyMembership {
+  familyId: number;
+  memberId: number;
+  /** 我在这个家里的称谓 */
+  roleName: string;
+  isOwner: boolean;
+  /** "YYYY-MM-DD HH:mm:ss" */
+  joinedAt: string;
+}
+
 // ---------------------------------------------------------------
 // 邀请
 // ---------------------------------------------------------------
