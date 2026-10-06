@@ -18,7 +18,7 @@
  */
 
 import type { ApiResponse } from '@shared/dto/common';
-import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from '../config';
+import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT, UPLOAD_TIMEOUT } from '../config';
 import { ErrorCode, NETWORK_ERROR_MESSAGE, RELOGIN_CODES } from '../constants/error-code';
 import { storage } from '../utils/storage';
 
@@ -178,4 +178,103 @@ export function patch<T>(url: string, data?: Record<string, unknown>): Promise<T
 
 export function del<T>(url: string, data?: Record<string, unknown>): Promise<T> {
   return request<T>({ url, method: 'DELETE', data });
+}
+
+// =============================================================
+// 文件上传（M4-4）
+// =============================================================
+
+/**
+ * 上传一个本地文件（`multipart/form-data`）。
+ *
+ * ⚠️ **必须放在这里，而不是页面里直接 `wx.uploadFile`** ——
+ *    理由与「页面禁止直接 `wx.request`」完全一样：拼 URL、带 token、
+ *    拆响应体、401 静默重登、错误归一，这五件事只写一遍。
+ *
+ * 三个与 `wx.request` 不同的坑：
+ *
+ * ① **`res.data` 是字符串，不是对象。** `wx.uploadFile` 不做 JSON 解析
+ *    （因为响应可能真的是二进制），必须自己 `JSON.parse`。
+ * ② **失败也要看 HTTP 状态码。** `success` 回调在 4xx / 5xx 时同样会进 ——
+ *    它只表示「请求发出去了」。真正判断成败的是响应体里的 `code`
+ *    （与后端「HTTP 一律 200、业务结果看 code」的约定正好合上）。
+ * ③ **超时给到 60s**（`UPLOAD_TIMEOUT`）。图片可能有好几 MB。
+ *
+ * @param url      相对路径，如 `/upload/image`
+ * @param filePath 本地临时文件路径（`wx.chooseMedia` 给的 `tempFilePath`）
+ * @param formData 附带的普通表单字段（字符串值）
+ * @param onProgress 进度回调（0–100）。用来在 P18 的缩略图上画进度条
+ */
+export function upload<T>(
+  url: string,
+  filePath: string,
+  formData?: Record<string, string>,
+  onProgress?: (percent: number) => void,
+): Promise<T> {
+  return doUpload<T>(url, filePath, formData, onProgress, false);
+}
+
+function sendUpload<T>(
+  url: string,
+  filePath: string,
+  formData: Record<string, string> | undefined,
+  onProgress: ((percent: number) => void) | undefined,
+): Promise<ApiResponse<T>> {
+  return new Promise<ApiResponse<T>>((resolve, reject) => {
+    const header: Record<string, string> = {};
+    const token = storage.getToken();
+    if (token) header.Authorization = `Bearer ${token}`;
+
+    const task = wx.uploadFile({
+      url,
+      filePath,
+      // 字段名与后端 `FileInterceptor('file')` 必须一致（docs/02 §8.1）
+      name: 'file',
+      formData,
+      header,
+      timeout: UPLOAD_TIMEOUT,
+      success: (res) => {
+        let body: ApiResponse<T> | undefined;
+        try {
+          body = JSON.parse(res.data) as ApiResponse<T>;
+        } catch {
+          body = undefined;
+        }
+        if (!body || typeof body.code !== 'number') {
+          reject(createApiError(ErrorCode.INTERNAL_ERROR, '图片没传上去，再试一次'));
+          return;
+        }
+        resolve(body);
+      },
+      fail: (err) => {
+        reject(createApiError(ErrorCode.INTERNAL_ERROR, networkMessage(err.errMsg ?? '')));
+      },
+    });
+
+    // `onProgressUpdate` 不是所有基础库版本都有 —— 拿不到进度不影响上传
+    if (onProgress && task && typeof task.onProgressUpdate === 'function') {
+      task.onProgressUpdate((p) => onProgress(p.progress));
+    }
+  });
+}
+
+async function doUpload<T>(
+  url: string,
+  filePath: string,
+  formData: Record<string, string> | undefined,
+  onProgress: ((percent: number) => void) | undefined,
+  retried: boolean,
+): Promise<T> {
+  const full = `${BASE_URL}${API_PREFIX}${url}`;
+  const body = await sendUpload<T>(full, filePath, formData, onProgress);
+
+  if (body.code === ErrorCode.OK) return body.data as T;
+
+  // 与 `doRequest` 同一条：登录态失效就静默重登一次再原样重放
+  if (!retried && RELOGIN_CODES.indexOf(body.code) >= 0) {
+    const ok = await ensureRelogin();
+    if (ok) return doUpload<T>(url, filePath, formData, onProgress, true);
+  }
+
+  throw createApiError(body.code, body.message || '图片没传上去，再试一次');
 }

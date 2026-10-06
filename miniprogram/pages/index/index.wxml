@@ -84,7 +84,7 @@
     <text class="jump__arrow">›</text>
   </view>
 
-  <!-- 留个念（留念模块 M4 还没做，先显示占位文案） -->
+  <!-- 留个念（M4-11）：副标题是**最新一条**，没有就直说没有 -->
   <view class="jump" bindtap="onMemory">
     <text class="jump__emoji">📖</text>
     <view class="jump__main">

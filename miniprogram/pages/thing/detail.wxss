@@ -182,3 +182,18 @@
 .detail__sub:active {
   opacity: 0.86;
 }
+
+/* ============================================================
+   「📖 记个念 →」—— 完成之后那个安静的次要入口（PRD §19.2）
+   ============================================================ */
+
+.detail__memory {
+  margin-top: 14px;
+  color: var(--ink-3);
+  font-size: var(--fs-cap);
+  text-align: center;
+}
+
+.detail__memory:active {
+  opacity: 0.6;
+}

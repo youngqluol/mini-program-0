@@ -1,0 +1,80 @@
+<!-- P18 · 发布记录 -->
+<view class="page">
+  <!-- 「完成纪念」的关联标记（PRD §19.2）—— 只有从已完成的小事点进来才有 -->
+  <view wx:if="{{thingBanner}}" class="banner">{{thingBanner}}</view>
+
+  <!-- 正文 -->
+  <view class="card">
+    <textarea
+      class="editor"
+      value="{{content}}"
+      maxlength="{{contentMax}}"
+      placeholder="今天想说点什么…"
+      placeholder-class="editor__ph"
+      auto-height
+      show-confirm-bar="{{false}}"
+      bindinput="onInput"
+    />
+  </view>
+
+  <!-- 九宫格：本地图 + 上传进度 + 失败重试 -->
+  <view class="pics">
+    <view class="pics__cell" wx:for="{{photos}}" wx:for-item="photo" wx:for-index="pi" wx:key="key">
+      <image
+        class="pics__img"
+        src="{{photo.path}}"
+        mode="aspectFill"
+        bindtap="onPreviewPhoto"
+        data-index="{{pi}}"
+      />
+
+      <!-- 上传中：进度条盖在底部 -->
+      <view wx:if="{{!photo.url && !photo.failed}}" class="pics__mask">
+        <view class="pics__bar" style="width: {{photo.progress}}%"></view>
+        <text class="pics__pct">{{photo.progress}}%</text>
+      </view>
+
+      <!-- 传失败：整块可点，点一下重试 -->
+      <view wx:if="{{photo.failed}}" class="pics__mask pics__mask--fail" bindtap="onRetryPhoto" data-key="{{photo.key}}">
+        <text class="pics__retry">↻ 重试</text>
+      </view>
+
+      <!-- 删除。上传中也能删 —— 删掉之后回调会自己放弃 -->
+      <view class="pics__del" catchtap="onRemovePhoto" data-key="{{photo.key}}">×</view>
+    </view>
+
+    <view wx:if="{{photos.length < maxPhotos}}" class="pics__cell pics__cell--add" bindtap="onAddPhoto">
+      <text class="pics__plus">＋</text>
+    </view>
+  </view>
+
+  <view wx:if="{{failedHint}}" class="pics__hint">{{failedHint}}</view>
+  <view wx:elif="{{uploading}}" class="pics__hint">图片正在传…</view>
+
+  <!-- 谁能看见？ -->
+  <view class="section-title">谁能看见？</view>
+  <view class="card card--tight">
+    <view
+      class="vis"
+      wx:for="{{visibilityOptions}}"
+      wx:for-item="opt"
+      wx:key="value"
+      bindtap="onPickVisibility"
+      data-value="{{opt.value}}"
+    >
+      <view class="vis__dot {{visibility === opt.value ? 'vis__dot--on' : ''}}"></view>
+      <view class="vis__main">
+        <view class="vis__label">{{opt.label}}</view>
+        <view class="vis__hint">{{opt.hint}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 发布 -->
+  <view class="acts">
+    <view class="acts__cancel" bindtap="onCancel">取消</view>
+    <view class="btn-primary acts__ok {{canPublish && !publishing ? '' : 'acts__ok--off'}}" bindtap="onPublish">
+      {{publishing ? '发布中…' : '发布'}}
+    </view>
+  </view>
+</view>

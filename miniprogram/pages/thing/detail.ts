@@ -144,4 +144,20 @@ Page({
       this.setData({ acting: false });
     }
   },
+
+  /**
+   * 「📖 记个念 →」（PRD §19.2）。
+   *
+   * 把 `thingId` 与**标题**一起带过去：P18 要用标题做预填正文
+   * （「买牛奶 搞定啦」）和顶部那行「来自 🎯 买牛奶」。
+   * 标题走 URL 参数而不是让 P18 再查一次接口 —— 这一页手里本来就有，
+   * 而多一次请求就多一次「查不到标题时那行标注显示什么」的分支。
+   *
+   * ⚠️ 标题要 `encodeURIComponent`：菜名/活名里可能有 `&`、`#`、空格，
+   *    不编码会把 URL 拆坏（`?thingTitle=买&牛奶` → 后半截丢了）。
+   */
+  onMemory() {
+    const title = encodeURIComponent(this.data.title || '');
+    wx.navigateTo({ url: `/pages/memory/create?thingId=${this.data.thingId}&thingTitle=${title}` });
+  },
 });

@@ -1,0 +1,101 @@
+<!-- P19 · 记录详情 —— 相册的一页，不是任务详情 -->
+<view class="page">
+  <block wx:if="{{loading}}">
+    <view class="skel skel__card"></view>
+  </block>
+
+  <block wx:elif="{{item}}">
+    <!-- 发布人 + 时间 -->
+    <view class="head">
+      <image wx:if="{{avatarUrl}}" class="head__avatar" src="{{avatarUrl}}" mode="aspectFill" />
+      <view wx:else class="head__avatar head__avatar--text">{{avatarText}}</view>
+      <view class="head__main">
+        <view class="head__name">{{creatorName}}</view>
+        <view class="head__time">{{dateText}} · {{timeText}}</view>
+      </view>
+      <view class="head__vis">{{visibilityText}}</view>
+    </view>
+
+    <!-- 正文（编辑态换成输入框） -->
+    <view class="card">
+      <block wx:if="{{editing}}">
+        <textarea
+          class="editor"
+          value="{{draftContent}}"
+          maxlength="{{contentMax}}"
+          placeholder="写点什么…"
+          placeholder-class="editor__ph"
+          auto-height
+          show-confirm-bar="{{false}}"
+          bindinput="onDraftInput"
+        />
+      </block>
+      <block wx:else>
+        <text wx:if="{{item.content}}" class="body">{{item.content}}</text>
+        <text wx:else class="body body--empty">（只留了照片）</text>
+      </block>
+    </view>
+
+    <!-- 图片：编辑态下也保留，但说明改不了 -->
+    <view wx:if="{{photos.length > 0}}" class="grid">
+      <view
+        class="grid__cell"
+        wx:for="{{photos}}"
+        wx:for-item="photo"
+        wx:for-index="pi"
+        wx:key="*this"
+        bindtap="onPreview"
+        data-index="{{pi}}"
+      >
+        <image class="grid__img" src="{{photo}}" mode="aspectFill" />
+      </view>
+    </view>
+    <view wx:if="{{editing && photos.length > 0}}" class="picnote">
+      图片改不了。要换图，就删掉这条重新发一次。
+    </view>
+
+    <!-- 「完成纪念」的关联标注（PRD §19.3）—— 极淡的一行 -->
+    <view wx:if="{{thingText}}" class="from">{{thingText}}</view>
+
+    <!-- 编辑态的可见范围 -->
+    <block wx:if="{{editing}}">
+      <view class="section-title">谁能看见？</view>
+      <view class="card card--tight">
+        <view
+          class="vis"
+          wx:for="{{visibilityOptions}}"
+          wx:for-item="opt"
+          wx:key="value"
+          bindtap="onPickDraftVisibility"
+          data-value="{{opt.value}}"
+        >
+          <view class="vis__dot {{draftVisibility === opt.value ? 'vis__dot--on' : ''}}"></view>
+          <view class="vis__main">
+            <view class="vis__label">{{opt.label}}</view>
+            <view class="vis__hint">{{opt.hint}}</view>
+          </view>
+        </view>
+      </view>
+
+      <view class="acts">
+        <view class="acts__cancel" bindtap="onCancelEdit">取消</view>
+        <view class="btn-primary acts__ok" bindtap="onSave">{{saving ? '保存中…' : '保存'}}</view>
+      </view>
+    </block>
+
+    <!-- 只有发布者能改删 -->
+    <block wx:elif="{{isMine}}">
+      <view class="acts">
+        <view class="acts__ghost" bindtap="onEdit">改一改</view>
+        <view class="acts__danger" bindtap="onRemove">删掉</view>
+      </view>
+    </block>
+  </block>
+
+  <!-- 拿不到这条（已删除 / 不是我能看的） -->
+  <view wx:else class="card empty">
+    <text class="empty__emoji">🍂</text>
+    <text class="empty__title">这条找不到了</text>
+    <text class="empty__hint">可能已经被删掉了</text>
+  </view>
+</view>

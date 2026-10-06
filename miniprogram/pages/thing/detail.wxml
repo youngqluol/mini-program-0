@@ -56,6 +56,16 @@
       <text class="state__text">{{mainText}}</text>
     </view>
 
+    <!--
+      「📖 记个念 →」（PRD §19.2）。
+      **只在一件事做完之后出现**，而且刻意做成一行安静的次要文字 ——
+      不弹窗、不提示、不打断。一旦主动问「要不要留个念？」，
+      产品就从「家庭时间线」滑向「任务日志」（PRD §19.4）。
+    -->
+    <view wx:if="{{mainTone === 'done'}}" class="detail__memory" bindtap="onMemory">
+      📖 记个念 →
+    </view>
+
     <!-- 次操作：待完成 → 取消；已结束 → 重新打开。都只有「我派的」才有 -->
     <view wx:if="{{subAction === 'CANCEL'}}" class="detail__sub" bindtap="onCancel">
       取消这件事

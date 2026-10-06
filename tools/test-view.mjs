@@ -84,9 +84,17 @@ const thingViewPath = join(outDir, 'miniprogram', 'utils', 'thing-view.js');
 const noticeViewPath = join(outDir, 'miniprogram', 'utils', 'notice-view.js');
 const mineViewPath = join(outDir, 'miniprogram', 'utils', 'mine-view.js');
 const menuViewPath = join(outDir, 'miniprogram', 'utils', 'menu-view.js');
+const memoryViewPath = join(outDir, 'miniprogram', 'utils', 'memory-view.js');
 const timePath = join(outDir, 'miniprogram', 'utils', 'time.js');
 
-for (const p of [thingViewPath, noticeViewPath, mineViewPath, menuViewPath, timePath]) {
+for (const p of [
+  thingViewPath,
+  noticeViewPath,
+  mineViewPath,
+  menuViewPath,
+  memoryViewPath,
+  timePath,
+]) {
   if (!existsSync(p)) {
     console.error(`没找到编译产物：${p}`);
     console.error('（大概率是 tsconfig 的 include / rootDir 变了，需要同步这个脚本）');
@@ -116,6 +124,25 @@ const {
   inferMealType,
   splitMenuGroups,
 } = require(menuViewPath);
+const {
+  appendGroups,
+  buildMemoryCard,
+  buildVisibilityOptions,
+  describeLatestMemory,
+  describeMemoryDate,
+  describeMemoryTime,
+  describeThingBanner,
+  describeThingRef,
+  describeVisibility,
+  draftCanPublish,
+  editDoneToast,
+  emptyTimelineHint,
+  groupByDay,
+  initialOf,
+  photoUploadHint,
+  prefillContent,
+  publishDoneToast,
+} = require(memoryViewPath);
 const { describeExpire } = require(timePath);
 
 // ---------------------------------------------------------------
@@ -1054,6 +1081,168 @@ function expiresInMinutes(n) {
 
   const emptyGroups = splitMenuGroups([]);
   check('P17 · 空列表两组都空', emptyGroups.system.length + emptyGroups.family.length, 0);
+}
+
+// ---------------------------------------------------------------
+// 留个念（miniprogram/utils/memory-view.ts）
+// ---------------------------------------------------------------
+
+{
+  /** 造一条 `MemoryItem`，只覆盖关心的字段 */
+  const mem = (over) => ({
+    id: 1,
+    date: '2026-09-28',
+    content: '宝宝今天第一次自己穿鞋。',
+    visibility: 'FAMILY',
+    creator: { memberId: 20002, roleName: '阿妈', avatarUrl: null },
+    attachments: [],
+    thing: null,
+    isMine: false,
+    createdAt: '2026-09-28 19:32:00',
+    ...over,
+  });
+  /** 造 n 张附件 */
+  const pics = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: i + 1,
+      fileUrl: `https://x/${i}.jpg`,
+      width: 1,
+      height: 1,
+    }));
+
+  // ---- 日期与时间 ----
+  check('留个念 · "2026-09-28" → "2026.09.28"', describeMemoryDate('2026-09-28'), '2026.09.28');
+  check('留个念 · 日期格式不认识时原样透出', describeMemoryDate('2026/09/28'), '2026/09/28');
+  check('留个念 · 空日期不炸', describeMemoryDate(''), '');
+  check('留个念 · createdAt → "19:32"', describeMemoryTime('2026-09-28 19:32:00'), '19:32');
+  check('留个念 · createdAt 缺时刻时给空串', describeMemoryTime('2026-09-28'), '');
+
+  // ---- 头像兜底 ----
+  check('留个念 · 头像兜底取称谓首字', initialOf('阿妈'), '阿');
+  check('留个念 · 空称谓兜底成「家」', initialOf(''), '家');
+
+  // ---- 可见范围 ----
+  check('留个念 · FAMILY 的人话', describeVisibility('FAMILY'), '家里人都能看到');
+  check('留个念 · PRIVATE 的人话', describeVisibility('PRIVATE'), '只有我');
+  check(
+    '留个念 · 可见范围选项顺序固定',
+    buildVisibilityOptions()
+      .map((o) => o.value)
+      .join(','),
+    'FAMILY,PRIVATE',
+  );
+
+  // ---- 「完成纪念」的标注 ----
+  check('留个念 · 完成纪念的标注', describeThingRef({ id: 9, title: '买牛奶' }), '来自 🎯 买牛奶');
+  check('留个念 · 独立留念没有标注', describeThingRef(null), '');
+  check('留个念 · 关联标题为空时不拼半句', describeThingRef({ id: 9, title: '' }), '');
+
+  // ---- 卡片 ----
+  const card = buildMemoryCard(mem());
+  check('留个念 · 卡片日期', card.dateText, '2026.09.28');
+  check('留个念 · 卡片时刻', card.timeText, '19:32');
+  check('留个念 · 头像为空时 avatarUrl 是空串（不是 null）', card.avatarUrl, '');
+  check('留个念 · 头像兜底字', card.avatarText, '阿');
+  check('留个念 · 家庭可见不带私密标记', card.isPrivate, false);
+  check('留个念 · 私密记录带标记', buildMemoryCard(mem({ visibility: 'PRIVATE' })).isPrivate, true);
+  check('留个念 · 正文原样透出', card.content, '宝宝今天第一次自己穿鞋。');
+  check('留个念 · isMine 直接取后端给的', buildMemoryCard(mem({ isMine: true })).isMine, true);
+
+  // 九宫格上限：后端限制 9 张，前端是**防御性**的兜底
+  const many = buildMemoryCard(mem({ attachments: pics(12) }));
+  check('留个念 · 九宫格最多显示 9 张', many.photos.length, 9);
+  check('留个念 · 超出的张数进 moreCount', many.moreCount, 3);
+  check(
+    '留个念 · 刚好 9 张时 moreCount 为 0',
+    buildMemoryCard(mem({ attachments: pics(9) })).moreCount,
+    0,
+  );
+  check('留个念 · 没有图片时 photos 是空数组', card.photos.length, 0);
+
+  // 字段缺失也不能炸（后端换形状时页面不该白屏）
+  check('留个念 · creator 缺失时不炸', buildMemoryCard(mem({ creator: null })).creatorName, '家人');
+  check(
+    '留个念 · attachments 缺失时不炸',
+    buildMemoryCard(mem({ attachments: null })).photos.length,
+    0,
+  );
+
+  // ---- 按日分组 ----
+  const groups = groupByDay([
+    mem({ id: 3, date: '2026-09-28' }),
+    mem({ id: 2, date: '2026-09-28' }),
+    mem({ id: 1, date: '2026-09-26' }),
+  ]);
+  check('留个念 · 分组数（两天 → 两组）', groups.length, 2);
+  check('留个念 · 第一组日期', groups[0].dateText, '2026.09.28');
+  check('留个念 · 第一组条数', groups[0].items.length, 2);
+  check('留个念 · 第二组条数', groups[1].items.length, 1);
+  check('留个念 · 组内顺序照搬接口（不重排）', groups[0].items.map((i) => i.id).join(','), '3,2');
+  check('留个念 · 空列表 → 空分组', groupByDay([]).length, 0);
+
+  // ---- 加载更多时合并边界那一天 ----
+  const page1 = groupByDay([mem({ id: 5, date: '2026-09-28' })]);
+  const page2 = groupByDay([
+    mem({ id: 4, date: '2026-09-28' }),
+    mem({ id: 3, date: '2026-09-26' }),
+  ]);
+  const merged = appendGroups(page1, page2);
+  check('留个念 · 边界同一天要合并成一组（否则会出现两个 09.28）', merged.length, 2);
+  check('留个念 · 合并后第一条日期', merged[0].dateText, '2026.09.28');
+  check('留个念 · 合并后第一条含两条', merged[0].items.length, 2);
+  check('留个念 · 合并后第二条是另一天', merged[1].dateText, '2026.09.26');
+  check(
+    '留个念 · 边界不同天就各自成组',
+    appendGroups(page1, groupByDay([mem({ date: '2026-09-20' })])).length,
+    2,
+  );
+  check('留个念 · appendGroups 不改动入参', page1.length, 1);
+  check('留个念 · appendGroups 首参为空时直接返回新页', appendGroups([], page2).length, 2);
+  check('留个念 · appendGroups 新页为空时保持原样', appendGroups(page1, []).length, 1);
+
+  // ---- 发布页 ----
+  check('留个念 · 只有空格不能发', draftCanPublish({ content: '   ', photoCount: 0 }), false);
+  check('留个念 · 有正文就能发', draftCanPublish({ content: '哈', photoCount: 0 }), true);
+  check('留个念 · 只有图片也能发', draftCanPublish({ content: '', photoCount: 1 }), true);
+  check('留个念 · 都没有不能发', draftCanPublish({ content: '', photoCount: 0 }), false);
+  check(
+    '留个念 · 私密发布的 toast 要说清别人看不到',
+    publishDoneToast('PRIVATE'),
+    '记下啦，只有你自己能看到',
+  );
+  check('留个念 · 家庭可见的 toast', publishDoneToast('FAMILY'), '记下啦～');
+  check('留个念 · 编辑的 toast 不说「记下啦」', editDoneToast(), '改好啦');
+  check('留个念 · 没有失败图时不给提示', photoUploadHint(0), '');
+  check('留个念 · 一张失败', photoUploadHint(1), '有 1 张没传上去，点它重试');
+  check('留个念 · 多张失败', photoUploadHint(3), '有 3 张没传上去，点它们重试');
+  check('留个念 · 完成纪念的预填正文', prefillContent('买牛奶'), '买牛奶 搞定啦');
+  check('留个念 · 没有标题就不预填', prefillContent(''), '');
+  check('留个念 · 关联标记（P18 顶部那行）', describeThingBanner('买牛奶'), '来自 🎯 买牛奶');
+  check('留个念 · 没有关联时标记为空', describeThingBanner(''), '');
+
+  // ---- 空状态与首页预览 ----
+  check('留个念 · 空状态文案', emptyTimelineHint(), '这里还空空的，记点什么吧 📖');
+  check('留个念 · 没有记录时的预览', describeLatestMemory(null), '还没有记录');
+  check(
+    '留个念 · 预览 = 称谓 + 正文',
+    describeLatestMemory(mem()),
+    '阿妈：宝宝今天第一次自己穿鞋。',
+  );
+  check(
+    '留个念 · 预览超长要截断加省略号（23 字 → 18 字 + …）',
+    describeLatestMemory(mem({ content: '一二三四五六七八九十一二三四五六七八九十一二三' })),
+    '阿妈：一二三四五六七八九十一二三四五六七八…',
+  );
+  check(
+    '留个念 · 只有图片的预览不说空话',
+    describeLatestMemory(mem({ content: '', attachments: pics(2) })),
+    '阿妈记了 2 张照片',
+  );
+  check(
+    '留个念 · 称谓缺失时的预览兜底',
+    describeLatestMemory(mem({ creator: { memberId: 0, roleName: '', avatarUrl: null } })),
+    '家人：宝宝今天第一次自己穿鞋。',
+  );
 }
 
 // ---------------------------------------------------------------

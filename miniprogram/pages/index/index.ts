@@ -29,19 +29,23 @@
  *    另外它要跳 P21 微信提醒页（M2-F1），那一页也还没做。
  *    与其挂一个点了没反应的条，不如先不挂。已记入 `docs/未来需求池.md`。
  *
- * ⚠️ 「留个念」那张卡片现在只能显示占位文案 —— 留念模块（M4）还没有接口。
+ * ⚠️ 「留个念」那张卡片的副标题是**最新一条记录**（M4-11）。
+ *    只取一条（`limit=1`）—— 首页不该为了一个副标题拉一整页时间线。
+ *    拉不到时**保持**上一次的文案，不清空：副标题闪一下比显示旧内容更糟。
  */
 
 import type { TodaySummary } from '@shared/dto/thing';
+import * as memoryApi from '../../services/memory';
 import * as thingApi from '../../services/thing';
 import * as userStore from '../../stores/user';
 import type { ThingCardItem, TodayRowView } from '../../utils/thing-view';
 import { buildTodayReminderRow, fromTodayTask } from '../../utils/thing-view';
+import { describeLatestMemory } from '../../utils/memory-view';
 import { guardEntry } from '../../utils/route';
 import { describeMonthDayWeek } from '../../utils/time';
 import { toast, toastError } from '../../utils/toast';
 
-/** 留念模块（M4）还没做，这里先说实话 */
+/** 拉不到留念时的兜底文案（与 `describeLatestMemory(null)` 一致） */
 const NO_MEMORY_YET = '还没有记录';
 
 Page({
@@ -75,11 +79,12 @@ Page({
       familyName: family.familyName,
     });
     void this.load();
+    void this.loadMemoryPreview();
   },
 
   /** 下拉刷新（docs/03 P01） */
   async onPullDownRefresh() {
-    await this.load();
+    await Promise.all([this.load(), this.loadMemoryPreview()]);
     wx.stopPullDownRefresh();
   },
 
@@ -90,6 +95,21 @@ Page({
     } catch (e) {
       this.setData({ loading: false });
       toastError(e);
+    }
+  },
+
+  /**
+   * 「留个念」最新一条（M4-11）。
+   *
+   * `limit: 1` + 后端按 id 倒序 = 最新那条。
+   * 失败时**什么都不改**（见文件头）—— 一个副标题不值得弹 toast 打扰用户。
+   */
+  async loadMemoryPreview() {
+    try {
+      const res = await memoryApi.list({ familyId: this.data.familyId, limit: 1 });
+      this.setData({ memoryPreview: describeLatestMemory(res.list[0] ?? null) });
+    } catch {
+      // 静默：副标题拉不到不该在首页弹提示
     }
   },
 

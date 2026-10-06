@@ -4,6 +4,8 @@
     "pages/menu/index",
     "pages/menu/manage",
     "pages/memory/index",
+    "pages/memory/create",
+    "pages/memory/detail",
     "pages/mine/index",
     "pages/mine/wechat-notify",
     "pages/login/index",

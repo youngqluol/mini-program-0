@@ -1,0 +1,234 @@
+/* P19 · 记录详情 */
+
+.skel__card {
+  height: 140px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+/* ============================================================
+   发布人
+   ============================================================ */
+
+.head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 0 4px;
+}
+
+.head__avatar {
+  width: 38px;
+  height: 38px;
+  margin-right: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.head__avatar--text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+
+.head__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.head__name {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.head__time {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* 可见范围就写一个词（「家里人都能看到」/「只有我」），不占一行 */
+.head__vis {
+  flex-shrink: 0;
+  margin-left: 8px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-cap);
+}
+
+/* ============================================================
+   正文
+   ============================================================ */
+
+.body {
+  display: block;
+  font-size: var(--fs-h2);
+  color: var(--ink-1);
+  line-height: 1.8;
+  word-break: break-word;
+}
+
+/* 只发了照片没写字 —— 与其留一片空白，不如说清楚 */
+.body--empty {
+  color: var(--ink-3);
+  font-size: var(--fs-h3);
+}
+
+.editor {
+  width: 100%;
+  min-height: 110px;
+  font-size: var(--fs-h2);
+  color: var(--ink-1);
+  line-height: 1.8;
+}
+
+.editor__ph {
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   图片
+   ============================================================ */
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.grid__cell {
+  width: 33.333%;
+  box-sizing: border-box;
+  padding: 3px;
+}
+
+.grid__img {
+  display: block;
+  width: 100%;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* 编辑态下的说明。放在图片下面而不是上面 —— 用户的视线先落在图上 */
+.picnote {
+  margin: 8px 4px 0;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   「来自 🎯 买牛奶」—— 极淡的一行（PRD §19.3）
+   ============================================================ */
+
+.from {
+  margin: 18px 4px 0;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   可见范围（编辑态）
+   ============================================================ */
+
+.vis {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 0;
+}
+
+.vis + .vis {
+  border-top: 1px solid var(--line);
+}
+
+.vis__dot {
+  width: 18px;
+  height: 18px;
+  margin: 2px 12px 0 0;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.vis__dot--on {
+  border-color: var(--brand-ink);
+  box-shadow: inset 0 0 0 4px var(--brand-ink);
+}
+
+.vis__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.vis__label {
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.vis__hint {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   底部操作
+   ============================================================ */
+
+.acts {
+  display: flex;
+  margin-top: 24px;
+}
+
+.acts__ghost,
+.acts__danger,
+.acts__cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+
+/* 「改一改」是主要动作，「删掉」是次要的破坏性动作 —— 所以前者占更多宽度 */
+.acts__ghost {
+  flex: 2;
+  margin-right: 12px;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+.acts__danger {
+  flex: 1;
+  background: var(--surface-2);
+  color: var(--danger);
+}
+
+.acts__cancel {
+  width: 96px;
+  margin-right: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.acts__ok {
+  flex: 1;
+}
+
+.acts__ghost:active,
+.acts__danger:active,
+.acts__cancel:active {
+  opacity: 0.8;
+}

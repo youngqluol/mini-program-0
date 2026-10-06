@@ -12,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { MEMORY_CONTENT_MAX, MEMORY_MAX_ATTACHMENTS } from '@shared';
+import { MEMORY_LIMITS } from '@shared';
 import { toNullableNumber } from '../../../common/utils/query.util';
 
 /**
@@ -103,7 +103,7 @@ export class CreateMemoryDto {
    */
   @IsOptional()
   @IsString({ message: '内容格式不对' })
-  @MaxLength(MEMORY_CONTENT_MAX, { message: `最多写 ${MEMORY_CONTENT_MAX} 个字` })
+  @MaxLength(MEMORY_LIMITS.CONTENT_MAX, { message: `最多写 ${MEMORY_LIMITS.CONTENT_MAX} 个字` })
   content?: string;
 
   /** 不传 = `FAMILY`（家庭可见） */
@@ -113,8 +113,8 @@ export class CreateMemoryDto {
 
   @IsOptional()
   @IsArray({ message: '图片格式不对' })
-  @ArrayMaxSize(MEMORY_MAX_ATTACHMENTS, {
-    message: `一次最多 ${MEMORY_MAX_ATTACHMENTS} 张图片`,
+  @ArrayMaxSize(MEMORY_LIMITS.MAX_ATTACHMENTS, {
+    message: `一次最多 ${MEMORY_LIMITS.MAX_ATTACHMENTS} 张图片`,
   })
   @ValidateNested({ each: true })
   @Type(() => MemoryAttachmentDto)
@@ -151,7 +151,7 @@ export class UpdateMemoryDto {
    */
   @IsOptional()
   @IsString({ message: '内容格式不对' })
-  @MaxLength(MEMORY_CONTENT_MAX, { message: `最多写 ${MEMORY_CONTENT_MAX} 个字` })
+  @MaxLength(MEMORY_LIMITS.CONTENT_MAX, { message: `最多写 ${MEMORY_LIMITS.CONTENT_MAX} 个字` })
   content?: string;
 
   @IsOptional()

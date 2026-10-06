@@ -1,15 +1,79 @@
+<!-- P03 · 留个念（Tab 3）—— 一家人的私人时间线 -->
 <view class="page">
-  <view class="skeleton-note">骨架预览：图片发布在 M4 接入。</view>
-
-  <view class="section-title">家里的时间线</view>
-
-  <view class="card">
-    <view class="empty">
-      <text class="empty__emoji">📖</text>
-      <text class="empty__title">还没有记录</text>
-      <text class="empty__hint">值得记下来的事，都放这儿</text>
+  <!-- 骨架：不用转圈（与 P01 一致：骨架块顺带说明「马上出来什么形状」） -->
+  <block wx:if="{{loading}}">
+    <view class="skel">
+      <view class="skel__date"></view>
+      <view class="skel__card">
+        <view class="skel__line"></view>
+        <view class="skel__line skel__line--short"></view>
+      </view>
     </view>
+    <view class="skel">
+      <view class="skel__date"></view>
+      <view class="skel__card">
+        <view class="skel__line"></view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 空状态（docs/03 P03 原文） -->
+  <view wx:elif="{{groups.length === 0}}" class="card empty">
+    <text class="empty__emoji">📖</text>
+    <text class="empty__title">{{emptyHint}}</text>
+    <text class="empty__hint">今天吃了什么、谁说了句什么，都值得留下</text>
   </view>
 
-  <view class="btn-primary memory__add" bindtap="onCreate">✨ 记一件</view>
+  <!-- 时间线：按日期分组，组内时间倒序 -->
+  <block wx:else>
+    <view class="day" wx:for="{{groups}}" wx:for-item="group" wx:key="dateText">
+      <view class="day__date">{{group.dateText}}</view>
+
+      <view class="mcard" wx:for="{{group.items}}" wx:for-item="item" wx:key="id">
+        <view class="mcard__top">
+          <view class="mcard__who">
+            <image wx:if="{{item.avatarUrl}}" class="mcard__avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+            <view wx:else class="mcard__avatar mcard__avatar--text">{{item.avatarText}}</view>
+            <text class="mcard__name">{{item.creatorName}}</text>
+          </view>
+          <view class="mcard__right">
+            <text wx:if="{{item.isPrivate}}" class="mcard__lock">🔒</text>
+            <text class="mcard__time">{{item.timeText}}</text>
+            <!-- 「···」只在自己那条上出现（判断用后端的 isMine，不在前端比 memberId） -->
+            <view wx:if="{{item.isMine}}" class="mcard__more" catchtap="onMore" data-id="{{item.id}}">···</view>
+          </view>
+        </view>
+
+        <view
+          class="mcard__body"
+          bindtap="onOpen"
+          data-id="{{item.id}}"
+        >
+          <text wx:if="{{item.content}}" class="mcard__text">{{item.content}}</text>
+
+          <view wx:if="{{item.photos.length > 0}}" class="grid">
+            <view
+              class="grid__cell"
+              wx:for="{{item.photos}}"
+              wx:for-item="photo"
+              wx:for-index="pi"
+              wx:key="*this"
+              catchtap="onPreview"
+              data-urls="{{item.photos}}"
+              data-index="{{pi}}"
+            >
+              <image class="grid__img" src="{{photo}}" mode="aspectFill" lazy-load />
+            </view>
+            <view wx:if="{{item.moreCount > 0}}" class="grid__cell grid__cell--more">+{{item.moreCount}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{loadingMore}}" class="more">正在翻…</view>
+    <view wx:elif="{{!hasMore}}" class="more">没有更多啦</view>
+  </block>
+
+  <!-- 悬浮发布按钮 -->
+  <view class="fab" bindtap="onCreate">＋</view>
 </view>

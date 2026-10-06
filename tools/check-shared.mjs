@@ -69,6 +69,18 @@ const PAIRS = [
     sourcePattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*'([^']*)'/gm,
     mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*'([^']*)'/gm,
   },
+  {
+    // 留个念的数量上限。**数字**（不是字符串），所以模式里是 `(\d+)`。
+    // 漂移的后果很具体：前端按镜像放行、后端按权威来源拒绝，
+    // 用户看到的是「明明还能再选一张，怎么发不出去」。
+    name: 'MEMORY_LIMITS',
+    source: 'packages/shared/src/dto/memory.ts',
+    mirror: 'miniprogram/constants/memory.ts',
+    sourceBlock: 'export const MEMORY_LIMITS = {',
+    mirrorBlock: 'export const MEMORY_LIMITS = {',
+    sourcePattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*(\d+)\s*,/gm,
+    mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*(\d+)\s*,/gm,
+  },
 ];
 
 function read(rel) {

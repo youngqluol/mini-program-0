@@ -1,0 +1,217 @@
+/* P18 · 发布记录 */
+
+/* 「来自 🎯 买牛奶」—— 关联标记。刻意淡：它不是主体，只是说明这条从哪来 */
+.banner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-cap);
+}
+
+/* ============================================================
+   正文
+   ============================================================ */
+
+.editor {
+  width: 100%;
+  min-height: 120px;
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+  line-height: 1.7;
+}
+
+.editor__ph {
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   九宫格
+   ============================================================ */
+
+.pics {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.pics__cell {
+  position: relative;
+  width: 33.333%;
+  box-sizing: border-box;
+  padding: 3px;
+}
+
+.pics__img {
+  display: block;
+  width: 100%;
+  height: 96px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* 上传中 / 失败时盖在图上的一层 */
+.pics__mask {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 3px;
+  height: 96px;
+  border-radius: var(--radius-sm);
+  background: rgba(31, 31, 31, 0.42);
+  overflow: hidden;
+}
+
+.pics__mask--fail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(242, 99, 123, 0.55);
+}
+
+.pics__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: #ffffff;
+  transition: width 160ms ease-out;
+}
+
+.pics__pct {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: -9px;
+  color: #ffffff;
+  font-size: var(--fs-cap);
+  text-align: center;
+}
+
+.pics__retry {
+  color: #ffffff;
+  font-size: var(--fs-cap);
+  font-weight: 600;
+}
+
+/* 删除按钮。刻意做小、放在右上角 —— 大按钮会挡住缩略图 */
+.pics__del {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(31, 31, 31, 0.55);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.pics__cell--add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  margin: 3px 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.pics__cell--add:active {
+  opacity: 0.7;
+}
+
+.pics__plus {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.pics__hint {
+  margin-top: 10px;
+  padding-left: 3px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   可见范围
+   ============================================================ */
+
+.vis {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 0;
+}
+
+.vis + .vis {
+  border-top: 1px solid var(--line);
+}
+
+.vis__dot {
+  width: 18px;
+  height: 18px;
+  margin: 2px 12px 0 0;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.vis__dot--on {
+  border-color: var(--brand-ink);
+  /* 内圈用背景色做「选中」，避免再套一个元素 */
+  box-shadow: inset 0 0 0 4px var(--brand-ink);
+}
+
+.vis__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.vis__label {
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.vis__hint {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   底部两个按钮
+   ============================================================ */
+
+.acts {
+  display: flex;
+  margin-top: 22px;
+}
+
+.acts__cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 48px;
+  margin-right: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--fs-h3);
+}
+
+.acts__ok {
+  flex: 1;
+}
+
+/* 还不能发时置灰 —— 但仍然可点，点了会 toast 说清为什么（比「点了没反应」好） */
+.acts__ok--off {
+  opacity: 0.5;
+  box-shadow: none;
+}

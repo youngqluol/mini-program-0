@@ -19,10 +19,22 @@ import type { MemberBrief } from './common';
 /** 接口层的可见范围字符串：`'FAMILY' | 'PRIVATE'` */
 export type MemoryVisibilityValue = keyof typeof MemoryVisibility;
 
-/** 一条记录最多几张图 —— 与 P18 的九宫格一致（PRD §18.2） */
-export const MEMORY_MAX_ATTACHMENTS = 9;
-/** 正文最长多少字 —— 家庭随笔，不是写文章 */
-export const MEMORY_CONTENT_MAX = 1000;
+/**
+ * 留个念的数量上限。
+ *
+ * ⚠️ **为什么打包成一个对象，而不是两个散落的 `export const`：**
+ *    小程序端不能 `import` `@shared` 的**运行时值**（微信开发者工具只做类型擦除、
+ *    不解析 tsconfig 的 `paths`，见 `tools/check-shared.mjs` 头部）——
+ *    所以这两个数字必须在 `miniprogram/constants/memory.ts` 里再写一份。
+ *    而「镜像校验器」是按 `键: 值` 逐项比对的，散落的常量没有可比对的形状。
+ *    打包成对象，就复用了已有的那套校验（`pnpm run check:shared`）。
+ */
+export const MEMORY_LIMITS = {
+  /** 一条记录最多几张图 —— 与 P18 的九宫格一致（PRD §18.2） */
+  MAX_ATTACHMENTS: 9,
+  /** 正文最长多少字 —— 家庭随笔，不是写文章 */
+  CONTENT_MAX: 1000,
+} as const;
 
 // ---------------------------------------------------------------
 // 图片
@@ -107,11 +119,11 @@ export interface MemoryItem {
 /** `POST /memories` 请求（docs/02 §7.1） */
 export interface CreateMemoryRequest {
   familyId: number;
-  /** 最长 `MEMORY_CONTENT_MAX` 字；与图片**至少给一样** */
+  /** 最长 `MEMORY_LIMITS.CONTENT_MAX` 字；与图片**至少给一样** */
   content?: string;
   /** 不传 = `FAMILY`（家庭可见） */
   visibility?: MemoryVisibilityValue;
-  /** 最多 `MEMORY_MAX_ATTACHMENTS` 张 */
+  /** 最多 `MEMORY_LIMITS.MAX_ATTACHMENTS` 张 */
   attachments?: MemoryAttachmentInput[];
   /** 「完成纪念」才传（PRD §19.2） */
   thingId?: number | null;
