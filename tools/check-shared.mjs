@@ -28,9 +28,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  *
  * `source` 是权威来源，`mirror` 是副本；
  * `sourceBlock` / `mirrorBlock` 是各自的块起始标记（从它开始截到第一个行首 `}`）——
- * 两边写法不同是刻意的：权威来源用 `enum`，镜像用 `as const` 对象
+ * 两边写法不同是刻意的：权威来源用 `enum` / 计算属性名，镜像用 `as const` 对象
  * （Babel 的 TS 插件默认不转换 `enum`，见镜像文件头部说明）；
- * `sourcePattern` / `mirrorPattern` 分别从各自块里抠出「键 → 数值」。
+ * `sourcePattern` / `mirrorPattern` 分别从各自块里抠出「键 → 值」，两者都取
+ * 第 1 组为键、第 2 组为值。**值一律按字符串比对**（数字也当字符串比），
+ * 这样同一个校验器既能管错误码，也能管文案映射。
  */
 const PAIRS = [
   {
@@ -41,6 +43,17 @@ const PAIRS = [
     mirrorBlock: 'export const ErrorCode = {',
     sourcePattern: /^\s*([A-Z][A-Z0-9_]*)\s*=\s*(\d+)\s*,/gm,
     mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*(\d+)\s*,/gm,
+  },
+  {
+    // 送达结果文案。权威来源用 `[DeliveryResult.SENT]: '...'` 计算属性名
+    // （保住「枚举值必须写全」的编译期检查），镜像用裸键名。
+    name: 'DELIVERY_TOAST',
+    source: 'packages/shared/src/dto/notify.ts',
+    mirror: 'miniprogram/constants/delivery.ts',
+    sourceBlock: 'export const DELIVERY_TOAST',
+    mirrorBlock: 'export const DELIVERY_TOAST = {',
+    sourcePattern: /^\s*\[DeliveryResult\.([A-Z_]+)\]:\s*'([^']*)'/gm,
+    mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*'([^']*)'/gm,
   },
 ];
 
@@ -66,7 +79,7 @@ function extract(block, pattern) {
   const re = new RegExp(pattern.source, pattern.flags);
   let m;
   while ((m = re.exec(block)) !== null) {
-    out.set(m[1], Number(m[2]));
+    out.set(m[1], m[2]);
   }
   return out;
 }
@@ -78,14 +91,8 @@ for (const pair of PAIRS) {
   let src;
   let mir;
   try {
-    src = extract(
-      sliceBlock(read(pair.source), pair.sourceBlock, pair.source),
-      pair.sourcePattern,
-    );
-    mir = extract(
-      sliceBlock(read(pair.mirror), pair.mirrorBlock, pair.mirror),
-      pair.mirrorPattern,
-    );
+    src = extract(sliceBlock(read(pair.source), pair.sourceBlock, pair.source), pair.sourcePattern);
+    mir = extract(sliceBlock(read(pair.mirror), pair.mirrorBlock, pair.mirror), pair.mirrorPattern);
   } catch (e) {
     console.error(`❌ ${pair.name}：${e.message}`);
     failed += 1;
@@ -104,7 +111,7 @@ for (const pair of PAIRS) {
     if (!mir.has(key)) {
       problems.push(`  缺少 ${key} = ${value}（${pair.mirror} 里没有这个成员）`);
     } else if (mir.get(key) !== value) {
-      problems.push(`  ${key} 数值不一致：权威来源 ${value}，镜像 ${mir.get(key)}`);
+      problems.push(`  ${key} 不一致：\n      权威来源 ${value}\n      镜像     ${mir.get(key)}`);
     }
   }
   for (const [key, value] of mir) {
