@@ -87,6 +87,22 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+/** GET /notifications 列表响应（docs/02 §9.1） */
+export interface NotificationListResponse {
+  list: NotificationItem[];
+  /** 未读条数 —— 与列表同时返回，省一次请求 */
+  unreadCount: number;
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
+/** GET /notifications/unread-count 响应（docs/02 §9.2） */
+export interface UnreadCountResponse {
+  unreadCount: number;
+}
+
 // ---------------------------------------------------------------
 // 微信提醒绑定（「我的 → 微信提醒」页）
 // ---------------------------------------------------------------
