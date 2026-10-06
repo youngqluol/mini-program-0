@@ -1,0 +1,77 @@
+/* 成员选择器 —— 横排单选（样式规范见 docs/07 §6.5 squircle / §6.7 列表项） */
+
+:host {
+  display: block;
+}
+
+.mpicker {
+  display: flex;
+  /* 家里人多了会超出屏幕，横滑而不是换行 —— 换行会让下面的内容跳来跳去 */
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mpicker::-webkit-scrollbar {
+  display: none;
+}
+
+.mpicker__item {
+  flex: 0 0 auto;
+  width: 60px;
+  margin-right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mpicker__item:last-child {
+  margin-right: 0;
+}
+
+.mpicker__item:active {
+  opacity: 0.7;
+}
+
+.mpicker__avatar {
+  width: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--fs-h2);
+  font-weight: 600;
+}
+
+.mpicker__img {
+  width: 100%;
+  height: 100%;
+}
+
+/* 选中态用粉描边 + 粉底，不用对勾 —— 头像上叠图标会挡住脸 */
+.mpicker__item--on .mpicker__avatar {
+  border-color: var(--brand-1);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+.mpicker__name {
+  max-width: 60px;
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mpicker__item--on .mpicker__name {
+  color: var(--brand-ink);
+  font-weight: 600;
+}

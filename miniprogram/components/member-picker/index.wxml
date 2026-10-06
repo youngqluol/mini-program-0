@@ -1,0 +1,26 @@
+<!--
+  成员选择器 —— 头像 + 称谓横排单选（P08 叮一下 / P09 派活共用）
+
+  纯展示组件：不读 store、不发请求。页面把要选的人传进来，组件只负责
+  「谁被选中了」并把 memberId 抛回去。
+-->
+<view class="mpicker">
+  <view
+    wx:for="{{items}}"
+    wx:key="memberId"
+    class="mpicker__item {{item.memberId === selectedId ? 'mpicker__item--on' : ''}}"
+    data-id="{{item.memberId}}"
+    bindtap="onPick"
+  >
+    <view class="mpicker__avatar">
+      <image
+        wx:if="{{item.avatarUrl}}"
+        class="mpicker__img"
+        src="{{item.avatarUrl}}"
+        mode="aspectFill"
+      />
+      <text wx:else class="mpicker__initial">{{item.initial}}</text>
+    </view>
+    <view class="mpicker__name">{{item.display}}</view>
+  </view>
+</view>
