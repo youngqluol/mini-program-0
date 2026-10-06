@@ -60,7 +60,7 @@ model User {
   openid      String    @unique(map: "uk_openid") @db.VarChar(64)
   unionid     String?   @db.VarChar(64)
   /// 公众号 openid（wxpush 推送用，与小程序 openid 不是同一个值）
-  mpOpenid    String?   @unique(map: "uk_mp_openid") @db.VarChar(64)
+  mpOpenid    String?   @unique(map: "uk_mp_openid") @map("mp_openid") @db.VarChar(64)
   /// 公众号提醒绑定时间
   mpBoundAt   DateTime? @map("mp_bound_at") @db.DateTime(0)
   nickname    String?   @db.VarChar(50)
@@ -118,7 +118,7 @@ model FamilyInvite {
   id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   familyId         BigInt    @map("family_id") @db.UnsignedBigInt
   inviterMemberId  BigInt    @map("inviter_member_id") @db.UnsignedBigInt
-  inviteCode       String    @unique(map: "uk_invite_code") @db.VarChar(32)
+  inviteCode       String    @unique(map: "uk_invite_code") @map("invite_code") @db.VarChar(32)
   expireAt         DateTime? @map("expire_at") @db.DateTime(0)
   usedAt           DateTime? @map("used_at") @db.DateTime(0)
   usedByUserId     BigInt?   @map("used_by_user_id") @db.UnsignedBigInt
