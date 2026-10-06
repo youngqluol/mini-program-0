@@ -1,0 +1,48 @@
+<!--
+  小事卡片（P01 首页 / P11 我的小事 共用）
+
+  两种形态：
+    variant="list"  列表 —— 左侧状态圆点，中间「标题 / 称谓 · 时间」，右侧箭头
+    variant="today" 首页 —— 左侧时间或类型 emoji，右侧称谓（+ 状态 / 完成按钮）
+
+  `item` 必须是 `utils/thing-view.ts` 归一化出来的 ThingCardItem，
+  组件不认识任何后端 DTO —— 换接口不用改组件。
+-->
+<view class="tcard tcard--{{variant}} {{item.done ? 'tcard--done' : ''}}" bindtap="onClick">
+  <!-- 左 -->
+  <view wx:if="{{variant === 'list'}}" class="tcard__mark">
+    <view class="tcard__dot {{item.done ? 'tcard__dot--on' : ''}}">
+      <text wx:if="{{item.done}}" class="tcard__tick">✓</text>
+    </view>
+  </view>
+  <view wx:else class="tcard__lead">
+    <text wx:if="{{item.type === 'REMINDER'}}" class="tcard__lead-time">{{item.timeText}}</text>
+    <text wx:else class="tcard__lead-emoji">{{item.emoji}}</text>
+  </view>
+
+  <!-- 中 -->
+  <view class="tcard__main">
+    <view class="tcard__title">{{item.title}}</view>
+    <view wx:if="{{variant === 'list'}}" class="tcard__meta">
+      <text class="tcard__who">{{item.assigneeName}}</text>
+      <block wx:if="{{item.timeText}}">
+        <text class="tcard__sep">·</text>
+        <text class="tcard__time {{item.isOverdue ? 'tcard__time--late' : ''}}">{{item.timeText}}</text>
+      </block>
+      <text wx:if="{{item.hasReminder}}" class="tcard__bell">🔔</text>
+    </view>
+  </view>
+
+  <!-- 右 -->
+  <view wx:if="{{variant === 'today'}}" class="tcard__tail">
+    <text class="tcard__who">{{item.assigneeName}}</text>
+    <text wx:if="{{showStatus}}" class="tcard__status">{{item.statusLabel}}</text>
+    <view wx:if="{{showCheck}}" class="tcard__check" catchtap="onComplete">
+      <text wx:if="{{item.done}}" class="tcard__tick">✓</text>
+    </view>
+  </view>
+  <view wx:else class="tcard__tail">
+    <text wx:if="{{item.done}}" class="tcard__status">{{item.statusLabel}}</text>
+    <text class="tcard__arrow">›</text>
+  </view>
+</view>

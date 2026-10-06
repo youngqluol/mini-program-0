@@ -1,0 +1,155 @@
+/*
+  小事卡片 —— 结构规范见 docs/07 §6.7 列表项
+  白底 / 圆角 14px / 内边距 12px 14px / 已完成整项 opacity .55
+
+  卡片本身不带阴影：它一般躺在 .card 里或页面背景上，靠留白分层，
+  再叠一层阴影会和外层卡片糊在一起。
+*/
+
+:host {
+  display: block;
+}
+
+.tcard {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.tcard--done {
+  opacity: 0.55;
+}
+
+/* ---------- 左：列表形态的状态圆点 ---------- */
+
+.tcard__mark {
+  flex: 0 0 auto;
+  width: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.tcard__dot {
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 令牌里没有「未选中描边」这一档，用同色系的暖灰，别用纯灰 #CCC（显脏） */
+  border: 1.5px solid #e3d8dc;
+  border-radius: 50%;
+}
+
+.tcard__dot--on {
+  border-color: var(--brand-1);
+  background: var(--brand-1);
+}
+
+.tcard__tick {
+  font-size: 11px;
+  line-height: 1;
+  color: #ffffff;
+}
+
+/* ---------- 左：首页形态的时间 / emoji ---------- */
+
+.tcard__lead {
+  flex: 0 0 44px;
+  width: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.tcard__lead-time {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.tcard__lead-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ---------- 中 ---------- */
+
+.tcard__main {
+  flex: 1;
+  /* 没有 min-width:0 的话，长标题会把右侧的称谓挤出屏幕 */
+  min-width: 0;
+  margin-left: 10px;
+}
+
+.tcard__title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tcard__meta {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.tcard__sep {
+  margin: 0 5px;
+}
+
+.tcard__time--late {
+  color: var(--warning);
+}
+
+.tcard__bell {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+/* ---------- 右 ---------- */
+
+.tcard__tail {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-left: 10px;
+}
+
+.tcard__who,
+.tcard__status {
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.tcard__status {
+  margin-left: 8px;
+}
+
+.tcard__arrow {
+  font-size: 16px;
+  color: var(--ink-3);
+}
+
+.tcard__check {
+  width: 26px;
+  height: 26px;
+  box-sizing: border-box;
+  margin-left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #e3d8dc;
+  border-radius: 50%;
+}
+
+.tcard__check:active {
+  opacity: 0.7;
+}
