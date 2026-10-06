@@ -1,15 +1,16 @@
 /**
- * 小事展示模型的行为断言（`miniprogram/utils/thing-view.ts`）
+ * 展示模型的行为断言（`miniprogram/utils/*-view.ts`）
  *
- * 覆盖三个纯函数：
+ * 覆盖四个纯函数：
  *   - `buildThingDetailView()`     —— P10 详情页
  *   - `buildThingRowView()`        —— P11 列表行（卡片 + 左滑操作）
  *   - `buildTodayReminderRow()`    —— P01 首页「今天的提醒」行（卡片 + 完成圈）
+ *   - `buildNoticeView()`          —— P12 消息中心（通知行 + 送达说明）
  *
  * 为什么单独测这一层：它们全是纯函数，但分支不少（三种状态 × 我是执行人 /
  * 我是发起人 / 都与我无关 × 有没有提醒），而 `tsc` 只能保证**类型**对，
  * 保证不了「不限时间前完成」这种**语法通顺但意思错**的文案，
- * 也保证不了「谁该看到哪个操作」这种**权限判断**。
+ * 也保证不了「谁该看到哪个操作」「这条到底推没推到微信」这类判断。
  * 这两类错误都只有跑到线上被人看见才会发现 —— 所以在本地拦一下。
  *
  * 实现方式：小程序端是 TypeScript，node 不能直接 require。这里用仓库里
@@ -74,17 +75,22 @@ if (diagnostics.length > 0) {
   process.exit(1);
 }
 
-const viewPath = join(outDir, 'miniprogram', 'utils', 'thing-view.js');
+// 产物已落盘，require 进来；临时目录留到脚本结束再删。
+// 一次编译同时产出两个模块 —— 加一个 view 文件只是多 require 一行，不用再编一遍。
+const thingViewPath = join(outDir, 'miniprogram', 'utils', 'thing-view.js');
+const noticeViewPath = join(outDir, 'miniprogram', 'utils', 'notice-view.js');
 
-if (!existsSync(viewPath)) {
-  console.error(`没找到编译产物：${viewPath}`);
-  console.error('（大概率是 tsconfig 的 include / rootDir 变了，需要同步这个脚本）');
-  rmSync(outDir, { recursive: true, force: true });
-  process.exit(1);
+for (const p of [thingViewPath, noticeViewPath]) {
+  if (!existsSync(p)) {
+    console.error(`没找到编译产物：${p}`);
+    console.error('（大概率是 tsconfig 的 include / rootDir 变了，需要同步这个脚本）');
+    rmSync(outDir, { recursive: true, force: true });
+    process.exit(1);
+  }
 }
 
-// 产物已落盘，require 进来；临时目录留到脚本结束再删
-const { buildThingDetailView, buildThingRowView, buildTodayReminderRow } = require(viewPath);
+const { buildThingDetailView, buildThingRowView, buildTodayReminderRow } = require(thingViewPath);
+const { buildNoticeView } = require(noticeViewPath);
 
 // ---------------------------------------------------------------
 // 小工具
@@ -498,18 +504,105 @@ function todayReminder(over = {}) {
 }
 
 // ---------------------------------------------------------------
+// 13. P12 消息中心：通知行 + 送达说明
+// ---------------------------------------------------------------
+
+/** 造一条通知。默认是「叮一下，推到微信了」这个最常见的样子。 */
+function notice(over = {}) {
+  return {
+    id: 70001,
+    type: 'REMINDER',
+    title: '阿妈 提醒你：拿快递',
+    content:
+      '阿妈，别忘了这件事\n事项：拿快递\n时间：今天 17:30\n来自：阿妈\n到时候了，提醒你一下～',
+    channel: 'MP_TEMPLATE',
+    status: 'SENT',
+    thingId: 10001,
+    isRead: false,
+    createdAt: todayAt(17, 30),
+    ...over,
+  };
+}
+
+{
+  const row = buildNoticeView(notice());
+
+  check('通知 · id', row.id, 70001);
+  check('通知 · 类型 emoji 来自 NOTICE_TYPE_META', row.emoji, '🔔');
+  check('通知 · 类型名', row.typeLabel, '叮一下');
+  check('通知 · 标题原样透出（后端已经带上事项名）', row.title, '阿妈 提醒你：拿快递');
+  check('通知 · 时间要带「今天」才不歧义', row.timeText, '今天 17:30');
+  check('通知 · 未读', row.isRead, false);
+  check('通知 · 关联小事，可跳详情', row.thingId, 10001);
+
+  // 送到微信了就不显示标签 —— 微信已经响过了，再说一句「已发到微信」是废话
+  check('送达 · 推到微信 → 不显示标签', row.deliveryText, '');
+  check(
+    '送达 · 订阅消息也算推到微信',
+    buildNoticeView(notice({ channel: 'SUBSCRIBE' })).deliveryText,
+    '',
+  );
+
+  // 只在「没推到微信」时才给一句话 —— 那才是用户会疑惑的场景（「怎么没响？」）
+  check(
+    '送达 · 还没开微信提醒 → 说清原因',
+    buildNoticeView(notice({ channel: 'IN_APP', status: 'NOT_BOUND' })).deliveryText,
+    '还没开微信提醒',
+  );
+  check(
+    '送达 · 额度用完 → 没发到微信',
+    buildNoticeView(notice({ channel: 'IN_APP', status: 'NO_QUOTA' })).deliveryText,
+    '没发到微信',
+  );
+  check(
+    '送达 · 发送失败 → 没发出去',
+    buildNoticeView(notice({ channel: 'IN_APP', status: 'FAILED' })).deliveryText,
+    '没发出去',
+  );
+  check(
+    '送达 · 幽灵记录（PENDING）→ 发送中',
+    buildNoticeView(notice({ channel: 'IN_APP', status: 'PENDING' })).deliveryText,
+    '发送中',
+  );
+  // 这一条挡的是那句「安静的假话」：只看 status 会把「只写了站内」说成「已发到微信」
+  check(
+    '送达 · 站内渠道 + SENT ≠ 推到微信（必须同时看 channel）',
+    buildNoticeView(notice({ channel: 'IN_APP', status: 'SENT' })).deliveryText,
+    '只在小程序里',
+  );
+
+  // 列表里靠 emoji 区分类型，五个撞在一起就白做了
+  const emojis = ['TASK_ASSIGNED', 'REMINDER', 'TASK_DONE', 'JOIN_FAMILY', 'SYSTEM'].map(
+    (type) => buildNoticeView(notice({ type })).emoji,
+  );
+  check('通知 · 五种类型各有自己的 emoji', new Set(emojis).size, 5);
+
+  // 「加入家庭」「系统通知」没有关联小事，点了不该跳
+  check(
+    '通知 · 没有关联小事时 thingId 为 null（页面据此不给跳转）',
+    buildNoticeView(notice({ type: 'JOIN_FAMILY', thingId: null })).thingId,
+    null,
+  );
+
+  // 后端先加了新类型、小程序还没发版 —— 不能把 undefined 渲染出来
+  const unknown = buildNoticeView(notice({ type: 'SOMETHING_NEW' }));
+  check('通知 · 没见过的类型有兜底 emoji', unknown.emoji, '📢');
+  check('通知 · 没见过的类型有兜底名字', unknown.typeLabel, '通知');
+}
+
+// ---------------------------------------------------------------
 // 结果
 // ---------------------------------------------------------------
 
 rmSync(outDir, { recursive: true, force: true });
 
 if (failures.length === 0) {
-  console.log(`✅ 小事展示模型校验通过：${passed} 项断言`);
+  console.log(`✅ 展示模型校验通过：${passed} 项断言`);
   process.exit(0);
 }
 
 console.error(
-  `❌ 小事展示模型有 ${failures.length} 项不符合预期（共 ${passed + failures.length} 项）：\n`,
+  `❌ 展示模型有 ${failures.length} 项不符合预期（共 ${passed + failures.length} 项）：\n`,
 );
 for (const f of failures) {
   console.error(`  · ${f.name}`);
