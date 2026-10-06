@@ -956,8 +956,87 @@ async function main() {
     40400,
   );
 
-  // ---------- 12. 观察项 ----------
-  phase('12. 观察项（非阻塞）');
+  // ---------- 12. 消息中心 + 我的称谓 ----------
+  phase('12. 消息中心（M2-B25）与我的称谓（M2-B26）');
+  expectCode('无 token 读消息中心 → 40100', await api('GET', '/api/notifications'), 40100);
+
+  const notif1 = await api('GET', '/api/notifications', { token: t1 });
+  expectCode('GET /notifications（阿爸）', notif1, 0);
+  const nList = notif1.body?.data?.list ?? [];
+  check('列表非空（阿爸收到过完成回执）', nList.length > 0, String(nList.length));
+  check('unreadCount > 0', (notif1.body?.data?.unreadCount ?? 0) > 0);
+  check('返回分页字段', Number.isInteger(notif1.body?.data?.page) && Number.isInteger(notif1.body?.data?.total));
+  check('hasMore 为布尔', typeof notif1.body?.data?.hasMore === 'boolean');
+  const nItem = nList[0] ?? {};
+  check('条目含 channel / status / isRead', 'channel' in nItem && 'status' in nItem && 'isRead' in nItem);
+  check('条目 createdAt 为北京时间格式', DATE_RE.test(nItem.createdAt ?? ''), String(nItem.createdAt));
+  check(
+    '条目 type 是字符串枚举',
+    ['TASK_ASSIGNED', 'REMINDER', 'TASK_DONE', 'JOIN_FAMILY', 'SYSTEM'].includes(nItem.type),
+    String(nItem.type),
+  );
+  check(
+    '条目 channel 是字符串枚举',
+    ['SUBSCRIBE', 'IN_APP', 'MP_TEMPLATE'].includes(nItem.channel),
+    String(nItem.channel),
+  );
+
+  const notifDone = await api('GET', '/api/notifications?type=TASK_DONE', { token: t1 });
+  expectCode('type=TASK_DONE 筛选', notifDone, 0);
+  check(
+    '筛选后只剩 TASK_DONE',
+    (notifDone.body?.data?.list ?? []).every((x) => x.type === 'TASK_DONE') &&
+      (notifDone.body?.data?.list ?? []).length > 0,
+  );
+  expectCode(
+    'type 非法值 → 40001',
+    await api('GET', '/api/notifications?type=BOGUS', { token: t1 }),
+    40001,
+  );
+
+  const unread = await api('GET', '/api/notifications/unread-count', { token: t1 });
+  expectCode('GET /notifications/unread-count', unread, 0);
+  check(
+    '未读数与列表里的 unreadCount 一致',
+    unread.body?.data?.unreadCount === notif1.body?.data?.unreadCount,
+    `${unread.body?.data?.unreadCount} vs ${notif1.body?.data?.unreadCount}`,
+  );
+
+  const readAll = await api('POST', '/api/notifications/read-all', { token: t1 });
+  expectCode('POST /notifications/read-all', readAll, 0);
+  check('全部已读有更新条数', (readAll.body?.data?.updated ?? 0) >= 1, String(readAll.body?.data?.updated));
+  const unreadAfter = await api('GET', '/api/notifications/unread-count', { token: t1 });
+  check('全部已读后未读数归零', unreadAfter.body?.data?.unreadCount === 0);
+  const notifAfter = await api('GET', '/api/notifications', { token: t1 });
+  check('全部已读后 isRead 全为 true', (notifAfter.body?.data?.list ?? []).every((x) => x.isRead === true));
+  expectCode(
+    '重复全部已读（幂等）',
+    await api('POST', '/api/notifications/read-all', { token: t1 }),
+    0,
+  );
+  check(
+    '阿妈的消息中心与阿爸的相互独立',
+    (await api('GET', '/api/notifications', { token: t2 })).body?.data?.unreadCount > 0,
+  );
+
+  const me2 = await api('GET', `/api/families/${fx.familyId}/members/me`, { token: t2 });
+  expectCode('GET /families/:id/members/me（阿妈）', me2, 0);
+  check('返回 roleName=阿妈', me2.body?.data?.roleName === '阿妈', String(me2.body?.data?.roleName));
+  check('返回 memberId 正确', me2.body?.data?.memberId === fx.member2Id);
+  check('阿妈 isOwner=false', me2.body?.data?.isOwner === false);
+  check('joinedAt 为北京时间格式', DATE_RE.test(me2.body?.data?.joinedAt ?? ''));
+
+  const me1 = await api('GET', `/api/families/${fx.familyId}/members/me`, { token: t1 });
+  check('阿爸 roleName=阿爸', me1.body?.data?.roleName === '阿爸');
+  check('阿爸 isOwner=true', me1.body?.data?.isOwner === true);
+  expectCode(
+    '非成员读我的称谓 → 40300',
+    await api('GET', `/api/families/${fx.familyId}/members/me`, { token: t3 }),
+    40300,
+  );
+
+  // ---------- 13. 观察项 ----------
+  phase('13. 观察项（非阻塞）');
   note('立即叮（remindType=NOW）在创建流程内同步下发，并把该条提醒置 SENT。');
   note('  若将来改为「入队后由调度器发」，这里的行为会变，冒烟脚本需同步调整。');
   note('定时提醒的 next_remind_at 已写好，但**调度器尚未实现**（M2-B20），到点不会真发。');
