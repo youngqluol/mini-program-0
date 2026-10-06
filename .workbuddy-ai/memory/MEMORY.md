@@ -129,6 +129,18 @@
 - **URL Link（`wxaurl.cn`）官方只对非个人主体小程序开放**，且须小程序已发布 → 个人主体**不可用**
 - `wx-open-launch-weapp` 需认证公众号 + JSSDK → 测试号不具备
 - **小程序码长按识别**是个人主体唯一可靠的中转页跳转手段
+- **公众号二维码 ≠ 小程序码 —— 本项目第二对「看起来一样、其实不能换」的东西**
+  （第一对是两套模板体系，判据是**字段名规则**；这一对的判据是**角标**）
+  - 判据只有一个：**小程序码右下角有绿色小程序角标**，放射状圆码；
+    公众号二维码是**方形 + 中间头像**。除此之外都是「黑白的方块」，肉眼极易混
+  - 扫出来完全不同：**公众号二维码 → 关注那个号**（P21 要的就是它）；
+    **小程序码 → 打开小程序**（对 P21 毫无帮助，会走进死路）
+  - 本项目位置：公众号二维码 `miniprogram/assets/mp-account-qr.jpg`
+    （`config.ts` 的 `MP_ACCOUNT_QR`）；小程序码 `wxpush/assets/miniprogram-code.png`
+    （上传 COS 后填 Worker 的 `MP_QRCODE_URL`）
+  - ⚠️ 命名陷阱：本项目里 `MP` 前缀是**公众号**（`mp_openid` / `MP_TEMPLATE_*` /
+    `MP_ACCOUNT_QR`），而上游 wxpush 的 `MP_QRCODE_URL` 要的却是**小程序码**。
+    所以小程序码入库名叫 `miniprogram-code.png`，**不要**沿用 `MP_QRCODE`
 - openid 是「用户 × 应用」维度：**小程序 openid ≠ 公众号 openid，无法互推**（`users.mp_openid` 单独存）
 - **个人主体小程序可以调用 `security.msgSecCheck`**（无 48001）—— 2026-10-06 实测
   - 结论看 `result.suggest`（`pass` / `review` / `risky`），老接口形态用 `errcode=87014`
@@ -171,9 +183,9 @@
   这一行会说**安静的假话**。已记入 `docs/未来需求池.md`。
 - **M2-F3（首页「未开微信提醒」提示条）不做** —— docs/03 要求它出现在「**别人**
   没开微信提醒」时，但 `GET /notify/mp-bind/status` 只回**我自己**的状态，
-  后端**没有「家庭成员谁开了」的接口**（这个条件算不出来）；且它要跳 P21（未做）。
-  已记入 `docs/未来需求池.md`。做 P21 时一起做，注意**只暴露「开 / 没开」布尔值**，
-  不要把 `mp_openid` 漏给前端（机制词，用户界面禁用）。
+  后端**没有「家庭成员谁开了」的接口**（这个条件算不出来）。
+  已记入 `docs/未来需求池.md`。（P21 本身**已经做完了**，这条不做的唯一原因就是上面这个。）
+  要做的话注意**只暴露「开 / 没开」布尔值**，不要把 `mp_openid` 漏给前端（机制词，用户界面禁用）。
 - **P01 首页不显示 `stats.overdue`（过期未完成数）—— 刻意的，别改回来** ——
   「今天有 2 件事已经过了时间」是**催办话**（AGENTS.md §6 禁用词有「逾期」）。
   单条小事上**变红的时间保留**（那是信息：本来定在几点），聚合成一个数字挂页面顶部
@@ -181,18 +193,25 @@
 - 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
   原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
 - **P20 底部 Tab 不补图标** —— `app.json` 的 `tabBar.list` 四项都只有 `text`。
-  微信允许纯文字 tabBar（合法），要补得放 8 张 PNG，而 `assets/` 至今是空的，
-  且线性图标与「emoji 装粉彩 squircle」是两套视觉语言。这是**打磨**不是**通路**，
+  微信允许纯文字 tabBar（合法），要补得放 8 张 PNG，且线性图标与
+  「emoji 装粉彩 squircle」是两套视觉语言。这是**打磨**不是**通路**，
   验收标准是「4 个 Tab 都能切换，未读角标正常」。
+  （`assets/` 现在只有 P21 的公众号二维码，仍然没有图标。）
 - **微信昵称 / 头像授权未做** —— `AuthUser.nickname` 一直是 null，所以 P20 抬头大字
   显示的是家庭称谓（`buildMineProfile` 里「大字已经是称谓时小字不重复它」就是为这个写的）。
   影响有限：家里认的是称谓。已记入 `docs/未来需求池.md`。
 - **后端 `leave()` 的报错文案含「转给别人」，但转让创建者功能不存在** ——
   P20 已绕开（创建者看不到「退出家庭」按钮），但服务端那句话是**不实陈述**。
   已记入 `docs/未来需求池.md`，V0.2 做家庭管理时一并处理。
-- **P21 开始前要先定「二维码从哪来」** —— `MP_QRCODE_URL` 是 **wxpush Worker 的环境变量**，
-  小程序侧没有对应配置；`MpBindStatus` 里也**没有二维码字段**。
-  要么在 `miniprogram/config.ts` 加常量，要么把图片放进 `assets/`（目前是空的）。
+- **P21 的二维码已到位** —— ✅ `miniprogram/assets/mp-account-qr.jpg`（微信后台下发的
+  **原图，未转码**），`config.ts` 的 `MP_ACCOUNT_QR` 指向它。
+  ⚠️ **扩展名是常量的一部分**：换格式要**连常量一起改** —— 改漏了不报错、不白屏，
+  只会**静默**退回一句文字说明。`check-mp.mjs` 检查项 ⑪ 读的是常量本身，会自动跟上。
+- **小程序码还没上传，`MP_QRCODE_URL` 还是空的** —— 源图已入库
+  （`wxpush/assets/miniprogram-code.png`），但 Worker 读的是**公网 URL**，
+  还差「上传 COS → 填 URL」。没填时中转页只剩纯文案引导（可用，体验略降）。
+  ⚠️ **别拿错图**：拿公众号二维码填 `MP_QRCODE_URL`，用户长按识别会跳到「关注」页，
+  这条兜底路等于废了。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
   与 `MP_QRCODE_URL` 待用户配；`MP_CALLBACK_TOKEN` 待云托管部署后配。
 
@@ -218,8 +237,8 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | `check-ts.mjs` | TS 语法校验（不装 typescript 也能跑） | 提交前 |
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
 | `check-shared.mjs` | 小程序侧常量镜像防漂移（`ErrorCode` 数值 + `DELIVERY_TOAST` 文案） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
-| `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用） | 改了页面或组件后 |
-| `test-view.mjs` | **展示模型层的行为断言**（**105 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25） | 改了 `utils/thing-view.ts` / `utils/notice-view.ts` / `utils/mine-view.ts` 后 |
+| `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用、**未读角标挂的 Tab 下标**、**二维码图片在不在**；另有 `notes` 通道打 `⏳` 提示，**只提示不判失败**） | 改了页面、组件、`app.json` 或 `config.ts` 后 |
+| `test-view.mjs` | **展示模型层的行为断言**（**127 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22） | 改了 `utils/thing-view.ts` / `utils/notice-view.ts` / `utils/mine-view.ts` / `utils/time.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
@@ -232,8 +251,8 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 `miniprogram/` 编到系统临时目录再 require 产物。**不要 spawn `tsc`**：
 本机执行环境会拦子进程（`.bin/tsc.cmd` → `EINVAL`，`process.execPath` → `EBUSY`）。
 产物路径是 `<out>/miniprogram/utils/*.js`（tsc 推断 `rootDir` 为仓库根）。
-**一次编译同时产出 `thing-view.js` 与 `notice-view.js`**，两个模块一起断言
-（每遍编译 3.4s，分两次编就白花一倍时间）。**为什么需要它**：`tsc` 只保证类型对，
+**一次编译同时产出全部 `*-view.js`**（`thing-view` / `notice-view` / `mine-view` 一起断言，
+每遍编译 3.4s，分几次编就白花几倍时间）。**为什么需要它**：`tsc` 只保证类型对，
 保证不了「不限时间前完成」这种语法通顺但意思错的文案，也保证不了
 「谁该看到哪个操作」这种权限判断 —— 后者算错的后果很具体，点一下就是一次 403 toast。
 写它的当天就抓到一个空格级错误。**别只加断言，也要核对既有断言还成不成立。**
@@ -359,8 +378,30 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   `tabBar.list` 是耦合关系，挂错 Tab **不报错、不白屏**，只是红点出现在别的栏上 →
   `check-mp.mjs` 检查项 ⑩ 比对两者，**并且要反向验证**（改成 2 看脚本会不会报）。
   同类：`swipe-cell` 的 `ACTION_WIDTH = 84` 与 `.swipe__action { width: 84px }`。
-- **「挂一个点了没反应的入口，比暂时不挂更糟」** —— 这条原则已经用过三次：
-  M2-F3 首页提示条、P20 的微信提醒那一行、P20 的隐私政策 / 注销账号。
+- **图片路径 / 扩展名是常量的一部分，改漏了会「静默降级」。** `MP_ACCOUNT_QR` 写的是
+  `'assets/mp-account-qr.jpg'` —— 换格式时只改图片不改常量（或反过来），
+  小程序**找不到文件也不报错、不白屏**，只是 `<image>` 触发 `binderror` →
+  退回一句文字说明。所以：① 页面必须写 `binderror` 降级（宁可少一张图，
+  也不能显示一张破图）；② 自查脚本要**从常量里读路径**去判文件在不在，
+  而不是写死文件名（写死了就跟着一起漂移）。**同类静默失败**，同一条规律。
+- **`export const X = '...'` 会被 TS 推断成字面量类型。** 于是页面里
+  `X !== ''` 被判成「不可能成立」→ **TS2367**（明明是在判空，编译器说不可能）。
+  必须显式标 `: string`。本轮 `MP_ACCOUNT_QR` 就踩了这个。
+- **轮询不要用 `setInterval`，用「查一次、再排下一次」**（`setTimeout` 递归）。
+  查询本身是异步的，固定间隔会在网络慢的时候叠起好几个并发请求，而且
+  **停不掉正在飞的那一个**。配套：`onHide` / `onUnload` 必须停轮询，
+  否则用户切走后定时器还在跑、还会 `setData` 到不可见的页面；
+  `onShow` 回来时立刻重查一次。轮询句柄挂在 `this` 上（不进 `data`，不参与渲染）。
+- **`test-view.mjs` 里造「相对当前时间」的时刻要留余量。** `describeExpire()` 是
+  **向下取整**的 —— 造出 `now + 9 分钟` 并丢掉秒（`...:00`）后，到断言执行之间
+  过去几毫秒就正好卡在整分钟边界，算成「8 分钟」。修法：辅助函数
+  `expiresInMinutes(n)` 留 **+0.5 分钟**余量并**保留秒**。
+  另外测「不到 1 分钟」要用 `expiresInMinutes(0)`，**不能用 `-1`**
+  （`-1` 会变成「已经过期了」，测的就不是同一档了）。
+- **「挂一个点了没反应的入口，比暂时不挂更糟」** —— 这条原则已经用过四次：
+  M2-F3 首页提示条、P20 的微信提醒那一行、P20 的隐私政策 / 注销账号、
+  P21 的「重新绑定」（草图里有，但绑定关系挂在**用户**身上，换微信号就是换人，
+  这一行没有真实语义 → 直接从 docs/03 删掉）。
   判断方法：问「用户点下去会发生什么」。如果答案是「什么都不发生」或「一句敷衍的 toast」，
   那就先不挂，把理由写进代码文件头 + `docs/未来需求池.md`。
   ⚠️ **但不要把「先不做」当成默认**：信息不能丢 —— 比如「还没开微信提醒」，
