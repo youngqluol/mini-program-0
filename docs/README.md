@@ -35,11 +35,11 @@
 
 | 篇 | 版本 | 篇 | 版本 |
 | --- | --- | --- | --- |
-| 产品需求文档 | **v0.2.3** | 05 开发计划 | **v0.2.4** |
+| 产品需求文档 | **v0.2.3** | 05 开发计划 | **v0.2.5** |
 | 01 技术架构 | **v0.2.3** | 06 环境准备 | **v0.2.3** |
 | 02 API 设计 | **v0.2.3** | 07 视觉规范 | v1.0 |
 | 03 页面原型 | v0.2.1 | 08 推送集成 | **v1.0.2** |
-| 04 工程规范 | **v0.2.6** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
+| 04 工程规范 | **v0.2.7** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
 
 ### 配套资源
 
@@ -50,7 +50,7 @@
 | [packages/shared/](../packages/shared/) | 前后端共享的枚举与类型（`enums.ts` 是枚举唯一来源） |
 | [prototypes/prototype.html](../prototypes/prototype.html) | 10 屏核心页面的可视化原型 + 色彩系统 + 组件库（浏览器直接打开） |
 | [wxpush/](../wxpush/) | 推送 Worker 代码 + 部署配置（Cloudflare Workers）；基于上游 MIT 项目改造，见 `wxpush/LICENSE` |
-| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`smoke-m1.mjs`（M1 端到端冒烟）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性） |
+| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事域冒烟）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
 
 ---
@@ -115,6 +115,13 @@
 | `thing_reminders` / `notification_logs` 各新增 `read_at` | 「已读」是**时刻**不是开关：`NULL` = 未读，非 `NULL` = 已读并记下时刻。单字段同时表达两件事，比 `is_read` + `read_at` 少一个字段、少一次自相矛盾。为 M2 的「叮一下收件箱」与「消息中心」的已读/未读数/全部已读做前置（docs/02 §5.4 / §9） |
 | 勘误：`docs/MySQL 数据库设计.md` §八 `thing_reminders` 的 DDL 与 `db/schema.sql` 漂移 | 缺 `sent_count` / `next_remind_at`，索引名 `idx_remind_at_status` 实为 `idx_next_remind`。已按 schema.sql（DDL 唯一真相）对齐 |
 | 四处同步：`db/schema.sql` → `server/prisma/schema.prisma` → `docs/MySQL 数据库设计.md` → `docs/核心数据模型与业务流程.md` | 本地库已 ALTER；`prisma migrate diff` 输出 `-- This is an empty migration.`；Prisma Client 重新生成后已验证 `readAt` 可查 |
+
+**M2 小事域后端（2026-10-06）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| 新增 `tools/smoke-m2-things.mjs`，107 项断言全通过 | 覆盖创建（TASK/REMINDER）、列表筛选、**服务端隐私过滤**、权限边界（创建人 / 执行人 / 创建者 / 同家无关成员 / 非成员）、状态机、完成回执落库、今日汇总 |
+| 修掉 `common/serialize/json-safe.ts` 的**静默 bug** | 循环引用保护把「同一个对象被多处引用」误判成环，第二次出现时整个键被吞掉 —— 表现为「列表里只有第一条有称谓和头像」。改为只在**当前递归路径**上记 seen，回溯时 `delete`。编译不报、`tsc` 也不报，是冒烟脚本查出来的 |
 
 **已消除的历史矛盾（v0.2.3 修复，2026-10-06）：**
 
