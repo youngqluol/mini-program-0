@@ -2,24 +2,28 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/errors/business.exception';
-import { SEC_CHECK_SCENE, WechatService } from './wechat.service';
+import { SEC_CHECK_SCENE, WechatService, IMG_SEC_CHECK_MAX_BYTES } from './wechat.service';
 
 /**
- * 用户输入文本的内容安全（M2-B9）—— **全项目唯一的策略点**。
+ * 用户输入内容的安全检测（M2-B9 文本 / M4-3 图片）—— **全项目唯一的策略点**。
  *
  * 为什么要有这一层，而不是各处直接调 `WechatService.msgSecCheck`：
- *   `msgSecCheck` 只回答「判出来了没有、判成什么」，**不决定放不放行**。
- *   而「微信判不了的时候放行还是拦截」是个**产品判断**，
+ *   `msgSecCheck` / `imgSecCheck` 只回答「判出来了没有、判成什么」，
+ *   **不决定放不放行**。而「微信判不了的时候放行还是拦截」是个**产品判断**，
  *   必须只写一遍 —— 否则今天这里放行、明天那里拦截，就成了随机行为。
+ *
+ * 对外只有两个方法，对应两类用户输入：
+ *   `assertTextSafe()`  文本 —— 小事标题/内容、留念正文、家庭名、称谓
+ *   `assertImageSafe()` 图片 —— 头像、留念配图（M4-3）
  *
  * ── 本层的策略：拦「确定违规」，放「不确定」 ────────────────────
  *
  * | 微信结论 | 处理 | 理由 |
  * | --- | --- | --- |
  * | `risky`（违规） | **拦**，抛 40002 | 审核硬性要求，不能放 |
- * | `review`（建议复核） | 放行 + 记日志 | 家庭场景没有人工复核队列，拦了就是永久损失；且这一档误伤率高 |
+ * | `review`（建议复核，仅文本有） | 放行 + 记日志 | 家庭场景没有人工复核队列，拦了就是永久损失；且这一档误伤率高 |
  * | `pass` | 放行 | — |
- * | 判不了（网络 / 凭证 / errcode） | **放行** + 记 warn | 见下 |
+ * | 判不了（网络 / 凭证 / errcode / 超出接口限制） | **放行** + 记 warn | 见下 |
  *
  * **为什么「判不了」要放行（fail-open）**：
  *   微信抖一下、access_token 过期、个人主体没开通这个接口 —— 都会让检测失败。
@@ -52,7 +56,11 @@ export class ContentSecurityService {
    * @param text   待检测文本
    * @param what   中文描述，**只用于日志**（如「小事的标题」），帮运维定位是哪段内容出的问题
    */
-  async assertTextSafe(userId: bigint, text: string | null | undefined, what: string): Promise<void> {
+  async assertTextSafe(
+    userId: bigint,
+    text: string | null | undefined,
+    what: string,
+  ): Promise<void> {
     if (!this.isEnabled()) return;
 
     const content = text?.trim();
@@ -95,6 +103,53 @@ export class ContentSecurityService {
     }
   }
 
+  /**
+   * 断言一张用户上传的图片可以入库。**不通过则抛 40002**（M4-3）。
+   *
+   * 与 `assertTextSafe` 共用**同一套策略**（拦「确定违规」，放「不确定」），
+   * 只是图片接口只有两档结论：`errcode=0` 正常 / `87014` 有风险。
+   *
+   * ⚠️ **调用时机：在写入对象存储之前**（`UploadService` 里）。
+   *    先检测再落盘，违规图片**永远不会**出现在存储桶里 ——
+   *    否则就得写一套「发现违规再去删对象」的补偿逻辑。
+   *
+   * ⚠️ 两道「判不了就放行」的分支，都**不是**故障而是设计：
+   *    ① 图片超过 `IMG_SEC_CHECK_MAX_BYTES`（1MB，微信接口硬限制）——
+   *       产品允许 5MB，超限的图根本没法用这个接口检。**记 warn 后放行**。
+   *       实际影响有限：P18 用 `sizeType: ['compressed']`，压缩后通常 100–500KB。
+   *    ② 网络 / 凭证 / 48001 未开通 —— 同 `assertTextSafe`，宁可漏拦不可全家用不了。
+   *
+   * @param buffer 图片二进制
+   * @param mime   图片 MIME（服务端**嗅探**出来的，不是客户端自称的）
+   * @param what   中文描述，**只用于日志**（如「留念里的第 2 张图」）
+   */
+  async assertImageSafe(buffer: Buffer, mime: string, what: string): Promise<void> {
+    if (!this.isEnabled()) return;
+
+    if (buffer.byteLength > IMG_SEC_CHECK_MAX_BYTES) {
+      this.logger.warn(
+        `图片内容安全跳过（${formatKb(buffer.byteLength)} 超过接口上限 ` +
+          `${formatKb(IMG_SEC_CHECK_MAX_BYTES)}）：${what}`,
+      );
+      return;
+    }
+
+    const res = await this.wechat.imgSecCheck({ buffer, mime, filename: what });
+
+    if (!res.ok) {
+      // fail-open：见类注释。warn 而不是 error —— 不是故障，是降级。
+      this.logger.warn(
+        `图片内容安全判不了，放行：${what} errcode=${res.errcode ?? '-'} errmsg=${res.errmsg ?? '-'}`,
+      );
+      return;
+    }
+
+    if (res.risky) {
+      this.logger.warn(`图片内容安全拦截：${what} mime=${mime}`);
+      throw BusinessException.sensitiveContent();
+    }
+  }
+
   /** 是否启用检测。默认**开**；本地要关就显式写 `CONTENT_SECURITY_ENABLED=false`。 */
   private isEnabled(): boolean {
     if (this.enabledCache == null) {
@@ -121,4 +176,9 @@ function truncate(text: string, what: string, logger: Logger): string {
     `${what} 超过 ${WX_CONTENT_LIMIT} 字（${text.length} 字），只检测前 ${WX_CONTENT_LIMIT} 字`,
   );
   return text.slice(0, WX_CONTENT_LIMIT);
+}
+
+/** 把字节数写成「1.2MB」这种日志里一眼能读的量级 */
+function formatKb(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 }

@@ -13,4 +13,5 @@ export * from './dto/family';
 export * from './dto/thing';
 export * from './dto/menu';
 export * from './dto/memory';
+export * from './dto/upload';
 export * from './dto/notify';

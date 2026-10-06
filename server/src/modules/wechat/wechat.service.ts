@@ -43,6 +43,22 @@ export interface MsgSecCheckResult {
   errmsg?: string;
 }
 
+/**
+ * `imgSecCheck` 的结果。
+ *
+ * 刻意**不复用** `MsgSecCheckResult`：图片接口只有「正常 / 有风险」两档，
+ * 没有 `suggest` 的 `review` 中间档，也没有 `label`。
+ * 硬套一个 `suggest` 字段会让人误以为这里也存在「建议复核」。
+ */
+export interface ImgSecCheckResult {
+  /** 微信**是否给出了结论**。`false` = 这次没判断出来（网络 / 凭证 / errcode / 超出接口限制） */
+  ok: boolean;
+  /** `ok=true` 时一定有值。`true` = 微信判为有风险 */
+  risky: boolean | null;
+  errcode?: number;
+  errmsg?: string;
+}
+
 /** `msgSecCheck` 原始响应（version=2） */
 interface MsgSecCheckResponse {
   errcode?: number;
@@ -72,6 +88,26 @@ export const SEC_CHECK_SCENE = {
 
 /** v1 时代用 errcode 表示违规；v2 改放 `result.suggest`，但部分账号仍会以 errcode 返回 */
 const SEC_CHECK_ERRCODE_RISKY = 87014;
+
+/**
+ * `imgSecCheck` 的图片大小上限：**1MB**（微信文档写死的接口限制）。
+ *
+ * ⚠️ 这比产品允许的 5MB（`UPLOAD_MAX_IMAGE_BYTES`）**小得多**。
+ * 超限的图**不是「判为安全」，而是「检测不了」** —— 走 fail-open 放行，
+ * 由 `ContentSecurityService` 记一条 warn。
+ *
+ * 实际影响比看上去小：P18 选图用 `sizeType: ['compressed']`，
+ * 微信压缩后的手机照片通常 100–500KB，落在限制内。
+ */
+export const IMG_SEC_CHECK_MAX_BYTES = 1024 * 1024;
+
+/**
+ * 图片内容安全的超时。
+ *
+ * 比文本的 3 秒长（要真的把图片传上去），但不能长到用户以为卡死 ——
+ * 它同样在「发布留念」的同步路径上。
+ */
+const IMG_SEC_CHECK_TIMEOUT_MS = 5000;
 
 /** access_token 在 Redis 里的 key */
 const ACCESS_TOKEN_KEY = 'wechat:mp:access_token';
@@ -255,9 +291,7 @@ export class WechatService {
       );
       return { ok: false, errcode: res.errcode, errmsg: res.errmsg };
     } catch (e) {
-      this.logger.warn(
-        `订阅消息下发异常: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      this.logger.warn(`订阅消息下发异常: ${e instanceof Error ? e.message : String(e)}`);
       return { ok: false, errmsg: e instanceof Error ? e.message : String(e) };
     }
   }
@@ -344,6 +378,75 @@ export class WechatService {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.warn(`msgSecCheck 异常: ${msg}`);
       return { ok: false, suggest: null, label: null, errmsg: msg };
+    }
+  }
+
+  /**
+   * 图片内容安全检测（`security.imgSecCheck`，M4-3）。
+   *
+   * PRD §18.4 要求「图片调用 `imgSecCheck`」，这是小程序审核对用户上传图片的要求。
+   *
+   * ⚠️⚠️ **这个接口是 1.0 版，微信自 2021-09-01 起「停止更新维护」**，
+   * 官方推荐改用异步的 `mediaCheckAsync`。这里仍然用它的原因：
+   *   - 它是**唯一同步**的图片检测接口，能塞进「发布留念」这条同步路径；
+   *   - `mediaCheckAsync` 要传一个**可公网访问的图片 URL**，检测结果**几秒后**
+   *     通过消息推送回调回来 —— 意味着「发布」必须变成「先发出去、后判、判违规再下架」，
+   *     要新增附件状态列、回调处理器、以及「已发布内容被判违规怎么办」的产品决策。
+   *     对 V0.1（家庭内部、个人主体、无公开传播面）这个代价不成比例。
+   *   详见 `docs/未来需求池.md` 的「图片内容安全改用 mediaCheckAsync」。
+   *
+   * ⚠️ 与 `msgSecCheck` 同理 —— **本方法不抛异常**：
+   *    「图片违规」要拦人，「检测本身失败」不该拦人。
+   *
+   * @param buffer   图片二进制
+   * @param mime     图片 MIME（例如 `image/jpeg`），作为 multipart 的 Content-Type
+   * @param filename 文件名，只影响 multipart 头，用不用都行
+   */
+  async imgSecCheck(params: {
+    buffer: Buffer;
+    mime: string;
+    filename?: string;
+  }): Promise<ImgSecCheckResult> {
+    const call = async (token: string) => {
+      const url = `https://api.weixin.qq.com/wxa/img_sec_check?access_token=${encodeURIComponent(token)}`;
+      // 手搓 multipart：Node 22 的全局 FormData / Blob + fetch 会自动带 boundary，
+      // 不需要 multer / form-data 之类的依赖（见 upload 模块的同一条纪律）。
+      const form = new FormData();
+      form.append(
+        'media',
+        new Blob([new Uint8Array(params.buffer)], { type: params.mime }),
+        params.filename ?? 'image',
+      );
+      return this.request<WxError>(
+        url,
+        { method: 'POST', body: form },
+        'imgSecCheck',
+        IMG_SEC_CHECK_TIMEOUT_MS,
+      );
+    };
+
+    try {
+      let token = await this.getAccessToken();
+      let res = await call(token);
+
+      // 40001/42001 = access_token 失效，刷新一次再试
+      if (res.errcode === 40001 || res.errcode === 42001) {
+        this.invalidateAccessToken();
+        token = await this.getAccessToken(true);
+        res = await call(token);
+      }
+
+      if (res.errcode === 0) return { ok: true, risky: false };
+      if (res.errcode === SEC_CHECK_ERRCODE_RISKY) return { ok: true, risky: true };
+
+      // 常见：48001 接口未授权、40004 图片格式不支持、45009 调用超频。
+      // 都走「判不了」这条路，由调用方决定放不放行。
+      this.logger.warn(`imgSecCheck 失败 errcode=${res.errcode} errmsg=${res.errmsg}`);
+      return { ok: false, risky: null, errcode: res.errcode, errmsg: res.errmsg };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`imgSecCheck 异常: ${msg}`);
+      return { ok: false, risky: null, errmsg: msg };
     }
   }
 
