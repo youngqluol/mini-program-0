@@ -60,18 +60,23 @@ export class NotifyService {
   // 对外方法
   // -------------------------------------------------------------
 
-  /** 派活通知 */
-  async notifyTaskAssigned(input: DispatchInput): Promise<DispatchResult> {
+  /**
+   * 派活通知
+   *
+   * 入参用 `Omit<DispatchInput, 'type'>` —— 类型由方法本身决定，
+   * 调用方再传一遍 `type` 没有意义，还容易传错（传了也会被覆盖）。
+   */
+  async notifyTaskAssigned(input: Omit<DispatchInput, 'type'>): Promise<DispatchResult> {
     return this.dispatch({ ...input, type: NotifyType.TASK_ASSIGNED });
   }
 
   /** 叮一下提醒 */
-  async notifyReminder(input: DispatchInput): Promise<DispatchResult> {
+  async notifyReminder(input: Omit<DispatchInput, 'type'>): Promise<DispatchResult> {
     return this.dispatch({ ...input, type: NotifyType.REMINDER });
   }
 
   /** 完成回执 */
-  async notifyTaskDone(input: DispatchInput): Promise<DispatchResult> {
+  async notifyTaskDone(input: Omit<DispatchInput, 'type'>): Promise<DispatchResult> {
     return this.dispatch({ ...input, type: NotifyType.TASK_DONE });
   }
 

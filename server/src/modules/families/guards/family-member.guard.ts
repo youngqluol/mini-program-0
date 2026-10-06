@@ -17,6 +17,7 @@ import type { RequestWithFamily } from '../family-context';
  *   ① 路径参数 `:familyId`（绝大多数接口）
  *   ② 请求头 `X-Family-Id`（多家庭场景，前端显式指定上下文）
  *   ③ 查询参数 `familyId`（列表类接口）
+ *   ④ 请求体 `familyId`（`POST /family-things` 这类「家庭 ID 写在 body 里」的创建接口）
  */
 @Injectable()
 export class FamilyMemberGuard implements CanActivate {
@@ -61,6 +62,7 @@ function resolveFamilyId(req: RequestWithFamily): bigint | null {
     req.params?.familyId,
     headerValue(req.headers['x-family-id']),
     req.query?.familyId,
+    (req.body as { familyId?: unknown } | undefined)?.familyId,
   ];
 
   for (const raw of candidates) {

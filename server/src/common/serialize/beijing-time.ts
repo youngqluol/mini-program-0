@@ -90,3 +90,25 @@ export function toNumber(v: bigint | number | null | undefined): number | null {
 export function toNumberRequired(v: bigint | number): number {
   return typeof v === 'number' ? v : Number(v);
 }
+
+/**
+ * 北京时间「今天」的起止区间 —— `[今日 00:00:00, 明日 00:00:00)`。
+ *
+ * 用 `[start, end)` 半开区间而不是 `[start, end]`：SQL 里写
+ * `dueAt >= start AND dueAt < end` 就够，不用管毫秒，也不会把
+ * 次日 00:00:00.000 误算进今天。
+ *
+ * 依赖进程 `TZ=Asia/Shanghai`（项目约定，见 docs/01 §4.3）——
+ * `new Date(y, m, d)` 走本地时区，在 +08:00 下得到的就是北京时间的当天零点。
+ */
+export function beijingDayRange(at: Date = new Date()): { start: Date; end: Date } {
+  const start = new Date(at.getFullYear(), at.getMonth(), at.getDate(), 0, 0, 0, 0);
+  const end = new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1, 0, 0, 0, 0);
+  return { start, end };
+}
+
+/** 北京时间 "HH:mm"（用于「今日提醒」这类只显示时刻的场景） */
+export function formatTimeOfDay(d: Date | null | undefined): string | null {
+  if (!d || Number.isNaN(d.getTime())) return null;
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
