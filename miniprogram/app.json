@@ -15,7 +15,8 @@
     "pages/nudge/create",
     "pages/task/create",
     "pages/thing/detail",
-    "pages/thing/mine"
+    "pages/thing/mine",
+    "pages/notice/index"
   ],
   "window": {
     "backgroundTextStyle": "dark",

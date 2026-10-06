@@ -1,0 +1,44 @@
+<!-- P12 · 消息中心 —— 三层兜底的最后一道，所有通知无条件写进这里 -->
+<view class="page">
+  <!-- 未读条：只在真有未读时出现，没有就不占位置 -->
+  <view wx:if="{{unreadCount > 0}}" class="bar">
+    <text class="bar__text">{{unreadCount}} 条没看过</text>
+    <text class="bar__action" bindtap="onReadAll">全部已读</text>
+  </view>
+
+  <view wx:if="{{rows.length > 0}}" class="rows">
+    <view
+      class="row {{item.isRead ? '' : 'row--unread'}}"
+      wx:for="{{rows}}"
+      wx:key="id"
+      data-index="{{index}}"
+      bindtap="onOpen"
+    >
+      <text class="row__emoji">{{item.emoji}}</text>
+      <view class="row__main">
+        <view class="row__title">{{item.title}}</view>
+        <view class="row__foot">
+          <text class="row__time">{{item.timeText}}</text>
+          <!-- 只在「没推到微信」时才有这一句；推到微信的不显示（微信已经响过了） -->
+          <text wx:if="{{item.deliveryText}}" class="row__delivery">{{item.deliveryText}}</text>
+        </view>
+      </view>
+      <view wx:if="{{!item.isRead}}" class="row__dot"></view>
+    </view>
+  </view>
+
+  <!-- 空状态：只在「加载过一次且确实没有」时出现，避免首屏闪一下 -->
+  <view wx:elif="{{loaded && !loading}}" class="card">
+    <view class="empty">
+      <text class="empty__emoji">📭</text>
+      <text class="empty__title">还没有消息</text>
+      <text class="empty__hint">家里有事的时候，这里会告诉你</text>
+    </view>
+  </view>
+
+  <view wx:if="{{rows.length > 0}}" class="foot">
+    <text wx:if="{{loading}}">正在加载…</text>
+    <text wx:elif="{{hasMore}}">上拉看看更多</text>
+    <text wx:else>就这些了</text>
+  </view>
+</view>

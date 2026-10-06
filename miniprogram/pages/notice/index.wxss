@@ -1,0 +1,125 @@
+/*
+  P12 · 消息中心
+  视觉规范见 docs/07；颜色只用 variables.wxss 的令牌，不写死色值。
+*/
+
+/* ---------- 未读条 ---------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+}
+
+.bar__text {
+  font-size: var(--fs-cap);
+  color: var(--brand-ink);
+}
+
+.bar__action {
+  flex-shrink: 0;
+  padding-left: 12px;
+  font-size: var(--fs-cap);
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.bar__action:active {
+  opacity: 0.7;
+}
+
+/* ---------- 列表 ---------- */
+
+.rows {
+  margin-top: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.row + .row {
+  margin-top: 8px;
+}
+
+.row:active {
+  opacity: 0.86;
+}
+
+.row__emoji {
+  flex: 0 0 auto;
+  width: 30px;
+  font-size: 18px;
+  /* 与标题行高对齐（标题 15px × 1.45 ≈ 21.75px，emoji 18 × 1.2 = 21.6px） */
+  line-height: 1.2;
+}
+
+.row__main {
+  flex: 1;
+  /* 没有 min-width:0，长的通知标题会把右侧未读点挤出屏幕 */
+  min-width: 0;
+}
+
+.row__title {
+  font-size: var(--fs-h3);
+  line-height: 1.45;
+  color: var(--ink-1);
+  /* 标题可能是一整句，允许折到两行；再多就截断（点进去看详情） */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/*
+  未读靠「标题加粗 + 右侧小点」区分，**不是**把已读的整条置灰。
+  消息列表里已读的是大多数，让大多数条目发灰会让页面看起来像坏了；
+  而 thing-card 那种「已完成置灰」是对的，因为那是少数且语义明确。
+*/
+.row--unread .row__title {
+  font-weight: 600;
+}
+
+.row__foot {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* 送达说明：中性灰底，不用粉色 —— 它不是「好消息」也不是「坏消息」，
+   只是解释「这条为什么没在微信里收到」 */
+.row__delivery {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.row__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  /* 与标题第一行的垂直中心对齐 */
+  margin: 7px 0 0 10px;
+  border-radius: 50%;
+  background: var(--brand-1);
+}
+
+/* ---------- 底部 ---------- */
+
+.foot {
+  padding: 18px 0 4px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
