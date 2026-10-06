@@ -1,0 +1,118 @@
+/* P21 · 微信提醒 */
+
+/* 查询中的一句话。不用转圈：转圈只说明「在忙」，
+   这一页通常几十毫秒就回来了，闪一下转圈反而更烦。 */
+.quiet {
+  padding: 40px 0;
+  text-align: center;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ---------- 抬头 ---------- */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px 20px;
+}
+
+.hero__emoji {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.hero__emoji--ok {
+  /* 已开启是「好消息」，给它一块粉彩底；没开时保持朴素，不喧哗 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-tile);
+  background: var(--pastel-green);
+  font-size: 34px;
+}
+
+.hero__title {
+  margin-top: 10px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  color: var(--ink-1);
+  text-align: center;
+}
+
+.hero__hint {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.hero__meta {
+  margin-top: 10px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ---------- 两步 ---------- */
+
+.step + .step {
+  margin-top: 14px;
+}
+
+.step__title {
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.step__qr {
+  display: block;
+  /* 二维码不能铺满整宽 —— 太大反而不好扫，也挤掉了说明文字的位置 */
+  width: 200px;
+  margin: 14px auto 2px;
+  border-radius: var(--radius-md);
+}
+
+.step__fallback {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.step__code {
+  margin-top: 12px;
+  font-size: 30px;
+  font-weight: 600;
+  /* 数字要能被一个一个念出来：字距拉开，用等宽数字 */
+  letter-spacing: 3px;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand-ink);
+  text-align: center;
+}
+
+.step__expire {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* ---------- 底部 ---------- */
+
+.foot {
+  margin-top: 22px;
+  text-align: center;
+}
+
+.foot__text {
+  margin-bottom: 14px;
+  font-size: var(--fs-cap);
+  line-height: 1.7;
+  color: var(--ink-3);
+}

@@ -1,0 +1,61 @@
+<!-- P21 · 微信提醒 -->
+<view class="page">
+  <view class="quiet" wx:if="{{loading}}">看一下现在是什么情况…</view>
+
+  <block wx:elif="{{view}}">
+    <!-- ================= 已经开启 ================= -->
+    <block wx:if="{{view.mode === 'ON'}}">
+      <view class="hero">
+        <view class="hero__emoji hero__emoji--ok">✅</view>
+        <view class="hero__title">已经开启啦</view>
+        <view class="hero__hint">家里有事会直接弹到你的微信里</view>
+        <view class="hero__meta">{{view.boundAtText}}</view>
+      </view>
+
+      <view class="card cells">
+        <view class="cell" bindtap="onTurnOff">
+          <text class="cell__emoji">🔕</text>
+          <text class="cell__label">关闭提醒</text>
+          <text class="cell__arrow">›</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- ================= 还没开 ================= -->
+    <block wx:else>
+      <view class="hero">
+        <view class="hero__emoji">🔔</view>
+        <view class="hero__title">开启后，家里有事</view>
+        <view class="hero__title">会直接弹到你的微信里</view>
+      </view>
+
+      <view class="card step">
+        <view class="step__title">① 扫一下，关注我们的推送号</view>
+        <image
+          wx:if="{{hasQr}}"
+          class="step__qr"
+          src="{{qr}}"
+          mode="widthFix"
+          show-menu-by-longpress="{{true}}"
+          binderror="onQrError"
+        />
+        <!-- 二维码还没配好时退回一句话，而不是显示一张破图 -->
+        <view wx:else class="step__fallback">在微信里关注我们的推送号</view>
+      </view>
+
+      <view class="card step" wx:if="{{view.hasCode}}">
+        <view class="step__title">② 把这串数字发给它</view>
+        <view class="step__code">{{view.codeText}}</view>
+        <view class="step__expire" wx:if="{{view.expireText}}">{{view.expireText}}</view>
+      </view>
+
+      <view class="foot">
+        <block wx:if="{{timedOut}}">
+          <view class="foot__text">还没收到哦，重新获取一个数字试试</view>
+          <view class="btn-ghost" bindtap="onRefresh">重新获取</view>
+        </block>
+        <view wx:else class="foot__text">开好了，这里会自动变过来</view>
+      </view>
+    </block>
+  </block>
+</view>
