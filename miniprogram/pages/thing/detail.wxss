@@ -1,0 +1,184 @@
+/*
+  P10 · 小事详情
+  视觉规范见 docs/07；颜色只用 variables.wxss 的令牌，不写死色值（渐变除外）。
+*/
+
+/* ---------- 类型 ---------- */
+
+.detail__type {
+  display: flex;
+  align-items: center;
+}
+
+.detail__type-emoji {
+  margin-right: 8px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.detail__type-label {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-cap);
+}
+
+/* ---------- 标题与元信息 ---------- */
+
+.detail__title {
+  margin-top: 14px;
+  font-size: var(--fs-h1);
+  font-weight: 600;
+  line-height: 1.35;
+  /* 长标题（用户可能写一整句）必须能换行，不能撑破卡片 */
+  word-break: break-all;
+}
+
+.detail__meta {
+  margin-top: 14px;
+}
+
+.detail__row {
+  font-size: var(--fs-h3);
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+
+/* ---------- 提醒 ---------- */
+
+.detail__remind {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--pastel-peach);
+  color: #9a6a3c;
+  font-size: var(--fs-cap);
+}
+
+/* ---------- 备注 ---------- */
+
+.detail__label {
+  margin-top: 20px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.detail__content {
+  margin-top: 6px;
+  font-size: var(--fs-h3);
+  line-height: 1.7;
+  color: var(--ink-1);
+  /* 备注是自由文本，用户敲的换行要保留 */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---------- 谁能看见 ---------- */
+
+.detail__visibility {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ---------- 主操作 ---------- */
+
+.detail__main {
+  margin-top: 18px;
+}
+
+/* 请求在路上：降透明度挡住「以为没点上」的连点 */
+.detail__main--off {
+  opacity: 0.6;
+}
+
+/* ---------- 状态条（旁观 / 已完成 / 已取消） ---------- */
+
+.state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 48px;
+  margin-top: 18px;
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+
+.state--idle {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.state--done {
+  background: var(--pastel-green);
+  color: #3e7d57;
+  /* 完成是这一刻发生的事，让它「弹」出来一下 */
+  animation: statePop 320ms ease-out both;
+}
+
+.state--cancelled {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.state__text {
+  text-align: center;
+}
+
+.state__tick {
+  margin-right: 6px;
+  /* transform 对行内元素无效，必须给 display */
+  display: inline-block;
+  animation: tickPop 360ms ease-out both;
+}
+
+@keyframes statePop {
+  0% {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes tickPop {
+  0% {
+    transform: scale(0.3);
+  }
+  70% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---------- 次操作 ---------- */
+
+.detail__sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  margin-top: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-h3);
+}
+
+.detail__sub:active {
+  opacity: 0.86;
+}

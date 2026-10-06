@@ -1,0 +1,67 @@
+<!-- P10 · 小事详情 -->
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">
+    <text class="empty__title">正在打开…</text>
+  </view>
+
+  <view wx:elif="{{!detail}}" class="empty">
+    <text class="empty__emoji">🍂</text>
+    <text class="empty__title">没能打开这件事</text>
+    <text class="empty__hint">返回上一页再试一次</text>
+  </view>
+
+  <block wx:else>
+    <view class="card">
+      <!-- 类型 -->
+      <view class="detail__type">
+        <text class="detail__type-emoji">{{typeEmoji}}</text>
+        <text class="detail__type-label">{{typeLabel}}</text>
+      </view>
+
+      <!-- 标题 -->
+      <view class="detail__title">{{title}}</view>
+
+      <!-- 谁的事 / 什么时候 -->
+      <view class="detail__meta">
+        <view class="detail__row">{{peopleText}}</view>
+        <view class="detail__row">{{dueText}}</view>
+      </view>
+
+      <!-- 提醒 -->
+      <view wx:if="{{reminderText}}" class="detail__remind">{{reminderText}}</view>
+
+      <!-- 备注 -->
+      <block wx:if="{{content}}">
+        <view class="detail__label">备注</view>
+        <view class="detail__content">{{content}}</view>
+      </block>
+
+      <!-- 谁能看见 -->
+      <view class="detail__visibility">{{visibilityText}}</view>
+    </view>
+
+    <!--
+      主操作槽位。
+      能做的事永远只有一个，所以这里只有一格 ——
+      待完成 + 我是执行人 → 搞定啦；待完成 + 旁观 → 状态；
+      已结束 → 状态（带对勾动画）。
+    -->
+    <view
+      wx:if="{{mainTone === 'primary'}}"
+      class="btn-primary detail__main {{acting ? 'detail__main--off' : ''}}"
+      bindtap="onComplete"
+    >{{mainText}}</view>
+    <view wx:else class="state state--{{mainTone}}">
+      <text wx:if="{{mainTone === 'done'}}" class="state__tick">✓</text>
+      <text class="state__text">{{mainText}}</text>
+    </view>
+
+    <!-- 次操作：待完成 → 取消；已结束 → 重新打开。都只有「我派的」才有 -->
+    <view wx:if="{{subAction === 'CANCEL'}}" class="detail__sub" bindtap="onCancel">
+      取消这件事
+    </view>
+    <view wx:elif="{{subAction === 'REOPEN'}}" class="detail__sub" bindtap="onReopen">
+      重新打开
+    </view>
+  </block>
+</view>
