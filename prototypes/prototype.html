@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家有小事 · 页面原型 v1.0（柔光粉彩）</title>
+<style>
+:root{
+  --brand-1:#FF9DB4;
+  --brand-2:#FFB59B;
+  --brand-ink:#F97E9B;
+  --brand-soft:#FFEEF2;
+  --brand-soft-2:#FFF4F6;
+  --bg:#FDF6F7;
+  --surface:#FFFFFF;
+  --surface-2:#F8F2F9;
+  --ink-1:#1F1F1F;
+  --ink-2:#6B6B70;
+  --ink-3:#9B9B9B;
+  --line:#F5EDEF;
+  --success:#5CB87F;
+  --warning:#F5A623;
+  --danger:#F2637B;
+  --pastel-pink:#FFE4EA;
+  --pastel-peach:#FFEFE0;
+  --pastel-yellow:#FFF6DC;
+  --pastel-purple:#EDE9F7;
+  --pastel-green:#E3F3E6;
+  --pastel-blue:#E3F0FB;
+  --shadow-card:0 4px 18px rgba(255,150,170,.10);
+  --shadow-float:0 8px 24px rgba(255,150,170,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  background:var(--bg);color:var(--ink-1);
+  padding:44px 24px 90px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1480px;margin:0 auto;}
+
+/* ============ header ============ */
+.head{text-align:center;margin-bottom:52px;}
+.head .kicker{
+  display:inline-block;font-size:12px;font-weight:600;color:var(--brand-ink);
+  background:var(--brand-soft);padding:6px 16px;border-radius:999px;margin-bottom:16px;
+}
+.head h1{font-size:32px;font-weight:700;letter-spacing:.5px;}
+.head h1 em{font-style:normal;color:var(--brand-ink);}
+.head p{margin-top:12px;font-size:14px;color:var(--ink-2);line-height:1.7;}
+.head .meta{margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+.head .meta i{
+  font-style:normal;font-size:12px;padding:6px 14px;border-radius:999px;
+  background:#fff;color:var(--ink-2);box-shadow:var(--shadow-card);
+}
+
+/* ============ section ============ */
+.sec-title{display:flex;align-items:center;gap:9px;margin:0 0 6px;}
+.sec-title .bar{width:4px;height:18px;border-radius:2px;background:var(--brand-ink);}
+.sec-title h2{font-size:18px;font-weight:600;}
+.sec-sub{font-size:13px;color:var(--ink-3);margin:0 0 26px 13px;}
+
+/* ============ token board ============ */
+.board{
+  background:#fff;border-radius:22px;padding:30px 32px;margin-bottom:52px;
+  box-shadow:var(--shadow-card);
+}
+.board h3{font-size:14px;font-weight:600;color:var(--ink-2);margin-bottom:16px;letter-spacing:.3px;}
+.board h3:not(:first-child){margin-top:30px;}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:14px;}
+.sw{border-radius:14px;overflow:hidden;background:var(--bg);}
+.sw .chip{height:62px;}
+.sw .info{padding:9px 11px;background:#fff;}
+.sw .info b{display:block;font-size:12px;font-weight:600;}
+.sw .info span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-family:ui-monospace,Menlo,monospace;}
+
+/* ============ component gallery ============ */
+.gal{
+  background:#fff;border-radius:22px;padding:30px 32px;margin-bottom:52px;
+  box-shadow:var(--shadow-card);
+}
+.gal-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:30px;}
+.gal-cell h4{font-size:12px;font-weight:600;color:var(--ink-3);margin-bottom:12px;letter-spacing:.3px;}
+
+.btn-grad{
+  height:48px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#FF9DB4 0%,#FFB59B 100%);
+  color:#fff;font-size:15px;font-weight:600;letter-spacing:1px;
+  box-shadow:var(--shadow-float);
+}
+.btn-soft{
+  height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  background:var(--brand-soft);color:var(--brand-ink);font-size:14px;font-weight:600;
+}
+.btn-text{font-size:14px;color:var(--brand-ink);font-weight:600;}
+
+.inp{
+  background:var(--surface-2);border-radius:14px;padding:14px 16px;font-size:14px;
+  color:var(--ink-3);border:1px solid transparent;
+}
+.inp.focus{background:#fff;border-color:var(--brand-1);box-shadow:0 0 0 3px rgba(255,157,180,.15);color:var(--ink-1);}
+
+.sec-demo{display:flex;align-items:center;justify-content:space-between;}
+.sec-demo .l{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:600;}
+.sec-demo .l i{width:4px;height:16px;border-radius:2px;background:var(--brand-ink);display:block;}
+.sec-demo a{font-size:13px;color:var(--ink-3);text-decoration:none;}
+
+.tiles{display:flex;gap:16px;flex-wrap:wrap;}
+.tile-d{width:64px;text-align:center;}
+.tile-d .sq{
+  width:52px;height:52px;border-radius:18px;display:flex;align-items:center;justify-content:center;
+  font-size:24px;margin:0 auto 8px;
+}
+.tile-d span{font-size:11.5px;color:var(--ink-2);}
+
+.stats{display:flex;gap:12px;}
+.stat{
+  flex:1;background:var(--brand-soft);border-radius:14px;padding:14px 10px;text-align:center;
+}
+.stat b{display:block;font-size:24px;font-weight:700;color:var(--brand-ink);line-height:1.2;}
+.stat span{display:block;font-size:11px;color:var(--ink-3);margin-top:4px;}
+
+.seg{
+  display:flex;background:#fff;border-radius:999px;padding:4px;border:1px solid var(--line);
+}
+.seg div{
+  flex:1;text-align:center;font-size:14px;padding:8px 0;border-radius:999px;color:var(--ink-2);
+}
+.seg div.on{
+  background:linear-gradient(135deg,#FF9DB4 0%,#FFB59B 100%);color:#fff;font-weight:600;
+}
+
+.pill{
+  display:inline-block;font-size:11px;padding:3px 9px;border-radius:6px;
+  background:var(--brand-soft);color:var(--brand-ink);font-weight:600;
+}
+.pill.gray{background:#F3EFF0;color:var(--ink-3);font-weight:400;}
+
+/* ============ phone ============ */
+.grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:40px 28px;margin-bottom:56px;
+}
+.unit{display:flex;flex-direction:column;align-items:center;}
+.phone{
+  width:300px;height:632px;background:#fff;border-radius:38px;padding:10px;
+  box-shadow:0 14px 40px rgba(255,150,170,.20),0 2px 8px rgba(255,150,170,.10);
+  position:relative;overflow:hidden;
+}
+.screen{
+  width:100%;height:100%;background:var(--bg);border-radius:29px;overflow:hidden;
+  display:flex;flex-direction:column;position:relative;
+}
+.cap{margin-top:15px;text-align:center;}
+.cap b{display:block;font-size:14px;font-weight:600;}
+.cap span{display:block;font-size:12px;color:var(--ink-3);margin-top:3px;}
+
+.status{
+  height:30px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;font-size:11px;font-weight:600;flex-shrink:0;
+}
+.status .r{font-weight:400;font-size:10px;color:var(--ink-2);}
+.navbar{
+  height:44px;display:flex;align-items:center;justify-content:center;position:relative;
+  font-size:15px;font-weight:600;flex-shrink:0;
+}
+.navbar .back{position:absolute;left:18px;font-size:17px;font-weight:400;}
+.navbar .act{position:absolute;right:18px;font-size:13px;color:var(--brand-ink);font-weight:600;}
+
+.body{flex:1;overflow:hidden;position:relative;}
+.pad{padding:0 16px;}
+
+.tabbar{
+  height:56px;display:flex;background:#fff;flex-shrink:0;
+  box-shadow:0 -2px 12px rgba(255,150,170,.10);
+}
+.tabbar div{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;font-size:11px;color:var(--ink-3);
+}
+.tabbar div.on{color:var(--brand-ink);font-weight:600;}
+.tabbar div span{font-size:20px;line-height:1;}
+
+/* ---- shared pieces ---- */
+.card{background:#fff;border-radius:20px;box-shadow:var(--shadow-card);}
+.card-md{background:#fff;border-radius:14px;box-shadow:var(--shadow-card);}
+.sec-h{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 16px 11px;
+}
+.sec-h .l{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:600;}
+.sec-h .l i{width:4px;height:15px;border-radius:2px;background:var(--brand-ink);display:block;}
+.sec-h a{font-size:12px;color:var(--ink-3);text-decoration:none;}
+
+.item{
+  background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px;
+  display:flex;align-items:center;gap:10px;box-shadow:var(--shadow-card);
+}
+.item .tm{font-size:12px;font-weight:700;color:var(--brand-ink);width:40px;flex-shrink:0;}
+.item .tx{font-size:13.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item .who{font-size:11.5px;color:var(--ink-3);}
+.item.done{opacity:.55;}
+
+.sq{
+  width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;flex-shrink:0;
+}
+.sq.pink{background:var(--pastel-pink);}
+.sq.peach{background:var(--pastel-peach);}
+.sq.yellow{background:var(--pastel-yellow);}
+.sq.purple{background:var(--pastel-purple);}
+.sq.green{background:var(--pastel-green);}
+.sq.blue{background:var(--pastel-blue);}
+
+.chk{width:18px;height:18px;border-radius:50%;border:1.5px solid #EDD8DE;flex-shrink:0;position:relative;}
+.chk.on{background:var(--success);border-color:var(--success);}
+.chk.on::after{content:"✓";color:#fff;font-size:11px;position:absolute;left:4.5px;top:-1px;}
+
+.empty{text-align:center;padding:30px 20px;}
+.empty .ico{font-size:36px;display:block;margin-bottom:10px;}
+.empty .t1{font-size:14px;color:var(--ink-2);}
+.empty .t2{font-size:12px;color:var(--ink-3);margin-top:5px;}
+
+.label{font-size:12px;font-weight:600;color:var(--ink-2);margin:16px 0 9px;display:block;}
+.label.first{margin-top:0;}
+
+.fab{
+  position:absolute;right:18px;bottom:74px;width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,#FF9DB4 0%,#FFB59B 100%);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:24px;
+  box-shadow:var(--shadow-float);z-index:5;
+}
+
+/* ---- home ---- */
+.home-head{padding:6px 16px 16px;display:flex;align-items:flex-start;justify-content:space-between;}
+.home-head .fam{font-size:21px;font-weight:700;letter-spacing:.3px;}
+.home-head .dt{font-size:12px;color:var(--ink-3);margin-top:5px;}
+.bell{position:relative;font-size:19px;line-height:1;}
+.bell i{
+  position:absolute;top:-5px;right:-8px;background:var(--danger);color:#fff;font-size:9.5px;
+  font-style:normal;padding:1.5px 5px;border-radius:999px;font-weight:600;
+}
+
+.hero{
+  margin:0 16px 4px;border-radius:20px;padding:18px 16px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#FFE9EF 0%,#FFF0E6 100%);
+  display:flex;align-items:center;min-height:104px;
+}
+.hero .txt{position:relative;z-index:2;}
+.hero .txt .n{font-size:26px;font-weight:700;color:var(--brand-ink);line-height:1.15;}
+.hero .txt .n small{font-size:13px;font-weight:600;color:var(--brand-ink);opacity:.8;}
+.hero .txt .d{font-size:12px;color:var(--ink-2);margin-top:7px;}
+.hero .art{position:absolute;right:-6px;bottom:-4px;width:150px;}
+
+.acts{display:flex;gap:12px;padding:16px 16px 4px;}
+.act{
+  flex:1;background:#fff;border-radius:18px;padding:15px 12px;box-shadow:var(--shadow-card);
+  display:flex;align-items:center;gap:11px;
+}
+.act .sq{width:40px;height:40px;border-radius:14px;font-size:19px;}
+.act .info b{display:block;font-size:14px;font-weight:600;}
+.act .info span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;}
+
+.mods{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px;}
+.mod{
+  background:#fff;border-radius:16px;padding:14px;box-shadow:var(--shadow-card);
+  display:flex;align-items:center;gap:10px;
+}
+.mod .sq{width:38px;height:38px;border-radius:13px;font-size:18px;}
+.mod .info b{display:block;font-size:12.5px;font-weight:600;}
+.mod .info span{display:block;font-size:10px;color:var(--ink-3);margin-top:2px;}
+
+.chip-m{
+  padding:11px 13px;border-radius:14px;display:flex;align-items:center;gap:9px;
+  background:#fff;box-shadow:var(--shadow-card);flex:0 0 auto;
+}
+.chip-m.on{background:linear-gradient(135deg,#FFE9EF,#FFF0E6);box-shadow:none;
+  outline:1.5px solid var(--brand-1);}
+.chip-m .av{width:30px;height:30px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:15px;}
+.chip-m b{font-size:12.5px;}
+
+/* ---- dish ---- */
+.dish-wrap{padding:0 16px;}
+.dish{
+  border-radius:22px;padding:26px 16px;text-align:center;
+  background:linear-gradient(135deg,#FFE9EF 0%,#FFF1E7 100%);
+  box-shadow:var(--shadow-card);
+}
+.dish .em{font-size:44px;line-height:1;}
+.dish .nm{font-size:21px;font-weight:700;margin-top:12px;}
+.dish .ct{font-size:11.5px;color:var(--ink-2);margin-top:6px;}
+.dots{display:flex;gap:6px;justify-content:center;margin-top:16px;}
+.dots i{width:6px;height:6px;border-radius:50%;background:rgba(249,126,155,.25);}
+.dots i.on{width:18px;border-radius:3px;background:var(--brand-ink);}
+.acts2{display:flex;gap:12px;padding:16px;}
+
+/* ---- detail ---- */
+.dt-head{margin:0 16px;border-radius:20px;padding:20px 18px;background:#fff;box-shadow:var(--shadow-card);}
+.dt-head .tag{
+  display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+  padding:5px 12px;border-radius:999px;
+}
+.dt-head h3{font-size:22px;font-weight:700;margin:14px 0 12px;}
+.dt-head .ln{font-size:12.5px;color:var(--ink-2);margin-top:6px;display:flex;align-items:center;gap:6px;}
+.kv{margin:12px 16px 0;border-radius:16px;padding:15px 17px;background:#fff;box-shadow:var(--shadow-card);}
+.kv .k{font-size:11px;color:var(--ink-3);}
+.kv .v{font-size:13.5px;margin-top:5px;line-height:1.65;}
+
+/* ---- memory ---- */
+.mem-date{font-size:12px;font-weight:600;color:var(--ink-3);padding:18px 16px 9px;letter-spacing:.4px;}
+.mem{background:#fff;border-radius:18px;padding:15px;margin:0 16px 10px;box-shadow:var(--shadow-card);}
+.mem .tx{font-size:13.5px;line-height:1.75;}
+.mem .pics{display:flex;gap:6px;margin-top:11px;}
+.mem .pics i{
+  width:62px;height:62px;border-radius:12px;display:block;
+  background:linear-gradient(135deg,#FFDCE6,#FFE7D6);
+}
+.mem .ft{display:flex;align-items:center;gap:7px;margin-top:11px;font-size:11px;color:var(--ink-3);}
+.mem .ft .av{
+  width:20px;height:20px;border-radius:50%;background:var(--brand-soft);
+  display:flex;align-items:center;justify-content:center;font-size:10px;
+}
+
+/* ---- notice ---- */
+.nt{background:#fff;border-radius:16px;padding:14px;margin:0 16px 9px;box-shadow:var(--shadow-card);}
+.nt .tp{display:flex;align-items:center;gap:8px;}
+.nt .tp .sq{width:30px;height:30px;border-radius:10px;font-size:15px;}
+.nt .tp b{font-size:12.5px;}
+.nt .tp .d{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--danger);}
+.nt .msg{font-size:13px;margin-top:10px;line-height:1.6;}
+.nt .tm2{font-size:10.5px;color:var(--ink-3);margin-top:7px;}
+
+/* ---- members / invite ---- */
+.mb{background:#fff;border-radius:16px;padding:13px 15px;margin:0 16px 9px;
+  display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card);}
+.mb .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:19px;flex-shrink:0;}
+.mb .info{flex:1;}
+.mb .info b{font-size:14px;}
+.mb .info span{display:block;font-size:11px;color:var(--ink-3);margin-top:3px;}
+
+.inv-card{margin:0 16px;border-radius:20px;padding:20px;background:#fff;box-shadow:var(--shadow-card);}
+.inv-code{
+  background:var(--brand-soft);border-radius:14px;padding:14px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.inv-code .c{font-size:22px;font-weight:700;color:var(--brand-ink);letter-spacing:2px;}
+.inv-tip{font-size:11.5px;color:var(--ink-3);margin-top:11px;line-height:1.6;}
+
+/* ---- welcome ---- */
+.wel{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 32px;text-align:center;}
+.wel h2{font-size:24px;font-weight:700;margin-top:20px;letter-spacing:.5px;}
+.wel p{font-size:13px;color:var(--ink-2);margin-top:12px;line-height:1.9;}
+
+/* ---- compare ---- */
+.cmp{background:#fff;border-radius:22px;padding:30px 32px;box-shadow:var(--shadow-card);}
+.cmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:32px;}
+.cmp-cell h4{font-size:12px;font-weight:600;color:var(--ink-3);margin-bottom:14px;}
+.cmp-old .b1{height:46px;border-radius:10px;background:#FF8A4C;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-size:15px;font-weight:600;}
+.cmp-old .b2{height:52px;border-radius:8px;background:#fff;border:1px solid #E8E2DC;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);margin-top:12px;padding:0 14px;
+  display:flex;align-items:center;font-size:14px;color:#9A9A9F;}
+.cmp-old .b3{height:52px;border-radius:8px;background:#FFF7F0;border:1px solid #F0E4D8;
+  margin-top:12px;display:flex;align-items:center;padding:0 14px;font-size:14px;color:#2B2B2B;}
+.cmp-new .b1{height:46px;border-radius:999px;
+  background:linear-gradient(135deg,#FF9DB4 0%,#FFB59B 100%);display:flex;align-items:center;
+  justify-content:center;color:#fff;font-size:15px;font-weight:600;letter-spacing:1px;
+  box-shadow:0 8px 24px rgba(255,150,170,.22);}
+.cmp-new .b2{height:52px;border-radius:14px;margin-top:12px;padding:0 14px;
+  display:flex;align-items:center;font-size:14px;color:#9B9B9B;background:#F8F2F9;}
+.cmp-new .b3{height:52px;border-radius:14px;background:#fff;box-shadow:0 4px 18px rgba(255,150,170,.10);
+  margin-top:12px;display:flex;align-items:center;padding:0 14px;font-size:14px;color:#1F1F1F;}
+.cmp-note{font-size:11.5px;color:var(--ink-3);margin-top:12px;line-height:1.7;}
+
+footer{text-align:center;margin-top:52px;font-size:12px;color:var(--ink-3);line-height:2.1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <span class="kicker">视觉风格重塑 v1.0</span>
+    <h1>家有小事 <em>·</em> 柔光粉彩</h1>
+    <p>参照 <b>ui/风格参考/</b> 的视觉语言重做页面风格<br>保留「家有小事」自己的功能与目标人群</p>
+    <div class="meta">
+      <i>粉桃渐变 #FF9DB4 → #FFB59B</i>
+      <i>大圆角 + 粉调柔阴影</i>
+      <i>粉彩 squircle 图标块</i>
+      <i>粉色小竖条区块标记</i>
+    </div>
+  </div>
+
+  <!-- ============ 色彩系统 ============ -->
+  <p class="sec-title"><span class="bar"></span><h2>色彩系统</h2></p>
+  <p class="sec-sub">主色从参考图的纯粉往珊瑚/蜜桃偏移，避免过于「母婴」</p>
+
+  <div class="board">
+    <h3>品牌色</h3>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:linear-gradient(135deg,#FF9DB4,#FFB59B);"></div>
+        <div class="info"><b>品牌渐变</b><span>--brand-grad</span></div></div>
+      <div class="sw"><div class="chip" style="background:#FF9DB4;"></div>
+        <div class="info"><b>主色 · 粉</b><span>#FF9DB4</span></div></div>
+      <div class="sw"><div class="chip" style="background:#FFB59B;"></div>
+        <div class="info"><b>主色 · 桃</b><span>#FFB59B</span></div></div>
+      <div class="sw"><div class="chip" style="background:#F97E9B;"></div>
+        <div class="info"><b>主色文字</b><span>#F97E9B</span></div></div>
+      <div class="sw"><div class="chip" style="background:#FFEEF2;"></div>
+        <div class="info"><b>浅粉底</b><span>#FFEEF2</span></div></div>
+    </div>
+
+    <h3>中性色</h3>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#FDF6F7;box-shadow:inset 0 0 0 1px #F5EDEF;"></div>
+        <div class="info"><b>页面背景</b><span>#FDF6F7</span></div></div>
+      <div class="sw"><div class="chip" style="background:#FFFFFF;box-shadow:inset 0 0 0 1px #F5EDEF;"></div>
+        <div class="info"><b>卡片</b><span>#FFFFFF</span></div></div>
+      <div class="sw"><div class="chip" style="background:#F8F2F9;"></div>
+        <div class="info"><b>输入框底</b><span>#F8F2F9</span></div></div>
+      <div class="sw"><div class="chip" style="background:#1F1F1F;"></div>
+        <div class="info"><b>主文字</b><span>#1F1F1F</span></div></div>
+      <div class="sw"><div class="chip" style="background:#9B9B9B;"></div>
+        <div class="info"><b>辅助文字</b><span>#9B9B9B</span></div></div>
+    </div>
+
+    <h3>四大模块固定色（形成记忆点）</h3>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#FFE4EA;"></div>
+        <div class="info"><b>🔔 叮一下</b><span>#FFE4EA</span></div></div>
+      <div class="sw"><div class="chip" style="background:#FFEFE0;"></div>
+        <div class="info"><b>🎯 派活</b><span>#FFEFE0</span></div></div>
+      <div class="sw"><div class="chip" style="background:#FFF6DC;"></div>
+        <div class="info"><b>🍽️ 吃啥呢</b><span>#FFF6DC</span></div></div>
+      <div class="sw"><div class="chip" style="background:#EDE9F7;"></div>
+        <div class="info"><b>📖 留个念</b><span>#EDE9F7</span></div></div>
+    </div>
+
+    <h3>语义色</h3>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#5CB87F;"></div>
+        <div class="info"><b>完成</b><span>#5CB87F</span></div></div>
+      <div class="sw"><div class="chip" style="background:#F5A623;"></div>
+        <div class="info"><b>警示</b><span>#F5A623</span></div></div>
+      <div class="sw"><div class="chip" style="background:#F2637B;"></div>
+        <div class="info"><b>危险 / 未读</b><span>#F2637B</span></div></div>
+    </div>
+  </div>
+
+  <!-- ============ 组件库 ============ -->
+  <p class="sec-title"><span class="bar"></span><h2>组件规范</h2></p>
+  <p class="sec-sub">新风格的六个签名元素</p>
+
+  <div class="gal">
+    <div class="gal-row">
+      <div class="gal-cell">
+        <h4>按钮 · 渐变胶囊主按钮</h4>
+        <div class="btn-grad">派 出 去</div>
+        <div style="height:12px"></div>
+        <div class="btn-soft">微信分享邀请卡</div>
+        <div style="height:12px"></div>
+        <div class="btn-text">重新生成（旧卡立即失效）</div>
+      </div>
+
+      <div class="gal-cell">
+        <h4>输入框 · 无描边浅紫粉底</h4>
+        <div class="inp">请输入邀请码</div>
+        <div style="height:10px"></div>
+        <div class="inp focus">明天记得给宝宝带水杯</div>
+      </div>
+
+      <div class="gal-cell">
+        <h4>区块标题 · 粉色小竖条</h4>
+        <div class="sec-demo"><span class="l"><i></i>邀请家人</span><a>更多 →</a></div>
+        <div style="height:18px"></div>
+        <div class="sec-demo"><span class="l"><i></i>今天的提醒</span><a>全部 →</a></div>
+      </div>
+
+      <div class="gal-cell">
+        <h4>粉彩 squircle 图标块</h4>
+        <div class="tiles">
+          <div class="tile-d"><div class="sq" style="background:#FFE4EA;">🔔</div><span>叮一下</span></div>
+          <div class="tile-d"><div class="sq" style="background:#FFEFE0;">🎯</div><span>派活</span></div>
+          <div class="tile-d"><div class="sq" style="background:#FFF6DC;">🍽️</div><span>吃啥呢</span></div>
+          <div class="tile-d"><div class="sq" style="background:#EDE9F7;">📖</div><span>留个念</span></div>
+        </div>
+      </div>
+
+      <div class="gal-cell">
+        <h4>柔粉统计卡</h4>
+        <div class="stats">
+          <div class="stat"><b>3</b><span>今日小事</span></div>
+          <div class="stat"><b>2</b><span>已完成</span></div>
+          <div class="stat"><b>0</b><span>待处理</span></div>
+        </div>
+      </div>
+
+      <div class="gal-cell">
+        <h4>分段控件 · 渐变激活</h4>
+        <div class="seg"><div class="on">7天</div><div>14天</div><div>30天</div></div>
+        <div style="height:16px"></div>
+        <div><span class="pill">家里人都能看到</span>
+          <span class="pill gray" style="margin-left:6px;">已完成</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 页面原型 ============ -->
+  <p class="sec-title"><span class="bar"></span><h2>页面原型</h2></p>
+  <p class="sec-sub">10 屏核心页面 · 新视觉风格</p>
+
+  <div class="grid">
+
+    <!-- ===== 首页 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="body">
+          <div class="home-head">
+            <div>
+              <div class="fam">我们家 👨‍👩‍👧</div>
+              <div class="dt">9月28日 周一 · 今天家里有什么小事？</div>
+            </div>
+            <span class="bell">🔔<i>3</i></span>
+          </div>
+
+          <div class="hero">
+            <div class="txt">
+              <div class="n">3 <small>件小事</small></div>
+              <div class="d">已完成 2 件 · 还有 1 件等你</div>
+            </div>
+            <svg class="art" viewBox="0 0 180 120">
+              <path d="M50 66 L90 34 L130 66" stroke="#FFB8CB" stroke-width="7" fill="none"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="58" y="66" width="64" height="48" rx="10" fill="#FFE3EA"/>
+              <rect x="82" y="88" width="16" height="26" rx="6" fill="#FFC6D6"/>
+              <circle cx="40" cy="80" r="11" fill="#FFD3B6"/>
+              <path d="M27 116 v-14 a13 13 0 0 1 26 0 v14 z" fill="#A8D5E8"/>
+              <circle cx="140" cy="80" r="11" fill="#FFD3B6"/>
+              <path d="M127 116 v-14 a13 13 0 0 1 26 0 v14 z" fill="#FFB3C7"/>
+              <circle cx="90" cy="96" r="8" fill="#FFD3B6"/>
+              <path d="M80 118 v-8 a10 10 0 0 1 20 0 v8 z" fill="#FFE9A8"/>
+              <path d="M158 40 c-3-5 3-9 6-5 c3-4 9 0 6 5 l-6 6 z" fill="#FFC9D6"/>
+              <path d="M22 44 c-2.5-4 2.5-7.5 5-4 c2.5-3.5 7.5 0 5 4 l-5 5 z" fill="#FFC9D6" opacity=".75"/>
+            </svg>
+          </div>
+
+          <div class="acts">
+            <div class="act"><span class="sq pink">🔔</span>
+              <span class="info"><b>叮一下</b><span>别忘了</span></span></div>
+            <div class="act"><span class="sq peach">🎯</span>
+              <span class="info"><b>派个活</b><span>有人做</span></span></div>
+          </div>
+
+          <div class="sec-h"><span class="l"><i></i>今天的提醒</span><a>更多 →</a></div>
+          <div class="pad">
+            <div class="item"><span class="tm">17:30</span><span class="tx">接宝宝</span>
+              <span class="who">阿妈</span><span class="chk"></span></div>
+            <div class="item done"><span class="tm">18:00</span><span class="tx">拿快递</span>
+              <span class="who">阿爸</span><span class="chk on"></span></div>
+          </div>
+
+          <div class="sec-h"><span class="l"><i></i>最近的活</span><a>更多 →</a></div>
+          <div class="pad">
+            <div class="item"><span class="sq peach">🛒</span><span class="tx">买菜</span>
+              <span class="who">阿妈</span></div>
+            <div class="item"><span class="sq blue">🚗</span><span class="tx">洗车</span>
+              <span class="who">阿爸</span></div>
+          </div>
+
+          <div class="mods" style="margin-top:16px;">
+            <div class="mod"><span class="sq yellow">🍽️</span>
+              <span class="info"><b>吃啥呢</b><span>今天吃什么</span></span></div>
+            <div class="mod"><span class="sq purple">📖</span>
+              <span class="info"><b>留个念</b><span>记一笔</span></span></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="on"><span>🏠</span>家里</div>
+          <div><span>🍽️</span>吃啥呢</div>
+          <div><span>📖</span>留个念</div>
+          <div><span>👤</span>我的</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P01 · 首页</b><span>Hero 统计卡 + 插画 · 双动作入口 · 模块宫格</span></div>
+    </div>
+
+    <!-- ===== 吃啥呢 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="body">
+          <div style="text-align:center;padding:16px 0 18px;">
+            <div style="font-size:21px;font-weight:700;">🍽️ 吃啥呢</div>
+            <div style="font-size:12px;color:var(--ink-3);margin-top:6px;">今天吃什么？</div>
+          </div>
+
+          <div class="dish-wrap">
+            <div class="dish">
+              <div class="em">🍅</div>
+              <div class="nm">番茄炒蛋</div>
+              <div class="ct">家常菜 · 系统菜谱</div>
+              <div class="dots"><i class="on"></i><i></i><i></i></div>
+            </div>
+          </div>
+
+          <div class="acts2">
+            <div class="btn-soft" style="flex:1;">换一个</div>
+            <div class="btn-grad" style="flex:1.5;height:44px;">就吃这个</div>
+          </div>
+
+          <div class="sec-h"><span class="l"><i></i>最近吃过</span><a>全部 →</a></div>
+          <div class="pad">
+            <div class="item"><span class="sq green">🍲</span><span class="tx">红烧肉 · 紫菜蛋花汤</span>
+              <span class="who">9/27</span></div>
+            <div class="item"><span class="sq yellow">🥟</span><span class="tx">饺子</span>
+              <span class="who">9/26</span></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div><span>🏠</span>家里</div>
+          <div class="on"><span>🍽️</span>吃啥呢</div>
+          <div><span>📖</span>留个念</div>
+          <div><span>👤</span>我的</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P02 · 吃啥呢</b><span>渐变卡片 · 分段指示器 · 防重复推荐</span></div>
+    </div>
+
+    <!-- ===== 叮一下 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="navbar"><span class="back">←</span>叮一下</div>
+        <div class="body">
+          <div class="pad" style="padding-top:16px;">
+            <span class="label first">叮谁？</span>
+            <div style="display:flex;gap:10px;">
+              <div class="chip-m on"><span class="av" style="background:var(--pastel-pink);">👩</span><b>阿妈</b></div>
+              <div class="chip-m"><span class="av" style="background:var(--pastel-blue);">👨</span><b>阿爸</b></div>
+              <div class="chip-m"><span class="av" style="background:var(--pastel-green);">👴</span><b>阿公</b></div>
+            </div>
+
+            <span class="label">叮什么？</span>
+            <div class="inp focus" style="min-height:74px;font-size:14px;line-height:1.75;color:var(--ink-1);">
+              明天记得给宝宝带水杯
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <span class="pill gray">带水杯</span>
+              <span class="pill gray">拿快递</span>
+              <span class="pill gray">交物业费</span>
+            </div>
+
+            <span class="label">什么时候叮？</span>
+            <div class="card-md" style="padding:14px 16px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #EDD8DE;"></span>
+                <span style="font-size:13.5px;">现在就叮</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                <span style="width:16px;height:16px;border-radius:50%;border:5px solid var(--brand-ink);"></span>
+                <span style="font-size:13.5px;flex:1;">定时叮</span>
+              </div>
+              <div style="margin-left:26px;margin-top:10px;background:var(--surface-2);border-radius:12px;
+                          padding:11px 14px;display:flex;justify-content:space-between;font-size:13px;">
+                <span>明天 07:00</span>
+                <span style="color:var(--brand-ink);font-weight:600;">修改</span>
+              </div>
+            </div>
+
+            <span class="label">要不要重复？</span>
+            <div class="seg" style="max-width:220px;">
+              <div class="on">不重复</div><div>每天</div><div>每周</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:14px 16px 18px;">
+          <div class="btn-grad">叮 一 下</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P08 · 叮一下</b><span>浅紫粉输入框 · 圆点单选 · 分段控件</span></div>
+    </div>
+
+    <!-- ===== 派活 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="navbar"><span class="back">←</span>派个活</div>
+        <div class="body">
+          <div class="pad" style="padding-top:16px;">
+            <span class="label first">干啥？</span>
+            <div class="inp" style="color:var(--ink-1);font-size:14px;">帮我拿一下快递</div>
+
+            <span class="label">派给谁？</span>
+            <div style="display:flex;gap:10px;">
+              <div class="chip-m on"><span class="av" style="background:var(--pastel-pink);">👩</span><b>阿妈</b></div>
+              <div class="chip-m"><span class="av" style="background:var(--pastel-blue);">👨</span><b>阿爸</b></div>
+              <div class="chip-m"><span class="av" style="background:var(--pastel-yellow);">🙋</span><b>我自己</b></div>
+            </div>
+
+            <span class="label">什么时候？</span>
+            <div class="seg"><div>不限</div><div class="on">今天</div><div>指定</div></div>
+            <div style="margin-top:10px;background:#fff;border-radius:12px;padding:12px 14px;
+                        display:flex;justify-content:space-between;font-size:13px;box-shadow:var(--shadow-card);">
+              <span>今天 18:00</span>
+              <span style="color:var(--brand-ink);font-weight:600;">修改</span>
+            </div>
+
+            <span class="label">要不要叮一下？</span>
+            <div class="card-md" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;">18:00 提前 30 分钟提醒阿妈</span>
+              <span style="width:44px;height:25px;border-radius:999px;position:relative;flex-shrink:0;
+                           background:linear-gradient(135deg,#FF9DB4,#FFB59B);">
+                <span style="position:absolute;width:21px;height:21px;border-radius:50%;background:#fff;
+                             top:2px;right:2px;box-shadow:0 1px 3px rgba(0,0,0,.15);"></span>
+              </span>
+            </div>
+
+            <span class="label">谁能看见？</span>
+            <div class="card-md" style="padding:14px 16px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                <span style="width:16px;height:16px;border-radius:50%;border:5px solid var(--brand-ink);"></span>
+                <span style="font-size:13.5px;">家里人都能看到</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #EDD8DE;"></span>
+                <span style="font-size:13.5px;">只有我俩</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:14px 16px 18px;">
+          <div class="btn-grad">派 出 去</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P09 · 派活</b><span>分段控件 · 渐变开关 · 可见范围单选</span></div>
+    </div>
+
+    <!-- ===== 小事详情 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="navbar"><span class="back">←</span></div>
+        <div class="body">
+          <div style="height:16px"></div>
+          <div class="dt-head">
+            <span class="tag" style="background:var(--pastel-peach);color:#F09A5E;">🎯 派活</span>
+            <h3>买牛奶</h3>
+            <div class="ln">👩 阿妈 → 👨 阿爸</div>
+            <div class="ln">🕕 明天 18:00 前完成</div>
+            <div class="ln" style="color:var(--brand-ink);font-weight:600;">🔔 17:30 提醒阿爸</div>
+          </div>
+
+          <div class="kv">
+            <div class="k">备注</div>
+            <div class="v">楼下超市，买两盒</div>
+          </div>
+
+          <div class="kv" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div class="k">谁能看见</div>
+              <div class="v" style="font-size:13px;">家里人都能看到</div>
+            </div>
+            <span class="pill">家庭可见</span>
+          </div>
+
+          <div class="kv" style="display:flex;align-items:center;gap:11px;">
+            <span class="sq pink" style="border-radius:50%;">👩</span>
+            <span style="font-size:12.5px;color:var(--ink-2);">由阿妈 9月28日 10:00 创建</span>
+          </div>
+        </div>
+        <div style="padding:14px 16px 18px;">
+          <div class="btn-grad" style="margin-bottom:9px;">搞 定 啦 ✓</div>
+          <div class="btn-soft">取消这件事</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P10 · 小事详情</b><span>模块色类型标签 · 柔粉信息卡</span></div>
+    </div>
+
+    <!-- ===== 留个念 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="body">
+          <div class="sec-h" style="padding:14px 16px 4px;">
+            <span class="l" style="font-size:20px;"><i></i>留个念</span>
+          </div>
+
+          <div class="mem-date">2026.09.28</div>
+          <div class="mem">
+            <div class="tx">宝宝今天第一次自己穿鞋。</div>
+            <div class="pics"><i></i><i></i></div>
+            <div class="ft"><span class="av">👩</span>阿妈 · 19:32</div>
+          </div>
+
+          <div class="mem-date">2026.09.26</div>
+          <div class="mem">
+            <div class="tx">一家人第一次一起包饺子，阿爸包的都漏了。</div>
+            <div class="pics"><i></i></div>
+            <div class="ft"><span class="av">👨</span>阿爸 · 20:10</div>
+          </div>
+
+          <div class="mem-date">2026.09.20</div>
+          <div class="mem">
+            <div class="tx">搬进新家的第一天 🏠</div>
+            <div class="pics"><i></i><i></i><i></i></div>
+            <div class="ft"><span class="av">👩</span>阿妈 · 10:05</div>
+          </div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar">
+          <div><span>🏠</span>家里</div>
+          <div><span>🍽️</span>吃啥呢</div>
+          <div class="on"><span>📖</span>留个念</div>
+          <div><span>👤</span>我的</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P03 · 留个念</b><span>日期分组时间线 · 渐变胶囊悬浮按钮</span></div>
+    </div>
+
+    <!-- ===== 消息中心 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="navbar"><span class="back">←</span>消息<span class="act">全部已读</span></div>
+        <div class="body" style="padding-top:16px;">
+          <div class="nt">
+            <div class="tp"><span class="sq pink">🔔</span><b>叮一下</b><span class="d"></span></div>
+            <div class="msg">阿妈喊你：记得拿快递</div>
+            <div class="tm2">今天 17:30</div>
+          </div>
+          <div class="nt">
+            <div class="tp"><span class="sq green">❤️</span><b>搞定了</b><span class="d"></span></div>
+            <div class="msg">阿爸已经把「买牛奶」搞定啦</div>
+            <div class="tm2">昨天 18:05</div>
+          </div>
+          <div class="nt">
+            <div class="tp"><span class="sq purple">👨‍👩‍👧</span><b>家庭</b><span class="d"></span></div>
+            <div class="msg">阿妈邀请你加入「我们家」</div>
+            <div class="tm2">9月20日 10:00</div>
+          </div>
+          <div class="nt" style="opacity:.6;">
+            <div class="tp"><span class="sq peach">🎯</span><b>派活</b></div>
+            <div class="msg">阿妈派了个活给你：今晚做饭</div>
+            <div class="tm2">9月18日 16:20</div>
+          </div>
+          <div class="empty">
+            <span class="ico">📭</span>
+            <div class="t1">再往下就没有啦</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P12 · 消息中心</b><span>模块色图标块 · 订阅额度不足时的兜底通道</span></div>
+    </div>
+
+    <!-- ===== 家庭成员 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="navbar"><span class="back">←</span>家庭成员</div>
+        <div class="body" style="padding-top:16px;">
+          <div class="mb">
+            <span class="av" style="background:var(--pastel-blue);">👨</span>
+            <span class="info"><b>阿爸</b><span>张三 · 9月20日加入</span></span>
+            <span class="pill">我</span>
+          </div>
+          <div class="mb">
+            <span class="av" style="background:var(--pastel-pink);">👩</span>
+            <span class="info"><b>阿妈</b><span>李四 · 9月20日加入</span></span>
+            <span class="pill gray">创建者</span>
+          </div>
+          <div class="mb">
+            <span class="av" style="background:var(--pastel-green);">👴</span>
+            <span class="info"><b>阿公</b><span>王五 · 9月22日加入</span></span>
+          </div>
+          <div class="mb">
+            <span class="av" style="background:var(--pastel-yellow);">👵</span>
+            <span class="info"><b>阿嬷</b><span>赵六 · 9月22日加入</span></span>
+          </div>
+
+          <div style="padding:16px;">
+            <div class="btn-grad">＋ 邀请家人加入</div>
+          </div>
+
+          <div class="empty" style="padding:18px 24px;">
+            <div class="t2">称谓由每个人自己定义<br>阿爸 / 老爸 / 媳妇 / 哥哥 都可以</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P14 · 家庭成员</b><span>粉彩头像底 · 成员平等 · 创建者标签</span></div>
+    </div>
+
+    <!-- ===== 邀请家人 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="navbar"><span class="back">←</span>邀请家人</div>
+        <div class="body">
+          <div style="padding:18px 16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:21px;font-weight:700;">邀请家人</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:7px;">一起管好家里的小事</div>
+            </div>
+            <svg width="88" height="74" viewBox="0 0 180 120">
+              <path d="M50 66 L90 34 L130 66" stroke="#FFB8CB" stroke-width="7" fill="none"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="58" y="66" width="64" height="48" rx="10" fill="#FFE3EA"/>
+              <circle cx="40" cy="80" r="11" fill="#FFD3B6"/>
+              <path d="M27 116 v-14 a13 13 0 0 1 26 0 v14 z" fill="#A8D5E8"/>
+              <circle cx="140" cy="80" r="11" fill="#FFD3B6"/>
+              <path d="M127 116 v-14 a13 13 0 0 1 26 0 v14 z" fill="#FFB3C7"/>
+            </svg>
+          </div>
+
+          <div class="card-md" style="margin:0 16px 12px;padding:20px;text-align:center;">
+            <div style="font-size:15px;font-weight:600;">还没有其他成员</div>
+            <div style="font-size:12px;color:var(--ink-3);margin-top:8px;">分享邀请卡给家人，一起用起来</div>
+          </div>
+
+          <div class="inv-card">
+            <div class="sec-demo" style="margin-bottom:14px;">
+              <span class="l" style="font-size:16px;"><i></i>邀请码</span>
+            </div>
+            <div class="inv-code">
+              <span class="c">3T28SWXX</span>
+              <span class="btn-soft" style="height:36px;padding:0 18px;font-size:13px;">复制</span>
+            </div>
+            <div class="inv-tip">有效期至 10月5日，卡片可分享给多位家人</div>
+          </div>
+
+          <div style="padding:14px 16px 0;">
+            <div class="btn-grad">微信分享邀请卡</div>
+            <div style="text-align:center;margin-top:12px;">
+              <span class="btn-text" style="font-size:12.5px;">重新生成（旧卡立即失效）</span>
+            </div>
+          </div>
+
+          <div class="sec-h" style="padding-top:20px;">
+            <span class="l" style="font-size:16px;"><i></i>输入邀请码加入</span></div>
+          <div class="pad" style="display:flex;gap:10px;">
+            <div class="inp" style="flex:1;">请输入邀请码</div>
+            <div class="btn-soft" style="flex:0 0 76px;">加入</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P15 · 邀请家人</b><span>对应参考图 1 的完整版式</span></div>
+    </div>
+
+    <!-- ===== 引导页 ===== -->
+    <div class="unit">
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span class="r">•••• 📶 🔋</span></div>
+        <div class="wel">
+          <svg width="152" height="122" viewBox="0 0 180 120">
+            <path d="M50 66 L90 34 L130 66" stroke="#FFB8CB" stroke-width="7" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="58" y="66" width="64" height="48" rx="10" fill="#FFE3EA"/>
+            <rect x="82" y="88" width="16" height="26" rx="6" fill="#FFC6D6"/>
+            <circle cx="40" cy="80" r="11" fill="#FFD3B6"/>
+            <path d="M27 116 v-14 a13 13 0 0 1 26 0 v14 z" fill="#A8D5E8"/>
+            <circle cx="140" cy="80" r="11" fill="#FFD3B6"/>
+            <path d="M127 116 v-14 a13 13 0 0 1 26 0 v14 z" fill="#FFB3C7"/>
+            <circle cx="90" cy="96" r="8" fill="#FFD3B6"/>
+            <path d="M80 118 v-8 a10 10 0 0 1 20 0 v8 z" fill="#FFE9A8"/>
+          </svg>
+          <h2>家有小事</h2>
+          <p>不必放心上<br>帮你记着、分着、决定着</p>
+        </div>
+        <div style="padding:0 28px 34px;">
+          <div class="btn-grad" style="margin-bottom:10px;">创建一个家</div>
+          <div class="btn-soft">加入家人的家</div>
+        </div>
+      </div></div>
+      <div class="cap"><b>P05 · 引导页</b><span>首次进入 · 创建 / 加入家庭</span></div>
+    </div>
+
+  </div>
+
+  <!-- ============ 差异对照 ============ -->
+  <p class="sec-title"><span class="bar"></span><h2>新旧风格对照</h2></p>
+  <p class="sec-sub">同样的功能，不同的视觉质感</p>
+
+  <div class="cmp">
+    <div class="cmp-grid">
+      <div class="cmp-cell cmp-old">
+        <h4>旧 · 暖橙扁平</h4>
+        <div class="b1">派 出 去</div>
+        <div class="b2">请输入邀请码</div>
+        <div class="b3">🛒 买菜　　　　　阿妈</div>
+        <div class="cmp-note">纯色橙 · 直角输入框 · 灰阴影 · 图标直接裸露</div>
+      </div>
+      <div class="cmp-cell cmp-new">
+        <h4>新 · 柔光粉彩</h4>
+        <div class="b1">派 出 去</div>
+        <div class="b2">请输入邀请码</div>
+        <div class="b3">
+          <span style="width:34px;height:34px;border-radius:12px;background:#FFEFE0;
+                       display:flex;align-items:center;justify-content:center;font-size:16px;margin-right:10px;">🛒</span>
+          买菜
+          <span style="margin-left:auto;font-size:11.5px;color:#9B9B9B;">阿妈</span>
+        </div>
+        <div class="cmp-note">粉桃渐变 · 胶囊圆角 · 粉调柔阴影 · emoji 装在粉彩块里</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    家有小事 · 页面原型 v1.0（柔光粉彩）&nbsp;|&nbsp; 配套文档：<b>docs/07-视觉设计规范.md</b><br>
+    视觉语言参考 ui/风格参考/ · 功能与目标人群保持「家有小事」自身定位
+  </footer>
+
+</div>
+</body>
+</html>
