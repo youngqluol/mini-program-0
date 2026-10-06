@@ -1,10 +1,16 @@
 /**
- * `buildThingDetailView()` 的行为测试（P10 详情页的展示模型）
+ * 小事展示模型的行为断言（`miniprogram/utils/thing-view.ts`）
  *
- * 为什么单独测这一层：它全是纯函数，但分支不少（三种状态 × 我是执行人 /
- * 我是发起人 / 都与我无关 × 有没有提醒），而 `tsc` 只能保证类型对，
- * 保证不了「不限时间前完成」这种**语法通顺但意思错**的文案。
- * 这类错误只有跑到线上被人看见才会发现 —— 所以在本地拦一下。
+ * 覆盖三个纯函数：
+ *   - `buildThingDetailView()`     —— P10 详情页
+ *   - `buildThingRowView()`        —— P11 列表行（卡片 + 左滑操作）
+ *   - `buildTodayReminderRow()`    —— P01 首页「今天的提醒」行（卡片 + 完成圈）
+ *
+ * 为什么单独测这一层：它们全是纯函数，但分支不少（三种状态 × 我是执行人 /
+ * 我是发起人 / 都与我无关 × 有没有提醒），而 `tsc` 只能保证**类型**对，
+ * 保证不了「不限时间前完成」这种**语法通顺但意思错**的文案，
+ * 也保证不了「谁该看到哪个操作」这种**权限判断**。
+ * 这两类错误都只有跑到线上被人看见才会发现 —— 所以在本地拦一下。
  *
  * 实现方式：小程序端是 TypeScript，node 不能直接 require。这里用仓库里
  * 已有的 `typescript`（devDependency）把 `miniprogram/` 编译到系统临时目录，
@@ -78,7 +84,7 @@ if (!existsSync(viewPath)) {
 }
 
 // 产物已落盘，require 进来；临时目录留到脚本结束再删
-const { buildThingDetailView } = require(viewPath);
+const { buildThingDetailView, buildThingRowView, buildTodayReminderRow } = require(viewPath);
 
 // ---------------------------------------------------------------
 // 小工具
@@ -377,18 +383,133 @@ function checkStartsWith(name, actual, prefix) {
 }
 
 // ---------------------------------------------------------------
+// 11. P11 列表行：卡片 + 左滑操作
+// ---------------------------------------------------------------
+
+/** 把 actions 压成 "COMPLETE,CANCEL" 这样的串，断言起来一目了然 */
+function keysOf(row) {
+  return row.actions.map((a) => a.key).join(',');
+}
+
+{
+  const mine = thing();
+
+  check('行 · 我是执行人 → 只能完成', keysOf(buildThingRowView(mine, ME_BA)), 'COMPLETE');
+  check('行 · 我是发起人 → 只能取消', keysOf(buildThingRowView(mine, ME_MA)), 'CANCEL');
+  check(
+    '行 · 与我无关 → 不可滑（空数组，不是滑开空抽屉）',
+    keysOf(buildThingRowView(mine, ME_SON)),
+    '',
+  );
+
+  const selfAssigned = thing({
+    creator: member(ME_MA, '阿妈'),
+    assignee: member(ME_MA, '阿妈'),
+  });
+  check(
+    '行 · 自己派给自己 → 完成 + 取消',
+    keysOf(buildThingRowView(selfAssigned, ME_MA)),
+    'COMPLETE,CANCEL',
+  );
+  check(
+    '行 · 取消是破坏性操作，要单独染色',
+    buildThingRowView(selfAssigned, ME_MA).actions[1].tone,
+    'danger',
+  );
+
+  const done = thing({
+    status: 'COMPLETED',
+    completedAt: todayAt(18, 5),
+    completedBy: member(ME_BA, '阿爸'),
+  });
+  check('行 · 已完成 + 我派的 → 重新打开', keysOf(buildThingRowView(done, ME_MA)), 'REOPEN');
+  check('行 · 已完成 + 只是执行人 → 不可滑', keysOf(buildThingRowView(done, ME_BA)), '');
+
+  const cancelled = thing({ status: 'CANCELLED', cancelledAt: at(-1, 12, 0) });
+  check(
+    '行 · 已取消 + 我派的 → 也能重新打开',
+    keysOf(buildThingRowView(cancelled, ME_MA)),
+    'REOPEN',
+  );
+
+  // 卡片部分必须和 `fromThingListItem` 完全一致 —— 行视图只是多包了一层操作
+  const row = buildThingRowView(mine, ME_BA);
+  check('行 · wx:key 用的 id', row.id, mine.id);
+  check('行 · 卡片 id', row.card.id, mine.id);
+  check('行 · 卡片标题', row.card.title, '买牛奶');
+  check('行 · 卡片执行人', row.card.assigneeName, '阿爸');
+  check('行 · 卡片未完成不置灰', row.card.done, false);
+  check(
+    '行 · 卡片时间用 describeDue 口径（列表要带「明天」才不歧义）',
+    row.card.timeText.startsWith('明天 '),
+    true,
+  );
+}
+
+// ---------------------------------------------------------------
+// 12. P01 首页：今天的提醒行（卡片 + 要不要给完成圈）
+// ---------------------------------------------------------------
+
+/** 造一条今日提醒。`time` 是后端已经格式化好的 "HH:mm" */
+function todayReminder(over = {}) {
+  return {
+    id: 50001,
+    title: '接孩子',
+    time: '17:30',
+    assignee: member(ME_BA, '阿爸'),
+    status: 'PENDING',
+    ...over,
+  };
+}
+
+{
+  const row = buildTodayReminderRow(todayReminder(), ME_BA);
+
+  check('提醒行 · wx:key 用的 id', row.id, 50001);
+  check('提醒行 · 卡片 id', row.card.id, 50001);
+  check('提醒行 · 卡片是提醒类型', row.card.type, 'REMINDER');
+  check(
+    '提醒行 · 时间直接用后端的 HH:mm（这一区块全是今天的，再说「今天」是废话）',
+    row.card.timeText,
+    '17:30',
+  );
+
+  check('提醒行 · 我是执行人 → 给完成圈', row.canCheck, true);
+  check(
+    '提醒行 · 我只是发起人 → 不给完成圈（点下去就是一次 403）',
+    buildTodayReminderRow(todayReminder(), ME_MA).canCheck,
+    false,
+  );
+  check(
+    '提醒行 · 谁都不是 → 不给完成圈',
+    buildTodayReminderRow(todayReminder(), ME_SON).canCheck,
+    false,
+  );
+
+  const noOne = buildTodayReminderRow(todayReminder({ assignee: null }), ME_BA);
+  check('提醒行 · 没执行人时圈也不给（不能因为「谁都不是」就人人可点）', noOne.canCheck, false);
+  check('提醒行 · 没执行人时的称谓说实话', noOne.card.assigneeName, '还没人接');
+
+  check(
+    '提醒行 · 已完成 → 卡片置灰',
+    buildTodayReminderRow(todayReminder({ status: 'COMPLETED' }), ME_BA).card.done,
+    true,
+  );
+}
+
+// ---------------------------------------------------------------
 // 结果
 // ---------------------------------------------------------------
 
 rmSync(outDir, { recursive: true, force: true });
 
 if (failures.length === 0) {
-  console.log(`✅ 详情展示模型校验通过：${passed} 项断言`);
+  console.log(`✅ 小事展示模型校验通过：${passed} 项断言`);
   process.exit(0);
 }
 
 console.error(
-  `❌ 详情展示模型有 ${failures.length} 项不符合预期（共 ${passed + failures.length} 项）：\n`,
+  `❌ 小事展示模型有 ${failures.length} 项不符合预期（共 ${passed + failures.length} 项）：\n`,
 );
 for (const f of failures) {
   console.error(`  · ${f.name}`);
