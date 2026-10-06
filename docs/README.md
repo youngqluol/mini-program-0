@@ -13,7 +13,7 @@
 
 | 文档 | 内容 | 状态 |
 | --- | --- | --- |
-| [产品需求文档](产品需求文档.md) | 产品定位、理念、四大模块、MVP 边界、版本路线 | **v0.2.3** ✅ |
+| [产品需求文档](产品需求文档.md) | 产品定位、理念、四大模块、MVP 边界、版本路线 | **v0.2.5** ✅ |
 | [核心数据模型与业务流程](核心数据模型与业务流程.md) | 领域模型、小事/提醒关系、权限设计、业务闭环 | **v0.2.2** ✅ |
 | [MySQL 数据库设计](MySQL 数据库设计.md) | 11 张核心表的字段与关系设计 | **v0.2.2** ✅ |
 | [未来需求池](未来需求池.md) | 开发中冒出的想法，一律记这里，不进 V0.1 | — |
@@ -35,11 +35,11 @@
 
 | 篇 | 版本 | 篇 | 版本 |
 | --- | --- | --- | --- |
-| 产品需求文档 | **v0.2.4** | 05 开发计划 | **v0.2.22** |
+| 产品需求文档 | **v0.2.5** | 05 开发计划 | **v0.2.23** |
 | 01 技术架构 | **v0.2.4** | 06 环境准备 | **v0.2.3** |
-| 02 API 设计 | **v0.2.7** | 07 视觉规范 | v1.0 |
-| 03 页面原型 | **v0.2.8** | 08 推送集成 | **v1.0.3** |
-| 04 工程规范 | **v0.2.19** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
+| 02 API 设计 | **v0.2.8** | 07 视觉规范 | v1.0 |
+| 03 页面原型 | **v0.2.9** | 08 推送集成 | **v1.0.3** |
+| 04 工程规范 | **v0.2.20** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
 
 ### 配套资源
 
@@ -50,7 +50,7 @@
 | [packages/shared/](../packages/shared/) | 前后端共享的枚举与类型（`enums.ts` 是枚举唯一来源） |
 | [prototypes/prototype.html](../prototypes/prototype.html) | 10 屏核心页面的可视化原型 + 色彩系统 + 组件库（浏览器直接打开） |
 | [wxpush/](../wxpush/) | 推送 Worker 代码 + 部署配置（Cloudflare Workers）；基于上游 MIT 项目改造，见 `wxpush/LICENSE`。`wxpush/assets/miniprogram-code.png` 是**中转页用的小程序码**源图（待上传 COS） |
-| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`test-view.mjs`（**展示模型行为断言**，195 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
+| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`test-view.mjs`（**展示模型行为断言**，256 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
 
 ---
@@ -154,6 +154,31 @@
 | 新增 `miniprogram/constants/menu.ts`（**第 3 份镜像**） | 镜像 `MENU_CATEGORY`。分类会写进 `menu_items.category` 入库、也是组合搭配的判据，漂移了不报错、只会让某一类菜悄悄不参与推荐。加进 `check-shared.mjs` 逐字比对 |
 | 新增 `miniprogram/utils/menu-view.ts` + `services/menu.ts` | 展示模型收口（与 `thing-view.ts` 同层，纯函数），断言 **127 → 195 项** |
 | `check-mp` 当场抓到一处真问题 | `pages/menu/index.wxml` 绑了 `onRoll` 而方法实际叫 `roll` —— 点了不会有反应、控制台无提示。这正是它存在的理由 |
+
+**M4 留个念 · 后端完成（2026-10-06）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| **M4-1 ~ M4-7 ✅** | `family_memories` / `memory_attachments` 逐字核对 1:1（M2-B1 时就已建好，无需改动）；`POST /upload/image`（类型嗅探 + 5MB + 内容安全 + COS）；`POST /memories`、`GET /memories`、`GET/PATCH/DELETE /memories/:id` |
+| ⚠️ **时间线的游标是 `id`，不是 `created_at`** | docs/02 §7.2 原本写的是时间戳。`created_at` 是 `DATETIME(0)`（**秒**精度），同一秒发两条就会有相同时间戳，`created_at < cursor` 翻页会**静默漏掉**并列的那几条。冒烟脚本里那 5 条记录正是同一秒创建的 |
+| ⚠️ **`PATCH` 没有 `attachments` —— 图片是不可变的** | 「全库不做物理 DELETE」是铁律，而 `memory_attachments` **没有状态位**，无法逻辑删除旧行。发错了只能删掉重发（已记入未来需求池） |
+| ⚠️ **别人的私密记录回 40400 而不是 40300** | 40300 等于告诉对方「这里有一条你看不到的东西」—— 那本身就是一次泄露。同一条判断在 `detail()` 里**再判一次**，不依赖调用方已经校验过 |
+| **COS 不引 SDK，签名有官方示例自检** | 只用 `PUT Object`，`node:crypto` 足够。签名错了 COS 只回一句 `SignatureDoesNotMatch`、**不告诉你哪一步错了**，所以 `server/scripts/check-upload.ts` 拿腾讯云官方文档的完整示例逐项比对 —— 实测我们算出的 Signature 与文档**前 28 位完全一致**（文档把末 4 位打码成了 `1234`） |
+| **图片类型与尺寸由服务端从文件头读** | PNG 的 IHDR / JPEG 的 SOFn（跳过 EXIF 段）/ WebP 三种子格式。不信客户端的 `Content-Type`——把 `.exe` 改名成 `.png` 是零成本的 |
+| 新增 `tools/smoke-m4-memory.mjs`（**76 项**） | 上传校验 7 + 发布 15 + 时间线 14 + 详情 6 + 编辑 10 + 删除 6 + 回查数据库 6。真 PNG 用 `node:zlib` 现造，所以「上传 → 回读 → 字节一致」这条断言是有意义的 |
+| 新增 `check:upload`（30 项），已并入 `pnpm run check` | COS 签名 + 图片头解析。这两处**没有凭证 / 没有真图就验不了**，自检是唯一的防线 |
+
+**M4 留个念 · 小程序端完成（2026-10-06）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| **M4-8 ~ M4-11 ✅** | P03 留个念时间线（按日分组 + 上拉加载 + 九宫格 + 悬浮发布）、P18 发布记录（选图即上传 + 进度 + 失败重试 + 可见范围）、P19 记录详情（大图预览 + 编辑 + 删除）、首页「留个念」卡片副标题改成**最新一条** |
+| **M4-12 ✅（新增任务）** | P10 小事详情补「📖 记个念 →」入口（PRD §19.2）。原任务表没有它，但不加的话 `thingId` 就是个**永远传不进来的死字段**。入口刻意做成一行安静的次要文字：不弹窗、不提示、不打断 |
+| ⚠️ **「加载更多」要合并边界那一天** | 分页会把同一天拆到两页（第一页末尾是 9/26，第二页开头也是 9/26），直接追加新分组会出现**两个「2026.09.26」**。数据少的时候一页就装完了，本地很容易漏 —— `appendGroups()` 是纯函数，`test-view.mjs` 钉住了它 |
+| **P18 选图就上传，失败图留在九宫格里可重试** | 悄悄消失会让用户以为「选上了」，发布后才发现少一张。有图在上传中时禁止发布 |
+| **`sizeType: ['compressed']` 不是为了省流量** | 微信的图片检测接口有 **1MB 上限**，原图 3–5MB 根本检不了、只能 fail-open 放行。压缩后通常 100–500KB |
+| 新增 `miniprogram/constants/memory.ts`（**第 4 份镜像**）+ `utils/memory-view.ts` | 展示模型断言 **195 → 256 项** |
+| ⚠️ **踩到并修掉一个「开发者工具和 `tsc` 都不报」的坑** | P18 一开始 `import { MEMORY_CONTENT_MAX } from '@shared/dto/memory'` —— 小程序端不能引 shared 的**运行时值**（不解析 tsconfig 的 `paths`），只有真机跑到那一行才 `module not found`。除改成镜像外，还给 `check-ts.mjs` 加了静态防线（**反向验证过**：故意改回去，脚本立刻报出文件与行号） |
 
 **M2 小事域后端（2026-10-06）：**
 
@@ -366,7 +391,8 @@ M2 核心闭环   ✅ 后端 B1–B26 全部收口（只剩 B23 云托管 Cron�
    ↓
 M3 吃啥呢     ✅ 后端 M3-1~M3-8 + 小程序端 M3-9~M3-12 全部完成
    ↓
-M4 留个念     ← 你在这里（图片发布 + 家庭时间线）
+M4 留个念     ✅ 后端 M4-1~M4-7 + 小程序端 M4-8~M4-12 全部完成
+              （真机上传待用户提供 COS 凭证）
    ↓
 M5 上线       提审 → 发布 → 家人真机安装
 ```
@@ -375,109 +401,55 @@ M5 上线       提审 → 发布 → 家人真机安装
 
 ## 四、现在最该做的事
 
-> 对应 `docs/05` 的 **M4（留个念）** 阶段。**M2 / M3 已全部收口** ——
-> 后端 B1–B26 + M3-1~M3-8 全部完成（只剩 B23 云托管 Cron 配置，需在控制台操作）；
-> 小程序端 **P04–P12 + P20 + P21 + P02 + P17** 全部完成，
-> 核心闭环的入口全部点通（首页 → 叮一下 / 派活 → 列表 → 详情 → 完成，
-> 吃啥呢 → 决定 → 一键派活 → 详情），4 个 Tab 全部有内容，
-> 消息中心与微信提醒也都在了。
+> 对应 `docs/05` 的 **M5（上线）** 阶段。**M1 ~ M4 的代码全部写完了** ——
+> 后端 M1 15 项 + M2 B1–B26 + M3 M3-1~M3-8 + M4 M4-1~M4-7；
+> 小程序端 **P04–P12 + P20 + P21 + P02 + P17 + P03 + P18 + P19** 全部完成，
+> 21 个页面里除 P13–P16（家庭模块，M2 时已建）外全部有内容，
+> 核心闭环**端到端点得通**：
 >
-> **M3 已完成 M3-1 ~ M3-12**（表结构核对 + 系统默认菜谱常量 72 条 +
-> 四个读接口 + 四个写接口 + 180 项冒烟 + P02 / P17 + 195 项展示模型断言）。
+> ```text
+> 吃啥呢 → 决定 → 一键派活 → 详情 → 完成 → 「📖 记个念 →」 → 发布 → 时间线 → 详情
+> ```
 >
-> ⚠️ **M4 动工前先看 `docs/未来需求池.md` 与 PRD §17** ——
-> 留念模块涉及**图片上传**（`POST /upload/image`）与云存储，是 M0 里
-> 尚未验证的一条链路（假设 A7：云托管容器能否直连云开发云存储）。
+> ### ⚠️ 现在卡在「只有你能做」的三件事上
 >
-> ✅ **M2 遗留的两件「非代码」的事，一件已了**：
-> ① ~~把公众号二维码放进 `miniprogram/assets/mp-account-qr.*`~~ ——
->    **已完成**（`miniprogram/assets/mp-account-qr.jpg`，微信后台下发的原图，未转码）。
->    P21 的「① 扫一下」那一步现在有图可显示了。
-> ② **M2 真机验收**（docs/05 §四 末尾那七步）—— 仍待做。
+> **① 对象存储凭证（唯一的硬阻塞）**
 >
-> ⚠️ **M2-F3（首页「未开微信提醒」提示条）本轮不做。** 它要求出现在
-> 「**别人**没开微信提醒」时，但 `GET /notify/mp-bind/status` 只回**我自己**的状态，
-> 后端没有「家庭成员谁开了」的接口。见 `docs/未来需求池.md`。
+> `POST /upload/image` 要往腾讯云 COS 写文件。请把 `server/.env` 第 8 节的
+> 四个值填上（开通步骤与权限要求写在 `server/.env.example` 里）：
 >
-> ⚠️ **P20 的隐私政策 / 注销账号两行仍未露出** —— 是**上线前**的事
-> （`docs/06` §4.6 / §264），后者还需要后端的删除链路。已记入 `docs/未来需求池.md`。
+> ```text
+> COS_BUCKET=        # 桶名，形如 family-1250000000（要带 APPID 后缀）
+> COS_REGION=        # 地域，与云托管实例同地域，例如 ap-shanghai
+> COS_SECRET_ID=
+> COS_SECRET_KEY=
+> ```
 >
-> ⚠️ **真机验收前还需要两样「只有你能做」的**（都不是代码）：
-> **Worker 的 4 个 secret**（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
-> 与 **`MP_QRCODE_URL`**（把 `wxpush/assets/miniprogram-code.png` 传到 COS 拿 URL）、
-> **云托管 Cron 配置**（M2-B23，控制台操作）。见 `docs/08` Step 5–6、`docs/06`。
-
-### 1. 把本地环境跑起来（后端已就绪）
-
-```bash
-pnpm install                  # 安装依赖（Monorepo）
-pnpm run db:up                # MySQL 8.0 + Redis 7，自动执行 db/schema.sql
-pnpm --filter @jyss/server run prisma:push   # 同步 Prisma Schema 到库
-pnpm dev                      # 起后端，监听 127.0.0.1:3000
-```
-
-起来后先打两个自检接口：
-
-```bash
-curl http://127.0.0.1:3000/api/health            # db / redis 是否 ok
-curl http://127.0.0.1:3000/api/health/templates  # 三个公众号模板 ID 是否都配上了
-```
-
-> 停止：`pnpm run db:down`；重置（**会清空数据**）：`pnpm run db:reset`；看日志：`pnpm run db:logs`。
-> ⚠️ 构建入口是 `dist/server/src/main.js`，**不是** `dist/main.js`，成因见 `docs/04` §一。
-
-### 2. 用微信开发者工具预览小程序
-
-用微信开发者工具「导入项目」指向 `miniprogram/` 目录（AppID 已写进 `project.config.json`）。
-详细步骤见 [04 工程规范](04-工程规范与目录结构.md) §8.3。
-
-### 3. 继续 M2 的小程序端
-
-M1 的 13 项页面早已完成。现在按核心闭环往下做（`docs/05` §四「小程序端」是权威清单）：
-
-```text
-✅ P11 我的小事（派给我的 / 我派的 / 都完成，上拉加载 + 左滑完成 / 取消 / 重新打开）
-✅ P01 首页（今日提醒 + 最近的活，骨架屏 + 下拉刷新）
-✅ P12 消息中心（未读 + 全部已读 + 送达说明，上拉加载）
-P20「我的」Tab（家庭区块 / 消息与提醒区块 / 其他区块 + 未读角标）  ← 下一步
-P21 微信提醒页（二维码 + 绑定码 + 轮询）
-```
-
-> **核心闭环已经点通**：首页 → 叮一下 / 派活 → P11 列表 → P10 详情 → 完成，
-> 四个方向都有路。想整体走一遍，在开发者工具里从首页开始就行。
-> P12 消息中心暂时只能手动跳 `/pages/notice/index`（它的入口在还没做的 P20 里）。
-
-### 4. 搭起推送通道（决定产品成不成立）
-
-```bash
-# ① 拿测试号：https://mp.weixin.qq.com/debug/cgi-bin/sandbox
-# ② 建模板消息模板，记下模板 ID（内容直接粘贴：cd server && pnpm run check:templates）
-# ③ 部署 Worker
-cd wxpush && wrangler login && wrangler deploy
-# ④ 配 4 个 secret（Cloudflare 控制台 Settings → Variables and Secrets，或 wrangler secret put）
-#    API_TOKEN / WX_SECRET / WX_TEMPLATE_ID / WX_USERID
-#    （WX_APPID / WX_BASE_URL / MP_* 等非敏感项走 wrangler.toml 的 [vars]）
-# ⑤ 验证两条通道
-RECEIVER=<你的公众号openid> WXPUSH_URL=... WXPUSH_TOKEN=... \
-  node tools/test-wxpush.mjs                                  # 通道一：公众号模板消息
-node tools/probe-subscribe.mjs <你的小程序openid> TASK        # 通道二：订阅消息
-```
-
-**这一步要回答两个决定性问题**（PRD 假设 A5 / A6）：
-
-- 测试号模板消息能不能推到已关注用户？
-- 消息点开能不能进小程序？
-
-完整步骤见 [08 wxpush 推送集成方案](08-wxpush推送集成方案.md)。
-
-> **另外别忘了（会卡审核，越早启动越好）：** 小程序服务类目（M0-14）、
-> 《用户隐私保护指引》（M0-16）都有审核周期，等待期间正好用来做 M1 的小程序端。
-> 完整清单见 [06 上线前环境准备清单](06-上线前环境准备清单.md) 第二章。
+> **没有它代码也是完整的** —— 校验路径全部能跑，只是真机上传验不了
+> （上传会明确报错，**不会假装成功**）。填好之后跑一次
+> `SMOKE_BASE_URL=http://127.0.0.1:3000 node tools/smoke-m4-memory.mjs`，
+> 脚本会**自动补上**「真实上传 + 回读校验」那几条断言，不需要改脚本。
 >
-> ✅ **3 个订阅消息模板（M0-15）已完成** —— 是在公共模板库挑的现成模板，
-> **没有审核环节**，原先预估的「1–3 个工作日审核」是错的。
-
----
+> **② M2 真机验收**（`docs/05` §四 末尾那七步）—— 仍待做。
+>
+> **③ 云托管 Cron 配置**（M2-B23，控制台操作，不是代码）。
+>
+> 另外 Worker 那 4 个 secret + `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN` 也还在等你。
+>
+> ### 已经做完、不用再操心的
+>
+> - ✅ 公众号二维码已放进 `miniprogram/assets/mp-account-qr.jpg`（微信后台原图，未转码）
+> - ✅ M3 全部（180 项冒烟 + P02 / P17 + 195 项展示模型断言）
+> - ✅ M4 全部（76 项冒烟 + P03 / P18 / P19 + P10 入口 + 首页预览 + 256 项展示模型断言）
+> - ✅ 上传链路的自检（COS 签名 + 图片头解析，30 项）—— 这是唯一能覆盖
+>   「没有凭证就验不了」那部分的手段
+>
+> ### 动 M5 之前值得先读的
+>
+> - `docs/06-上线前环境准备清单.md` —— 域名、类目、隐私协议、提审材料
+> - `docs/未来需求池.md` —— 本轮新增的已知缺口（图片不可改、举报入口、
+>   `mediaCheckAsync`、P02 餐次不可改、P17 无搜索筛选）
+> - PRD §32「风险与假设」—— 还有几条**没实测过**的假设（A4 / A5 / A6 / A7）
 
 ## 五、三条不可动摇的纪律
 

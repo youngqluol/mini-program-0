@@ -1,10 +1,26 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.7
+**版本：** v0.2.8
 **协议：** HTTPS + REST + JSON
 **Base URL：** `https://<云托管服务名>.ap-shanghai.run.tcloudbase.com/api`
 **鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
 
+**v0.2.8 变更：** 留个念（M4）落地后把 §七 / §八 按实现重写 ——
+① **§7.2 的游标由「`createdAt` 时间戳」改为「上一页最后一条的 `id`」**：
+`family_memories.created_at` 是 `DATETIME(0)`（**秒**精度），同一秒发两条就会有
+相同时间戳，`created_at < cursor` 翻页会**静默漏掉**并列的那几条；
+`id` 自增唯一，顺序即插入顺序。`CursorQuery` 的注释同步改。
+② §7.1 / §7.2 的响应补 **`thing`（完成纪念关联的小事）** 与 **`isMine`**，
+并说明**详情与列表项是同一个形状**（P03 卡片本来就要回显全文与九宫格，
+详情不比它多一个字段）；补 `thingId` 的三种失败语义（**未完成 → 40001、
+别人家 → 40400**）。
+③ **§7.4 `PATCH` 没有 `attachments`** —— 图片是不可变的：全库不做物理 DELETE，
+而 `memory_attachments` **没有状态位**，无法逻辑删除旧行。发错了只能删掉重发。
+④ §7.3 补「**私密记录对别人回 40400 而不是 40300**」（40300 等于告诉对方
+「这里有一条你看不到的东西」）；§7.5 补逻辑删除后**附件行原样保留**。
+⑤ §8.1 补实现口径：**类型以服务端嗅探的文件头为准**（不采信客户端
+`Content-Type`）、`scene` 必填、413 超限归一到 40001、COS 未配置时
+**明确报 50000 而不是假装成功**。
 **v0.2.7 变更：** §6.3~§6.8 的写接口落地后把实现口径写回文档 ——
 ① §6.3 补**同家庭菜名唯一（40900）** 与 `name` 长度守卫；
 ② §6.4 / §6.5 补**本路由不挂 `FamilyMemberGuard`**、改用「由资源反查家庭」，
@@ -1236,6 +1252,44 @@ POST /api/menu/decide-and-assign
 
 ## 七、留个念 `/memories`
 
+> 产品定位（PRD §18.1）：**不是朋友圈**，是「属于一家人的私人时间线」。
+> 所以这里没有点赞 / 评论 / 关注 / 转发，接口上也不预留它们的字段。
+
+**数据模型**：两种「念」是**同一张表** `family_memories`，靠 `thing_id` 区分（PRD §十九）：
+
+| 类型 | 说明 | 数据表现 |
+| --- | --- | --- |
+| 独立留念 | 随手记一笔 | `thing_id = NULL` |
+| 完成纪念 | 完成一件小事后顺手记一笔 | `thing_id = 该小事ID` |
+
+**统一的记录形状**（列表项与详情**完全相同**）：
+
+```json
+{
+  "id": 60001,
+  "date": "2026-09-28",
+  "content": "宝宝今天第一次自己穿鞋。",
+  "visibility": "FAMILY",
+  "creator": { "memberId": 20002, "roleName": "阿妈", "avatarUrl": "https://..." },
+  "attachments": [{ "id": 1, "fileUrl": "https://...", "width": 1600, "height": 1200 }],
+  "thing": { "id": 10001, "title": "买牛奶" },
+  "isMine": false,
+  "createdAt": "2026-09-28 19:32:00"
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `date` | `"YYYY-MM-DD"`（北京时间）。**时间线按它分组** |
+| `visibility` | `"FAMILY"` 家庭可见 / `"PRIVATE"` 仅自己可见 |
+| `creator` | **家庭称谓**（「阿妈」）而不是微信昵称；头像可空，前端用称谓首字兜底 |
+| `attachments` | 只回 `id` / `fileUrl` / `width` / `height`。**按 `sortNo` 排好**，不是插入顺序 |
+| `thing` | 完成纪念关联的小事；独立留念为 `null`。P19 底部那行「来自 🎯 买牛奶」用它 |
+| `isMine` | **服务端算**。前端拿 `creator.memberId` 与自己的比也能得出，但那要求每个页面先取一次「我的身份」，多家庭切换时还容易比错人 |
+
+> **为什么不做「列表项 / 详情」两层类型**：P03 的卡片本来就要回显全文与九宫格，
+> 详情不比它多任何一个字段 —— 多一层类型只会多一层「哪个字段该出现在哪」的争论。
+
 ### 7.1 发布记录
 
 ```http
@@ -1250,33 +1304,57 @@ POST /api/memories
   "content": "宝宝今天第一次自己穿鞋。",
   "visibility": "FAMILY",
   "attachments": [
-    { "fileUrl": "https://.../a.jpg", "fileType": "image/jpeg", "width": 1600, "height": 1200, "sortNo": 0 }
-  ]
+    { "fileUrl": "https://.../a.jpg", "fileType": "image/jpeg", "fileSize": 342100, "width": 1600, "height": 1200, "sortNo": 0 }
+  ],
+  "thingId": null
 }
 ```
 
-**响应：**
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `familyId` | ✅ | 发到哪个家庭 |
+| `content` | — | 最长 **1000** 字（`MEMORY_LIMITS.CONTENT_MAX`） |
+| `visibility` | — | 不传 = `FAMILY` |
+| `attachments` | — | 最多 **9** 张（`MEMORY_LIMITS.MAX_ATTACHMENTS`）。字段照抄 §8.1 的响应 |
+| `thingId` | — | 「完成纪念」才传（PRD §19.2） |
 
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {
-    "id": 60001,
-    "content": "宝宝今天第一次自己穿鞋。",
-    "visibility": "FAMILY",
-    "creator": { "memberId": 20002, "roleName": "阿妈", "avatarUrl": "https://..." },
-    "attachments": [{ "id": 1, "fileUrl": "https://...", "width": 1600, "height": 1200 }],
-    "createdAt": "2026-09-28 19:32:00"
-  }
-}
-```
+> ⚠️ **`content` 与 `attachments` 至少给一样**（都空 → `40001`）。
+> 这条是**跨字段规则**，DTO 层表达不了，由 `MemoryService` 判 ——
+> **发布与编辑共用同一句话、同一个位置**。
+
+**响应：** 上面的统一记录形状。
+
+**失败：**
+
+| code | 场景 |
+| --- | --- |
+| `40001` | 正文超长 / 图片超 9 张 / 正文与图片都为空 / `thingId` 指向**未完成**的小事 |
+| `40002` | 正文未通过内容安全检测 |
+| `40300` | 不是该家庭成员 |
+| `40400` | `thingId` 指向**别人家**的小事（**不透露存在性**） |
+
+> **`thingId` 为什么必须「已完成」**：入口就在小事详情页的已完成状态里
+> （「📖 记个念 →」）。允许关联一件没做完的事，会让时间线上出现
+> 「完成纪念」配着一件未完成的事 —— 那是数据说谎。V0.1 没有状态回滚
+> （PRD §15.1），所以完成态是稳定的。
+
+> **图片地址必须来自我们自己的桶**：否则任何人都能把任意外部 URL
+> （追踪像素、别人的图）塞进留念，而小程序端加载外域图片会被
+> `downloadFile` 合法域名拦掉，表现为「图片加载不出来」，完全看不出是数据的问题。
+> 校验用 `StorageService.publicBaseUrl()`；**未配置对象存储时跳过并记 warn**
+> （那时上传接口本身就用不了）。
 
 ### 7.2 家庭时间线
 
 ```http
-GET /api/memories?familyId=10001&cursor=1759000000000&limit=20
+GET /api/memories?familyId=10001&cursor=60002&limit=20
 ```
+
+| 参数 | 说明 |
+| --- | --- |
+| `familyId` | ✅ |
+| `cursor` | 上一页最后一条的 **`id`**。不传 = 第一页 |
+| `limit` | 默认 20，最大 50 |
 
 **响应：**
 
@@ -1285,24 +1363,24 @@ GET /api/memories?familyId=10001&cursor=1759000000000&limit=20
   "code": 0,
   "message": "ok",
   "data": {
-    "list": [
-      {
-        "id": 60001,
-        "date": "2026-09-28",
-        "content": "宝宝今天第一次自己穿鞋。",
-        "visibility": "FAMILY",
-        "creator": { "memberId": 20002, "roleName": "阿妈", "avatarUrl": "https://..." },
-        "attachments": [{ "id": 1, "fileUrl": "https://...", "width": 1600, "height": 1200 }],
-        "createdAt": "2026-09-28 19:32:00"
-      }
-    ],
-    "nextCursor": "1758900000000",
+    "list": [ /* 统一记录形状 */ ],
+    "nextCursor": 60002,
     "hasMore": true
   }
 }
 ```
 
-> **隐私过滤**：`visibility=PRIVATE` 且 `creator_member_id != 当前成员` 的记录不返回。
+> ⚠️ **游标是 `id`，不是时间戳。**
+> `family_memories.created_at` 是 `DATETIME(0)`（**秒**精度）——
+> 同一秒里发两条（家人连着发、冒烟脚本）就会有**相同的时间戳**，
+> 用 `created_at < cursor` 翻页会**静默漏掉**并列的那几条，
+> 而且只在真的翻到边界时才出现。`id` 自增且唯一，天然没有这个问题，
+> 它的大小顺序就是插入顺序，与「按时间倒序」等价。
+>
+> 排序是 `id DESC`（= 时间倒序）。**前端不要再排一次**，只做分组。
+
+> **隐私过滤（服务端做，前端不做）**：`visibility=PRIVATE` 且
+> `creator_member_id != 当前成员` 的记录不返回。列表用 `OR` 条件过滤。
 
 ### 7.3 记录详情
 
@@ -1310,13 +1388,43 @@ GET /api/memories?familyId=10001&cursor=1759000000000&limit=20
 GET /api/memories/{id}
 ```
 
+**响应：** 统一记录形状（与列表项**完全相同**）。
+
+**失败：** `40400` 记录不存在 / 已删除 / **是别人的私密记录**；`40300` 不是该家庭成员。
+
+> ⚠️ **别人的私密记录回 `40400` 而不是 `40300`。**
+> `40300` 等于告诉对方「这里有一条你看不到的东西」—— 那本身就是一次泄露。
+> 同一条判断在 `MemoryService.detail()` 里**再判一次**，不依赖调用方已经过了
+> `contextForMemory`：「调用方已经校验过」正是这条铁律最容易被绕过的方式。
+
+> **这三个 `:id` 路由都不挂 `FamilyMemberGuard`** —— URL 与 body 里都没有
+> `familyId`，守卫无从下手。改由 `MemoryService.contextForMemory` 从**记录本身**
+> 反查家庭，与小事模块的 `PATCH /family-things/:id`、吃啥呢的
+> `PATCH /menu/items/:id` 是同一个模式。
+
 ### 7.4 编辑记录
 
 ```http
 PATCH /api/memories/{id}
 ```
 
-**权限：** 仅发布者。
+**请求：** 只传要改的字段。
+
+```json
+{ "content": "改过的正文", "visibility": "PRIVATE" }
+```
+
+**权限：** 仅发布者（否则 `40301`）。
+
+> ⚠️ **刻意没有 `attachments` —— V0.1 的图片是不可变的。**
+> 「全库不做物理 DELETE，一律状态位逻辑删除」（AGENTS.md）是铁律，
+> 而 `memory_attachments` 表**没有状态位**（`db/schema.sql` 是字段唯一真相）：
+> 无法逻辑删除旧行，于是「替换图片」只能物理删，违反铁律。
+> 发错了就删掉重发。要支持改图，得先给那张表加状态位（见 `docs/未来需求池.md`）。
+
+> ⚠️ **「正文与图片至少给一样」在编辑时同样成立**，否则会留下一条空白卡片。
+> 这条不能交给 DTO 的 `@IsNotEmpty` —— 它判的是**没 trim 的值**，
+> 所以 `content: "   "` 能过校验，trim 完却是空串（冒烟脚本真的抓到了这个 bug）。
 
 ### 7.5 删除记录
 
@@ -1324,7 +1432,11 @@ PATCH /api/memories/{id}
 DELETE /api/memories/{id}
 ```
 
-**权限：** 仅发布者。`status=0` 逻辑删除。
+**权限：** 仅发布者。**逻辑删除**（`status=0`），响应 `{ "id": 60001 }`。
+
+> **附件行原样保留**：它们没有状态位，而记录一删就再也不会被任何查询带出来，
+> 留着不影响任何行为。真要做物理清理是运维的事（将来配生命周期规则），
+> 不是接口的事。
 
 ---
 
@@ -1337,12 +1449,17 @@ POST /api/upload/image
 Content-Type: multipart/form-data
 ```
 
+**鉴权：** 只有全局 JWT（**要登录**），**不挂 `FamilyMemberGuard`**。
+这一步只是「把一张图存进桶里换回一个 URL」，它不知道也不该知道这张图将来属于
+哪个家庭 ——「这张图能不能进这条留念」由 §7.1 在写入时校验。
+提前在守卫里要 `familyId`，只会让「先传图再选可见范围」的 P18 多绕一圈。
+
 **表单字段：**
 
 | 字段 | 说明 |
 | --- | --- |
-| `file` | 图片文件，≤ 5MB，仅 `jpg/jpeg/png/webp` |
-| `scene` | 场景：`AVATAR` / `MEMORY` / `MENU` |
+| `file` | 图片文件，**≤ 5MB**，仅 `jpg` / `png` / `webp` |
+| `scene` | ✅ 场景：`AVATAR` / `MEMORY` / `MENU`。决定对象存储里的目录前缀 |
 
 **响应：**
 
@@ -1351,7 +1468,7 @@ Content-Type: multipart/form-data
   "code": 0,
   "message": "ok",
   "data": {
-    "fileUrl": "https://.../memories/2026/09/xxx.jpg",
+    "fileUrl": "https://<bucket>.cos.<region>.myqcloud.com/memories/2026/09/xxx.jpg",
     "fileType": "image/jpeg",
     "fileSize": 342100,
     "width": 1600,
@@ -1360,9 +1477,53 @@ Content-Type: multipart/form-data
 }
 ```
 
-**失败：** `40002` 内容安全检测未通过。
+**失败：**
 
----
+| code | 场景 |
+| --- | --- |
+| `40001` | 没收到文件 / `scene` 缺失或非法 / **文件头不是 jpg·png·webp** / **超过 5MB** |
+| `40002` | 图片未通过内容安全检测 |
+| `50000` | 对象存储未配置或写入失败 |
+
+**五条实现口径：**
+
+① **类型以服务端嗅探的文件头为准，不采信客户端的 `Content-Type`。**
+把 `.exe` 改名成 `.png` 再声明 `image/png` 是零成本的 ——
+而这个判断直接决定「允不允许存进桶里」。嗅探只认三种魔术字节
+（PNG 签名 / JPEG 的 `FFD8` / RIFF+WEBP），**GIF 不支持**（动图会带来
+「体积上限」和「内容安全只检首帧」两个新问题，V0.1 不做）。
+
+② **`width` / `height` 也由服务端从文件头读**（PNG 的 IHDR、JPEG 的 SOFn、
+WebP 的三种子格式）。它们进 `memory_attachments` 供九宫格按比例占位；
+让客户端上报等于把布局交给客户端，一张错报 10000×10000 能把页面撑爆。
+**解不出来时给 `null`，不编造、也不拒绝上传** —— 「解不出尺寸」不该让家人传不了照片。
+
+③ **超过 5MB 由 multer 在流式解析时就中止**，不会先把整个大文件读进内存。
+它是**传输层的守卫**（保护内存），不是业务规则 —— 所以业务层不再重复判一次
+（那会变成永远走不到的死代码）。413 由 `AllExceptionsFilter` 归一到 `40001`
+并换成中文（multer 带的是英文 `File too large`，会原样漏给用户）。
+
+④ **四步顺序不能换：有没有文件 → 嗅探真实类型 → 内容安全 → 写桶。**
+内容安全必须在写桶**之前**：违规图片永远不进桶，省掉「发现违规再去删对象」
+的补偿逻辑（删失败就是永久留痕）。
+
+⑤ **对象存储未配置时明确报 `50000`，不降级、不写本地磁盘。**
+云托管容器的文件系统是**临时的**（重新部署即清空），
+「写到本地磁盘」不是降级，是丢数据。假装上传成功会让用户以为照片发出去了、
+实际什么都没有，比直接失败恶劣得多。日志里会把**缺哪个变量**写清楚。
+
+> ⚠️ **图片内容安全用的是 `img_sec_check`（1.0 版同步接口）。**
+> 微信自 2021-09-01 起「停止更新维护」，官方推荐改用异步的 `mediaCheckAsync`。
+> 仍用它的原因：它是**唯一同步**的接口，能塞进「发布留念」这条同步路径；
+> `mediaCheckAsync` 要传公网可达的图片 URL、结果几秒后经消息推送回调回来，
+> 意味着「发布」得变成「先发出去、后判、判违规再下架」，要新增附件状态列、
+> 回调处理器和产品决策 —— 对 V0.1（家庭内部、个人主体、无公开传播面）
+> 代价不成比例。见 `docs/未来需求池.md`。
+>
+> ⚠️ 它有 **1MB 上限**，比产品允许的 5MB 小得多。超限的图**检测不了**，
+> 走 fail-open 放行并记 warn（与文本检测同一套策略，见
+> `ContentSecurityService`）。实际影响有限：P18 选图用
+> `sizeType: ['compressed']`，压缩后通常 100–500KB。
 
 ## 九、通知模块 `/notifications` 与 `/notify`
 

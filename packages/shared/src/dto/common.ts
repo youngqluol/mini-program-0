@@ -47,9 +47,17 @@ export interface PageResult<T> {
   hasMore: boolean;
 }
 
-/** 游标分页请求参数（家庭记录时间线用，避免翻页错乱） */
+/**
+ * 游标分页请求参数（家庭记录时间线用，避免翻页错乱）。
+ *
+ * ⚠️ **游标是「上一页最后一条的 `id`」，不是时间戳。**
+ *    `family_memories.created_at` 是 `DATETIME(0)`（**秒**精度），
+ *    同一秒里发两条就会有相同的时间戳，用 `created_at < cursor` 翻页会
+ *    **静默漏掉**并列的那几条。`id` 自增且唯一，天然没有这个问题。
+ *    详见 docs/02 §7.2。
+ */
 export interface CursorQuery {
-  /** 上一页最后一条的 createdAt 时间戳（毫秒） */
+  /** 上一页最后一条的 `id` */
   cursor?: number;
   /** 本页条数 */
   limit?: number;
@@ -58,7 +66,7 @@ export interface CursorQuery {
 /** 游标分页响应体 */
 export interface CursorResult<T> {
   list: T[];
-  /** 下一页游标；为 null 表示没有更多了 */
+  /** 下一页游标（同上：是 `id`）；为 null 表示没有更多了 */
   nextCursor: number | null;
   hasMore: boolean;
 }
