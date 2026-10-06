@@ -8,6 +8,7 @@
  *   - 页面文件少一个（比如忘了建 .json）→ 开发者工具白屏，不告诉你是哪个文件
  *   - `bindtap="onSubmit"` 而 ts 里方法叫 `onSubmmit` → 点了没反应，控制台无提示
  *   - 写了页面但忘了在 `app.json` 注册 → 文件在那儿，但路由跳不过去
+ *   - `usingComponents` 路径写错 → 整个页面白屏，且报错指向组件而不是那一行
  *
  * 这个脚本把这些都提前拦下来。跑法：node tools/check-mp.mjs
  *
@@ -19,9 +20,12 @@
  *   ⑤ 每个页面 .json 是合法 JSON
  *   ⑥ wxml 里 `bind*=` / `catch*=` 绑定的方法名，在对应 .ts 里确实存在
  *   ⑦ 页面 .ts 里有 `Page(` 调用
+ *   ⑧ components/ 下每个组件的四件套齐全，index.ts 里有 `Component(` 调用，
+ *      index.wxml 的绑定同样校验（组件写错了和页面写错了一样难查）
+ *   ⑨ 所有 `usingComponents` 指向的组件真实存在
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +33,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MP = join(ROOT, 'miniprogram');
 
 const problems = [];
-const stats = { pages: 0, files: 0, bindings: 0, json: 0 };
+const stats = { pages: 0, components: 0, files: 0, bindings: 0, json: 0, refs: 0 };
 
 function fail(msg) {
   problems.push(msg);
@@ -39,16 +43,21 @@ function readText(rel) {
   return readFileSync(join(MP, rel), 'utf8');
 }
 
-function exists(rel) {
+function isFile(abs) {
   try {
-    return statSync(join(MP, rel)).isFile();
+    return statSync(abs).isFile();
   } catch {
     return false;
   }
 }
 
+function exists(rel) {
+  return isFile(join(MP, rel));
+}
+
 /** 递归列出 miniprogram 下所有匹配后缀的文件（相对 MP 的 POSIX 路径） */
 function walk(dir, exts, out = []) {
+  if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
     if (name === 'node_modules' || name === 'miniprogram_npm' || name.startsWith('.')) continue;
     const full = join(dir, name);
@@ -59,6 +68,36 @@ function walk(dir, exts, out = []) {
     }
   }
   return out;
+}
+
+/** wxml 里的事件绑定：bindtap / bind:tap / catchtap / catch:tap */
+const BIND_RE = /(?:bind|catch)[:]?[a-zA-Z]+\s*=\s*"([^"{}]+)"/g;
+
+/**
+ * 校验 wxml 里的事件绑定在 ts 里有没有对应方法。
+ *
+ * 这是整个脚本最值钱的一项：绑定名写错**不会报错**，用户点下去毫无反应，
+ * 开发时也看不出来（页面渲染得好好的）。
+ */
+function checkBindings(wxmlRel, tsRel, wxml, ts) {
+  const re = new RegExp(BIND_RE.source, BIND_RE.flags);
+  let m;
+  const seen = new Set();
+  while ((m = re.exec(wxml)) !== null) {
+    const handler = m[1].trim();
+    if (!handler || seen.has(handler)) continue;
+    seen.add(handler);
+    stats.bindings += 1;
+
+    // ts 里的方法定义：`onFoo(` 或 `async onFoo(`，也兼容 `onFoo:`
+    const defined =
+      new RegExp(`(?:async\\s+)?\\b${handler}\\s*\\(`).test(ts) ||
+      new RegExp(`\\b${handler}\\s*:`).test(ts);
+
+    if (!defined) {
+      fail(`${wxmlRel} 绑定了 ${handler}，但 ${tsRel} 里找不到这个方法（点了不会有反应）`);
+    }
+  }
 }
 
 // =============================================================
@@ -134,9 +173,6 @@ for (const item of tabList) {
 // ⑤⑥⑦ 逐页检查
 // =============================================================
 
-/** wxml 里的事件绑定：bindtap / bind:tap / catchtap / catch:tap */
-const BIND_RE = /(?:bind|catch)[:]?[a-zA-Z]+\s*=\s*"([^"{}]+)"/g;
-
 for (const page of pages) {
   const jsonRel = `${page}.json`;
   if (exists(jsonRel)) {
@@ -159,22 +195,109 @@ for (const page of pages) {
     fail(`${tsRel} 里没有 Page( 或 Component( 调用`);
   }
 
-  const re = new RegExp(BIND_RE.source, BIND_RE.flags);
-  let m;
-  const seen = new Set();
-  while ((m = re.exec(wxml)) !== null) {
-    const handler = m[1].trim();
-    if (!handler || seen.has(handler)) continue;
-    seen.add(handler);
-    stats.bindings += 1;
+  checkBindings(wxmlRel, tsRel, wxml, ts);
+}
 
-    // ts 里的方法定义：`onFoo(` 或 `async onFoo(`，也兼容 `onFoo:`
-    const defined =
-      new RegExp(`(?:async\\s+)?\\b${handler}\\s*\\(`).test(ts) ||
-      new RegExp(`\\b${handler}\\s*:`).test(ts);
+// =============================================================
+// ⑧ 组件
+// =============================================================
+//
+// 组件目录约定与页面不同：**一个组件一个目录**，入口固定叫 index.*
+// （页面是扁平文件 pages/<模块>/<页面>.ts，别把两套记混，见 docs/04 §5.1）
 
-    if (!defined) {
-      fail(`${wxmlRel} 绑定了 ${handler}，但 ${tsRel} 里找不到这个方法（点了不会有反应）`);
+const COMPONENTS_DIR = join(MP, 'components');
+
+/** 找出 components/ 下所有「含 index.json 的目录」 */
+function findComponents(dir, out = [], depth = 0) {
+  if (!existsSync(dir) || depth > 2) return out;
+  const names = readdirSync(dir);
+  if (names.includes('index.json')) {
+    out.push(relative(MP, dir).split('\\').join('/'));
+    return out; // 组件目录内部不再递归
+  }
+  for (const name of names) {
+    if (name.startsWith('.')) continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) findComponents(full, out, depth + 1);
+  }
+  return out;
+}
+
+const components = findComponents(COMPONENTS_DIR);
+
+for (const comp of components) {
+  stats.components += 1;
+
+  for (const ext of REQUIRED_EXT) {
+    const rel = `${comp}/index${ext}`;
+    stats.files += 1;
+    if (!exists(rel)) fail(`组件文件缺失：${rel}（${comp} 会白屏）`);
+  }
+  if (!exists(`${comp}/index.wxss`)) {
+    fail(`组件样式缺失：${comp}/index.wxss（约定每个组件都建 wxss）`);
+  }
+
+  const jsonRel = `${comp}/index.json`;
+  if (exists(jsonRel)) {
+    try {
+      const json = JSON.parse(readText(jsonRel));
+      stats.json += 1;
+      if (json.component !== true) {
+        fail(`${jsonRel} 里缺少 "component": true（会被当成页面处理）`);
+      }
+    } catch (e) {
+      fail(`${jsonRel} 不是合法 JSON：${e.message}`);
+    }
+  }
+
+  const tsRel = `${comp}/index.ts`;
+  const wxmlRel = `${comp}/index.wxml`;
+  if (!exists(tsRel) || !exists(wxmlRel)) continue;
+
+  const ts = readText(tsRel);
+  if (!/\bComponent\s*\(/.test(ts)) {
+    fail(`${tsRel} 里没有 Component( 调用`);
+  }
+
+  checkBindings(wxmlRel, tsRel, readText(wxmlRel), ts);
+}
+
+// =============================================================
+// ⑨ usingComponents 指向的组件是否存在
+// =============================================================
+//
+// 路径写错的表现是「整个页面白屏」，报错还指向组件而不是那一行 json，
+// 非常难查。这里提前把每个引用解析一遍。
+
+const jsonOwners = [...walk(join(MP, 'pages'), ['.json']), ...walk(COMPONENTS_DIR, ['.json'])];
+
+for (const owner of jsonOwners) {
+  let json;
+  try {
+    json = JSON.parse(readText(owner));
+  } catch {
+    continue; // json 合法性已在 ⑤ / ⑧ 报过
+  }
+
+  const uc = json.usingComponents;
+  if (!uc || typeof uc !== 'object') continue;
+
+  for (const [name, spec] of Object.entries(uc)) {
+    if (typeof spec !== 'string' || spec === '') continue;
+    // 插件与 npm 包不在本仓库里，交给构建工具去解析
+    if (spec.startsWith('plugin://')) continue;
+    if (!spec.startsWith('.') && !spec.startsWith('/')) continue;
+
+    stats.refs += 1;
+
+    const base = spec.startsWith('/') ? join(MP, spec) : resolve(dirname(join(MP, owner)), spec);
+
+    const missing = ['.ts', '.wxml', '.json'].filter((ext) => !isFile(base + ext));
+    if (missing.length > 0) {
+      fail(
+        `${owner} 里 usingComponents 的「${name}」指向 ${spec}，` +
+          `缺少 ${missing.join(' / ')}（页面会白屏）`,
+      );
     }
   }
 }
@@ -184,8 +307,8 @@ for (const page of pages) {
 // =============================================================
 
 console.log(
-  `扫描：${stats.pages} 个页面 / ${stats.files} 个必备文件 / ` +
-    `${stats.json} 个合法 json / ${stats.bindings} 处事件绑定`,
+  `扫描：${stats.pages} 个页面 / ${stats.components} 个组件 / ${stats.files} 个必备文件 / ` +
+    `${stats.json} 个合法 json / ${stats.bindings} 处事件绑定 / ${stats.refs} 处组件引用`,
 );
 
 if (problems.length > 0) {
