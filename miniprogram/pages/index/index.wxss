@@ -1,3 +1,10 @@
+/*
+  P01 · 家里
+  视觉规范见 docs/07；颜色只用 variables.wxss 的令牌。
+*/
+
+/* ---------- 家庭抬头 ---------- */
+
 .hero {
   padding: 8px 4px 20px;
 }
@@ -12,30 +19,6 @@
   margin-top: 4px;
   font-size: var(--fs-body);
   color: var(--ink-2);
-}
-
-/* ---------- 未开微信提醒提示条 ---------- */
-
-.notify-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
-  background: var(--brand-soft);
-}
-
-.notify-bar__text {
-  font-size: var(--fs-cap);
-  color: var(--brand-ink);
-}
-
-.notify-bar__action {
-  flex-shrink: 0;
-  margin-left: 12px;
-  font-size: var(--fs-cap);
-  font-weight: 600;
-  color: var(--brand-ink);
 }
 
 /* ---------- 两个高频动作 ---------- */
@@ -84,4 +67,162 @@
   margin-top: 2px;
   font-size: var(--fs-cap);
   color: var(--ink-2);
+}
+
+/* ---------- 骨架屏 ---------- */
+
+.skel {
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.skel__head {
+  width: 88px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.skel__row {
+  height: 44px;
+  margin-top: 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+/* 呼吸：比转圈安静，又能说明「正在来」。整块一起呼吸，别让每一行各闪各的。 */
+.skel__head,
+.skel__row {
+  animation: skelBreath 1.4s ease-in-out infinite;
+}
+
+@keyframes skelBreath {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ---------- 今天没有小事 ---------- */
+
+.quiet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20px;
+  padding: 40px 20px;
+}
+
+.quiet__emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.quiet__title {
+  margin-top: 12px;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.quiet__hint {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ---------- 区块标题 + 「更多」 ---------- */
+
+.sec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 12px;
+}
+
+/* 覆盖 .section-title 自带的上下外边距 —— 间距现在归 .sec 管，
+   否则标题的下外边距会把「更多」推到偏下的位置（两者不在同一基线）。 */
+.sec__title {
+  margin: 0;
+}
+
+.sec__more {
+  flex-shrink: 0;
+  padding-left: 12px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.sec__more:active {
+  opacity: 0.7;
+}
+
+/* ---------- 小事列表 ---------- */
+
+/* 行直接躺在页面背景上，不套白卡片：thing-card 自身就是白底圆角，
+   再套一层白卡片就分不出行与行的界线了（P11 同款结构）。 */
+.rows {
+  margin-top: 0;
+}
+
+.row + .row {
+  margin-top: 8px;
+}
+
+/* ---------- 吃啥呢 / 留个念 ---------- */
+
+.jump {
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.jump:active {
+  opacity: 0.86;
+}
+
+.jump__emoji {
+  flex: 0 0 auto;
+  width: 34px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.jump__main {
+  flex: 1;
+  /* 没有 min-width:0，长的留念文案会把右边的箭头挤出屏幕 */
+  min-width: 0;
+}
+
+.jump__title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.jump__sub {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jump__arrow {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  font-size: 16px;
+  color: var(--ink-3);
 }

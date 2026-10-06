@@ -1,4 +1,8 @@
 {
   "navigationBarTitleText": "家里",
-  "usingComponents": {}
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "thing-card": "/components/thing-card/index"
+  }
 }

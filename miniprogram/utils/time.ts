@@ -134,3 +134,16 @@ export function todayDate(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+/**
+ * 首页抬头的日期行：`9月28日 周一`。
+ *
+ * 刻意不带年份 —— 首页永远只讲「今天」，写「2026年」是废话，
+ * 还会把这一行挤长。
+ */
+export function describeMonthDayWeek(value: string): string {
+  const d = parseBeijingTime(value);
+  if (!d) return '';
+  const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  return `${d.getMonth() + 1}月${d.getDate()}日 周${week}`;
+}

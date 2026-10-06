@@ -1,16 +1,9 @@
+<!-- P01 · 家里（Tab 1）—— 只回答「今天家里有什么事」 -->
 <view class="page">
-  <view class="skeleton-note">骨架预览：下面是真实布局，数据接入在 M1 完成。</view>
-
-  <!-- 家庭抬头 -->
+  <!-- 家庭抬头：纯上下文，不可点（家庭管理在「我的」Tab） -->
   <view class="hero">
     <view class="hero__name">{{familyName}}</view>
-    <view class="hero__sub">今天家里有什么小事？</view>
-  </view>
-
-  <!-- 未开微信提醒提示条 -->
-  <view class="notify-bar" bindtap="onOpenNotifySetting">
-    <text class="notify-bar__text">还没开微信提醒，可能收不到消息</text>
-    <text class="notify-bar__action">去开启</text>
+    <view class="hero__sub">{{dateLine}}</view>
   </view>
 
   <!-- 两个高频动作 -->
@@ -22,18 +15,82 @@
     </view>
     <view class="quick__item quick__item--task" bindtap="onAssign">
       <text class="quick__emoji">🎯</text>
-      <text class="quick__label">派活</text>
+      <text class="quick__label">派个活</text>
       <text class="quick__desc">有人做</text>
     </view>
   </view>
 
-  <!-- 今天的小事 -->
-  <view class="section-title">今天的小事</view>
-  <view class="card">
-    <view class="empty">
-      <text class="empty__emoji">🌿</text>
-      <text class="empty__title">今天家里很安静</text>
-      <text class="empty__hint">有事了，就叮一下</text>
+  <!-- 加载中：骨架块，不用转圈 -->
+  <block wx:if="{{loading}}">
+    <view class="skel">
+      <view class="skel__head"></view>
+      <view class="skel__row"></view>
+      <view class="skel__row"></view>
     </view>
+    <view class="skel">
+      <view class="skel__head"></view>
+      <view class="skel__row"></view>
+    </view>
+  </block>
+
+  <!-- 今天确实没有小事 -->
+  <view wx:elif="{{quiet}}" class="card quiet">
+    <text class="quiet__emoji">📭</text>
+    <text class="quiet__title">今天还没有小事</text>
+    <text class="quiet__hint">要不要先叮一下阿妈？</text>
+  </view>
+
+  <block wx:else>
+    <!-- 今天的提醒 -->
+    <block wx:if="{{reminderRows.length > 0}}">
+      <view class="sec">
+        <view class="section-title sec__title">今天的提醒</view>
+        <view class="sec__more" bindtap="onMoreReminders">更多 ›</view>
+      </view>
+      <view class="rows">
+        <view class="row" wx:for="{{reminderRows}}" wx:key="id">
+          <thing-card
+            item="{{item.card}}"
+            variant="today"
+            showCheck="{{item.canCheck}}"
+            bind:click="onOpenThing"
+            bind:complete="onCompleteReminder"
+          />
+        </view>
+      </view>
+    </block>
+
+    <!-- 最近的活 -->
+    <block wx:if="{{taskRows.length > 0}}">
+      <view class="sec">
+        <view class="section-title sec__title">最近的活</view>
+        <view class="sec__more" bindtap="onMoreTasks">更多 ›</view>
+      </view>
+      <view class="rows">
+        <view class="row" wx:for="{{taskRows}}" wx:key="id">
+          <thing-card item="{{item}}" variant="today" showStatus="{{true}}" bind:click="onOpenThing" />
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <!-- 吃啥呢 -->
+  <view class="jump" bindtap="onMenu">
+    <text class="jump__emoji">🍽️</text>
+    <view class="jump__main">
+      <view class="jump__title">吃啥呢</view>
+      <view class="jump__sub">今天吃什么？</view>
+    </view>
+    <text class="jump__arrow">›</text>
+  </view>
+
+  <!-- 留个念（留念模块 M4 还没做，先显示占位文案） -->
+  <view class="jump" bindtap="onMemory">
+    <text class="jump__emoji">📖</text>
+    <view class="jump__main">
+      <view class="jump__title">留个念</view>
+      <view class="jump__sub">{{memoryPreview}}</view>
+    </view>
+    <text class="jump__arrow">›</text>
   </view>
 </view>
