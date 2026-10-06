@@ -28,10 +28,65 @@ interface WxError {
   errmsg: string;
 }
 
-/** 微信 access_token 在 Redis 里的 key */
+/** 内容安全检测结论 */
+export type SecCheckSuggest = 'pass' | 'review' | 'risky';
+
+/** `msgSecCheck` 的结果 */
+export interface MsgSecCheckResult {
+  /** 微信**是否给出了结论**。`false` = 这次没判断出来（网络 / 凭证 / errcode） */
+  ok: boolean;
+  /** `ok=true` 时一定有值；`ok=false` 时为 null —— 别把 null 当成 pass */
+  suggest: SecCheckSuggest | null;
+  /** 微信给的违规标签（广告 / 时政 / 色情 …），**只用于日志**，不回给用户 */
+  label: number | null;
+  errcode?: number;
+  errmsg?: string;
+}
+
+/** `msgSecCheck` 原始响应（version=2） */
+interface MsgSecCheckResponse {
+  errcode?: number;
+  errmsg?: string;
+  result?: { suggest?: SecCheckSuggest; label?: number };
+  detail?: unknown[];
+  trace_id?: string;
+}
+
+/**
+ * `msgSecCheck` 的场景值（微信文档）。
+ *
+ * 本项目用 `SOCIAL_LOG`：「留个念」的文字是**家人之间的分享**，
+ * 不是公开评论、也不是用户资料。场景值只影响微信的风控口径，
+ * 传错不会报错，但传对了误判更少。
+ */
+export const SEC_CHECK_SCENE = {
+  /** 资料 */
+  PROFILE: 1,
+  /** 评论 */
+  COMMENT: 2,
+  /** 论坛 */
+  FORUM: 3,
+  /** 社交日志 */
+  SOCIAL_LOG: 4,
+} as const;
+
+/** v1 时代用 errcode 表示违规；v2 改放 `result.suggest`，但部分账号仍会以 errcode 返回 */
+const SEC_CHECK_ERRCODE_RISKY = 87014;
+
+/** access_token 在 Redis 里的 key */
 const ACCESS_TOKEN_KEY = 'wechat:mp:access_token';
 /** 微信 access_token 有效期 7200 秒，提前 5 分钟过期避免边界失败 */
 const ACCESS_TOKEN_TTL = 7200 - 300;
+/** 普通微信接口超时 */
+const WX_TIMEOUT_MS = 8000;
+/**
+ * 内容安全检测的超时**故意比别的接口短**。
+ *
+ * 它在「创建一条小事」的同步路径上：微信慢 8 秒，用户就干等 8 秒。
+ * 检测是**辅助能力**（判不了就放行，见 `ContentSecurityService`），
+ * 不值得让家人等 —— 3 秒拿不到结论就直接走。
+ */
+const SEC_CHECK_TIMEOUT_MS = 3000;
 
 @Injectable()
 export class WechatService {
@@ -208,6 +263,91 @@ export class WechatService {
   }
 
   // -------------------------------------------------------------
+  // 内容安全（M2-B9）
+  // -------------------------------------------------------------
+
+  /**
+   * 文本内容安全检测（`security.msgSecCheck`）。
+   *
+   * 小程序审核的硬性要求（docs/01 §六、PRD §18.4）：用户生成文字必须过这一关。
+   *
+   * ⚠️ 但与 `sendSubscribeMessage` 同理 —— **本方法不抛异常**：
+   *    「内容违规」要拦人，「检测本身失败」不该拦人。
+   *    这里只如实返回「判出来了没有、判成什么」，怎么处理交给
+   *    `ContentSecurityService`（那里是唯一的策略点）。
+   *
+   * @param openid  用户的小程序 openid。v2 接口要求传，微信据此做风控。
+   * @param content 待检测文本（微信上限 2500 字，调用方先截断）
+   * @param scene   场景值，见 `SEC_CHECK_SCENE`
+   */
+  async msgSecCheck(params: {
+    openid: string;
+    content: string;
+    scene?: number;
+  }): Promise<MsgSecCheckResult> {
+    const call = async (token: string) => {
+      const url = `https://api.weixin.qq.com/wxa/msg_sec_check?access_token=${encodeURIComponent(token)}`;
+      return this.request<MsgSecCheckResponse>(
+        url,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            version: 2,
+            openid: params.openid,
+            scene: params.scene ?? SEC_CHECK_SCENE.SOCIAL_LOG,
+            content: params.content,
+          }),
+        },
+        'msgSecCheck',
+        SEC_CHECK_TIMEOUT_MS,
+      );
+    };
+
+    try {
+      let token = await this.getAccessToken();
+      let res = await call(token);
+
+      // 40001/42001 = access_token 失效，刷新一次再试
+      if (res.errcode === 40001 || res.errcode === 42001) {
+        this.invalidateAccessToken();
+        token = await this.getAccessToken(true);
+        res = await call(token);
+      }
+
+      // 老接口形态：违规直接给 errcode
+      if (res.errcode === SEC_CHECK_ERRCODE_RISKY) {
+        return { ok: true, suggest: 'risky', label: null };
+      }
+
+      if (res.errcode === 0) {
+        const suggest = res.result?.suggest;
+        if (!suggest) {
+          // errcode=0 却没有结论 —— 属于「没判断出来」，**不要当 pass**
+          this.logger.warn('msgSecCheck 返回 ok 但缺 suggest');
+          return { ok: false, suggest: null, label: null, errmsg: 'missing suggest' };
+        }
+        return { ok: true, suggest, label: res.result?.label ?? null };
+      }
+
+      // 常见：48001 接口未授权（个人主体 / 未开通）、61010 openid 不合法、
+      //       45009 调用超频。都走「判不了」这条路，由调用方决定放不放行。
+      this.logger.warn(`msgSecCheck 失败 errcode=${res.errcode} errmsg=${res.errmsg}`);
+      return {
+        ok: false,
+        suggest: null,
+        label: null,
+        errcode: res.errcode,
+        errmsg: res.errmsg,
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`msgSecCheck 异常: ${msg}`);
+      return { ok: false, suggest: null, label: null, errmsg: msg };
+    }
+  }
+
+  // -------------------------------------------------------------
   // 内部实现
   // -------------------------------------------------------------
 
@@ -230,10 +370,11 @@ export class WechatService {
     url: string,
     init: RequestInit,
     op: string,
+    timeoutMs: number = WX_TIMEOUT_MS,
   ): Promise<T & Partial<WxError>> {
     let res: Response;
     try {
-      res = await fetch(url, { ...init, signal: AbortSignal.timeout(8000) });
+      res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.error(`微信接口 ${op} 网络异常: ${msg}`);

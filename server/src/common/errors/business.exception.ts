@@ -30,6 +30,16 @@ export class BusinessException extends HttpException {
     return new BusinessException(ErrorCode.INVALID_PARAM, message);
   }
 
+  /**
+   * 40002 内容包含敏感词（docs/02 §1.2）。
+   *
+   * 默认文案是「内容需要修改一下」—— **不要**回微信给的理由（label / 命中词），
+   * 那既没帮助又像在指责人。家里人不该被系统审判。
+   */
+  static sensitiveContent(message?: string): BusinessException {
+    return new BusinessException(ErrorCode.SENSITIVE_CONTENT, message);
+  }
+
   /** 40300 不是该家庭成员 */
   static notMember(): BusinessException {
     return new BusinessException(ErrorCode.NOT_FAMILY_MEMBER);
