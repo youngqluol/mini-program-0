@@ -1,0 +1,340 @@
+// =============================================================
+// 《家有小事》Prisma Schema
+// =============================================================
+//
+// ⚠️ 本文件是 `db/schema.sql` 的 **1:1 镜像**，不是第二个真相来源。
+//    改字段请先改 `db/schema.sql`（DDL 唯一真相），再同步到这里。
+//
+// 三条刻意的设计选择，动手改之前请先读完：
+//
+// 1. **不定义 Prisma relation**（只写标量外键列）。
+//    理由：schema.sql 里没有 FOREIGN KEY 约束（配合「全库不物理删除」的
+//    逻辑删除策略）。如果这里定义 relation，`prisma db push` 会**自动补建
+//    外键约束和额外索引**，两个 schema 就开始漂移了 —— 这个项目已经被
+//    「两份定义不一致」坑过好几次，不再冒这个险。
+//    需要 join 时写两次查询：`findMany` 拿 ID 列表 → `findMany({ where: { id: { in } } })`。
+//
+// 2. **时间戳一律用 Prisma 侧默认值**（`@default(now())` / `@updatedAt`），
+//    **不用** `dbgenerated("CURRENT_TIMESTAMP")`。
+//    理由见下方 datasource 注释里的时区说明。
+//
+// 3. **枚举存 TINYINT**，与 `packages/shared/src/enums.ts` 的数值一一对应。
+//    接口层传字符串，转换在 repository 层做一次。
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+
+  // ⚠️ 时区约定（重要，改之前先读 docs/01 §4.3）：
+  //
+  //   Prisma 的 MySQL 连接器**不支持**连接串里的 `?timezone=+08:00`
+  //   （feature request prisma/orm#29517 至今 open，该参数会被静默忽略）。
+  //   它固定按 UTC 处理 DATETIME：
+  //     写：把 Date 按 UTC 格式化成字符串，DATETIME 列原样存这个墙钟串
+  //     读：把 DATETIME 串无条件当作 UTC，构造带 Z 的 Date
+  //
+  //   所以「应用写入 → Prisma 读回」是自洽的，不会差 8 小时；
+  //   但**绕过 Prisma 写入的数据**（raw SQL、MySQL 的 DEFAULT CURRENT_TIMESTAMP）
+  //   如果按 +08:00 落库，读回来就会差 8 小时。
+  //
+  //   结论：**存储层统一 UTC**，北京时间只在接口层格式化输出一次
+  //   （见 `src/common/serialize/beijing-time.ts`）。
+  //   因此：
+  //     - docker-compose 的 MySQL 时区设为 +00:00（不是 +08:00）
+  //     - 时间戳全部由 Prisma 侧生成，不依赖 MySQL 的 CURRENT_TIMESTAMP
+  //     - Node 进程仍设 TZ=Asia/Shanghai，这样格式化时用本地 getter 即得北京时间
+}
+
+// -------------------------------------------------------------
+// 一、用户与家庭
+// -------------------------------------------------------------
+
+/// 用户表。用户是独立于家庭存在的实体，**家庭称谓绝不能放在这里**。
+model User {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  openid      String    @unique(map: "uk_openid") @db.VarChar(64)
+  unionid     String?   @db.VarChar(64)
+  /// 公众号 openid（wxpush 推送用，与小程序 openid 不是同一个值）
+  mpOpenid    String?   @unique(map: "uk_mp_openid") @db.VarChar(64)
+  /// 公众号提醒绑定时间
+  mpBoundAt   DateTime? @map("mp_bound_at") @db.DateTime(0)
+  nickname    String?   @db.VarChar(50)
+  avatarUrl   String?   @map("avatar_url") @db.VarChar(500)
+  /// 1 正常 / 0 禁用
+  status      Int       @default(1) @db.TinyInt
+  lastLoginAt DateTime? @map("last_login_at") @db.DateTime(0)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([unionid], map: "idx_unionid")
+  @@map("users")
+}
+
+/// 家庭表。创建时存在「先建 family → 再建 member → 最后回写 owner」的顺序问题，
+/// 因此 `owner_member_id` 允许为 NULL。
+model Family {
+  id            BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  name          String   @db.VarChar(50)
+  /// 家庭创建者成员ID（回写，允许 NULL）
+  ownerMemberId BigInt?  @map("owner_member_id") @db.UnsignedBigInt
+  /// 1 正常 / 0 已解散
+  status        Int      @default(1) @db.TinyInt
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([ownerMemberId], map: "idx_owner_member")
+  @@map("families")
+}
+
+/// 家庭成员表（核心表）。
+/// 关键设计：`role_name`（称谓）属于「用户 × 家庭」这个关系，不属于用户。
+/// 同一用户在不同家庭可以有不同称谓：我们家→阿爸，爸妈家→儿子。
+model FamilyMember {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  familyId  BigInt    @map("family_id") @db.UnsignedBigInt
+  userId    BigInt    @map("user_id") @db.UnsignedBigInt
+  /// 家庭称谓，例如：阿爸、阿妈、阿公、阿嬷
+  roleName  String    @map("role_name") @db.VarChar(30)
+  /// 1 正常 / 0 已退出
+  status    Int       @default(1) @db.TinyInt
+  joinedAt  DateTime  @default(now()) @map("joined_at") @db.DateTime(0)
+  leftAt    DateTime? @map("left_at") @db.DateTime(0)
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@unique([familyId, userId], map: "uk_family_user")
+  @@index([userId], map: "idx_user_id")
+  @@index([familyId], map: "idx_family_id")
+  @@map("family_members")
+}
+
+/// 家庭邀请表。`used_by_*` 用于追溯「谁用了这个邀请码」。
+model FamilyInvite {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  familyId         BigInt    @map("family_id") @db.UnsignedBigInt
+  inviterMemberId  BigInt    @map("inviter_member_id") @db.UnsignedBigInt
+  inviteCode       String    @unique(map: "uk_invite_code") @db.VarChar(32)
+  expireAt         DateTime? @map("expire_at") @db.DateTime(0)
+  usedAt           DateTime? @map("used_at") @db.DateTime(0)
+  usedByUserId     BigInt?   @map("used_by_user_id") @db.UnsignedBigInt
+  usedByMemberId   BigInt?   @map("used_by_member_id") @db.UnsignedBigInt
+  /// 1 有效 / 2 已使用 / 3 已过期 / 4 已取消
+  status           Int       @default(1) @db.TinyInt
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([familyId], map: "idx_family_id")
+  @@index([status, expireAt], map: "idx_status_expire")
+  @@map("family_invites")
+}
+
+// -------------------------------------------------------------
+// 二、核心事务：小事（派活 / 叮一下）
+// -------------------------------------------------------------
+
+/// 家庭小事表（整个系统最核心的表）。
+/// 前端永远不出现「小事」这个词，用户只看到 🎯派活 / 🔔叮一下。
+/// type=1 TASK 派活，type=2 REMINDER 叮一下。
+model FamilyThing {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  familyId            BigInt    @map("family_id") @db.UnsignedBigInt
+  /// 创建人（派活人 / 提醒发起人）
+  creatorMemberId     BigInt    @map("creator_member_id") @db.UnsignedBigInt
+  /// 1 任务（派活） / 2 提醒（叮一下）
+  type                Int       @db.TinyInt
+  /// 小事标题，例如：买牛奶
+  title               String    @db.VarChar(200)
+  /// 详细内容 / 备注
+  content             String?   @db.VarChar(1000)
+  /// 执行人 / 提醒对象
+  assigneeMemberId    BigInt?   @map("assignee_member_id") @db.UnsignedBigInt
+  /// 1 家庭可见 / 2 仅相关人员可见（叮一下默认）
+  visibility          Int       @default(1) @db.TinyInt
+  /// 1 待处理 / 2 已完成 / 3 已取消
+  status              Int       @default(1) @db.TinyInt
+  /// 要求完成时间（不限时间则为 NULL）
+  dueAt               DateTime? @map("due_at") @db.DateTime(0)
+  /// 0 不重复 / 1 每天 / 2 每周 / 3 每月 / 4 自定义（V0.2 开放）
+  recurrenceType      Int       @default(0) @map("recurrence_type") @db.TinyInt
+  /// 重复规则，例如 {"weekdays":[6],"time":"09:00"}
+  recurrenceConfig    Json?     @map("recurrence_config")
+  /// 由哪条重复任务生成（追溯重复链）
+  sourceThingId       BigInt?   @map("source_thing_id") @db.UnsignedBigInt
+  completedAt         DateTime? @map("completed_at") @db.DateTime(0)
+  completedByMemberId BigInt?   @map("completed_by_member_id") @db.UnsignedBigInt
+  cancelledAt         DateTime? @map("cancelled_at") @db.DateTime(0)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([familyId, status, dueAt], map: "idx_family_status_due")
+  @@index([familyId, type, createdAt], map: "idx_family_type_created")
+  @@index([assigneeMemberId, status], map: "idx_assignee_status")
+  @@index([creatorMemberId], map: "idx_creator")
+  @@index([sourceThingId], map: "idx_source_thing")
+  @@map("family_things")
+}
+
+/// 提醒表。一条小事可以有 0..n 条提醒，支持立即叮 / 定时叮 / 重复叮。
+model ThingReminder {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  thingId           BigInt    @map("thing_id") @db.UnsignedBigInt
+  /// 提醒对象（接收人）
+  recipientMemberId BigInt    @map("recipient_member_id") @db.UnsignedBigInt
+  /// 1 立即 / 2 定时
+  remindType        Int       @map("remind_type") @db.TinyInt
+  /// 提醒时间（定时时必填）
+  remindAt          DateTime? @map("remind_at") @db.DateTime(0)
+  /// 0 不重复 / 1 每天 / 2 每周 / 3 每月 / 4 自定义
+  recurrenceType    Int       @default(0) @map("recurrence_type") @db.TinyInt
+  recurrenceConfig  Json?     @map("recurrence_config")
+  /// 1 待发送 / 2 已发送 / 3 已取消
+  status            Int       @default(1) @db.TinyInt
+  /// 累计发送次数
+  sentCount         Int       @default(0) @map("sent_count") @db.UnsignedInt
+  lastSentAt        DateTime? @map("last_sent_at") @db.DateTime(0)
+  /// 下一次触发时间（调度扫描用）
+  nextRemindAt      DateTime? @map("next_remind_at") @db.DateTime(0)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([nextRemindAt, status], map: "idx_next_remind")
+  @@index([thingId], map: "idx_thing_id")
+  @@index([recipientMemberId], map: "idx_recipient")
+  @@map("thing_reminders")
+}
+
+// -------------------------------------------------------------
+// 三、吃啥呢
+// -------------------------------------------------------------
+
+/// 菜单表。
+/// 【v0.2 变更】系统默认菜谱改为写死在代码常量里
+/// （`miniprogram/config/default-menu.ts`，约 60-80 条），
+/// 第一次打开即可用、零配置，不再往这张表塞系统数据。
+/// 因此 V0.1 本表只承载「家庭自定义菜谱」，`family_id` 恒非空。
+/// 字段仍保留 NULL 语义，为 V0.3「联网菜谱库 / AI 推荐」预留。
+model MenuItem {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  /// NULL 表示系统菜谱（V0.1 不会出现）
+  familyId          BigInt?  @map("family_id") @db.UnsignedBigInt
+  name              String   @db.VarChar(100)
+  /// 分类，例如：家常菜、汤、主食
+  category          String?  @db.VarChar(50)
+  imageUrl          String?  @map("image_url") @db.VarChar(500)
+  /// 1 启用 / 0 停用
+  enabled           Int      @default(1) @db.TinyInt
+  /// 排序，越小越靠前
+  sortNo            Int      @default(0) @map("sort_no")
+  createdByMemberId BigInt?  @map("created_by_member_id") @db.UnsignedBigInt
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([familyId, enabled], map: "idx_family_enabled")
+  @@index([category], map: "idx_category")
+  @@map("menu_items")
+}
+
+/// 用餐记录表。
+/// 冗余 `name` 的原因：菜单可能被停用，但「9月26日晚餐吃了番茄炒蛋」
+/// 这个历史事实必须永久保留。
+model MealRecord {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  familyId          BigInt   @map("family_id") @db.UnsignedBigInt
+  /// 允许为空，支持记录自定义菜
+  menuItemId        BigInt?  @map("menu_item_id") @db.UnsignedBigInt
+  mealDate          DateTime @map("meal_date") @db.Date
+  /// 1 早餐 / 2 午餐 / 3 晚餐 / 4 其他
+  mealType          Int      @map("meal_type") @db.TinyInt
+  /// 最终菜名（历史快照）
+  name              String   @db.VarChar(100)
+  createdByMemberId BigInt   @map("created_by_member_id") @db.UnsignedBigInt
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(0)
+
+  @@index([familyId, mealDate], map: "idx_family_date")
+  @@index([menuItemId], map: "idx_menu_item")
+  @@map("meal_records")
+}
+
+// -------------------------------------------------------------
+// 四、留个念
+// -------------------------------------------------------------
+
+/// 家庭记录表。
+/// 【v0.2 新增】`thing_id`：关联「完成一件小事后顺手记的念」。
+///   NULL    = 独立留念（随手记一笔）
+///   非 NULL = 完成纪念（PRD 第十九章）
+model FamilyMemory {
+  id              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  familyId        BigInt   @map("family_id") @db.UnsignedBigInt
+  creatorMemberId BigInt   @map("creator_member_id") @db.UnsignedBigInt
+  content         String   @db.Text
+  thingId         BigInt?  @map("thing_id") @db.UnsignedBigInt
+  /// 1 家庭可见 / 2 仅自己可见（注意与 family_things.visibility 语义不同）
+  visibility      Int      @default(1) @db.TinyInt
+  /// 1 正常 / 0 已删除
+  status          Int      @default(1) @db.TinyInt
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@index([familyId, status, createdAt], map: "idx_family_created")
+  @@index([creatorMemberId], map: "idx_creator")
+  @@index([thingId], map: "idx_thing_id")
+  @@map("family_memories")
+}
+
+/// 家庭记录附件表。V0.1 只支持图片，视频不做。
+model MemoryAttachment {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  memoryId  BigInt   @map("memory_id") @db.UnsignedBigInt
+  fileUrl   String   @map("file_url") @db.VarChar(500)
+  /// 例如：image/jpeg
+  fileType  String?  @map("file_type") @db.VarChar(30)
+  /// 字节
+  fileSize  Int?     @map("file_size") @db.UnsignedInt
+  width     Int?     @db.UnsignedInt
+  height    Int?     @db.UnsignedInt
+  sortNo    Int      @default(0) @map("sort_no")
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(0)
+
+  @@index([memoryId], map: "idx_memory_id")
+  @@map("memory_attachments")
+}
+
+// -------------------------------------------------------------
+// 五、通知
+// -------------------------------------------------------------
+
+/// 通知记录表。必须有这张表 —— 未来排查「为什么阿爸没收到通知」全靠它。
+model NotificationLog {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  /// 接收用户ID
+  userId       BigInt    @map("user_id") @db.UnsignedBigInt
+  familyId     BigInt?   @map("family_id") @db.UnsignedBigInt
+  thingId      BigInt?   @map("thing_id") @db.UnsignedBigInt
+  /// 1 派活通知 / 2 叮一下提醒 / 3 完成回执 / 4 加入家庭 / 5 系统
+  type         Int       @db.TinyInt
+  title        String    @db.VarChar(200)
+  content      String?   @db.VarChar(1000)
+  /// 1 微信订阅消息 / 2 站内消息 / 3 公众号模板消息(wxpush)
+  channel      Int       @default(1) @db.TinyInt
+  /// 渠道1为订阅消息模板ID，渠道3为公众号模板ID
+  templateId   String?   @map("template_id") @db.VarChar(64)
+  /// 1 待发送 / 2 发送成功 / 3 发送失败 / 4 无订阅额度跳过 / 5 未绑定提醒跳过
+  status       Int       @default(1) @db.TinyInt
+  retryCount   Int       @default(0) @map("retry_count") @db.TinyInt
+  sentAt       DateTime? @map("sent_at") @db.DateTime(0)
+  /// 微信返回错误码，例如 43101
+  errorCode    String?   @map("error_code") @db.VarChar(32)
+  errorMessage String?   @map("error_message") @db.VarChar(1000)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+
+  @@index([userId, createdAt], map: "idx_user_created")
+  @@index([status], map: "idx_status")
+  @@index([thingId], map: "idx_thing_id")
+  @@map("notification_logs")
+}
