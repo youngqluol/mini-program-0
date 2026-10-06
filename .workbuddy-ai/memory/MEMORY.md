@@ -6,12 +6,14 @@
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
 **进度（2026-10-06）：M0 ✅ / M1 ✅ / M2 进行中**
 - 后端 B1–B26 全部收口（只剩 **B23 云托管 Cron 配置**，需用户在控制台操作）。
-- 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P09 + **P10 详情 / P11 我的小事 /
-  P01 首页 / P12 消息中心** 已完成 → **核心闭环四个方向都点通了**：首页 → 叮一下 / 派活 → 列表 → 详情 → 完成。
-- 剩余：**P20「我的」Tab（M2-F2）→ P21 微信提醒（M2-F1）**；
-  M2-F3 / M2-F14 明确不做（都已记入 `docs/未来需求池.md`）。
-- **P12 留给 P20 的一件事**：未读数角标挂到底部「我的」Tab
-  （`wx.setTabBarBadge`，在 `onShow` 里用 `notifyApi.unreadCount()` 刷）。
+- 小程序端：4 个共用组件 + `services/` 接口封装 + P04–P12 + **P20「我的」Tab** 已完成 →
+  **核心闭环四个方向都点通了**（首页 → 叮一下 / 派活 → 列表 → 详情 → 完成），
+  消息中心与「我的」也都在了，**4 个 Tab 全部有内容**。
+- 剩余：**只剩 P21 微信提醒（M2-F1）**；M2-F3 / M2-F14 明确不做（都已记入 `docs/未来需求池.md`）。
+- **P20 刻意不露出的三样**（都写进了代码文件头 + 未来需求池）：
+  ① 微信提醒那一行（要跳 P21，随 M2-F1 一起加）；② 隐私政策；③ 注销账号。
+  后两样是**上线前**的事（`docs/06` §4.6 / §264），注销还需要后端删除链路。
+  共同理由：**挂一个点了没反应的入口，比暂时不挂更糟**。
 - 还欠用户侧动作：**M1 真机验收**、**M2-B23 云托管 Cron**、Worker 4 个 secret +
   `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN`、用真实 openid 跑 `tools/probe-subscribe.mjs` 验 47003。
 信息架构（v0.2）：底部 4 Tab = 家里 / 吃啥呢 / 留个念 / 我的。家庭管理在「我的」，为 V0.2 家庭切换预留。
@@ -178,10 +180,19 @@
   就变成**监督**了。已记入 `docs/未来需求池.md` 并写明「不要做」。
 - 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
   原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
-- **P12 未读角标是 P20 的活** —— 消息中心页内已显示未读条，但底部「我的」Tab 的
-  角标（`wx.setTabBarBadge`）要 P20 在 `onShow` 里用 `notifyApi.unreadCount()` 刷。
-  角标只在 > 0 时 `wx.setTabBarBadge`，为 0 用 `wx.removeTabBarBadge`（别传空串，
-  行为未实测）。
+- **P20 底部 Tab 不补图标** —— `app.json` 的 `tabBar.list` 四项都只有 `text`。
+  微信允许纯文字 tabBar（合法），要补得放 8 张 PNG，而 `assets/` 至今是空的，
+  且线性图标与「emoji 装粉彩 squircle」是两套视觉语言。这是**打磨**不是**通路**，
+  验收标准是「4 个 Tab 都能切换，未读角标正常」。
+- **微信昵称 / 头像授权未做** —— `AuthUser.nickname` 一直是 null，所以 P20 抬头大字
+  显示的是家庭称谓（`buildMineProfile` 里「大字已经是称谓时小字不重复它」就是为这个写的）。
+  影响有限：家里认的是称谓。已记入 `docs/未来需求池.md`。
+- **后端 `leave()` 的报错文案含「转给别人」，但转让创建者功能不存在** ——
+  P20 已绕开（创建者看不到「退出家庭」按钮），但服务端那句话是**不实陈述**。
+  已记入 `docs/未来需求池.md`，V0.2 做家庭管理时一并处理。
+- **P21 开始前要先定「二维码从哪来」** —— `MP_QRCODE_URL` 是 **wxpush Worker 的环境变量**，
+  小程序侧没有对应配置；`MpBindStatus` 里也**没有二维码字段**。
+  要么在 `miniprogram/config.ts` 加常量，要么把图片放进 `assets/`（目前是空的）。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
   与 `MP_QRCODE_URL` 待用户配；`MP_CALLBACK_TOKEN` 待云托管部署后配。
 
@@ -208,7 +219,7 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
 | `check-shared.mjs` | 小程序侧常量镜像防漂移（`ErrorCode` 数值 + `DELIVERY_TOAST` 文案） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
 | `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用） | 改了页面或组件后 |
-| `test-view.mjs` | **展示模型层的行为断言**（**80 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18） | 改了 `utils/thing-view.ts` 或 `utils/notice-view.ts` 后 |
+| `test-view.mjs` | **展示模型层的行为断言**（**105 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25） | 改了 `utils/thing-view.ts` / `utils/notice-view.ts` / `utils/mine-view.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
 | `probe-subscribe.mjs` | 实探订阅消息，看微信**原始 errcode** | 排查 47003 / 43101 时 |
@@ -335,6 +346,25 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   `title`，而后端原本把 `title` 写死成「提醒你一下」这种不含事项名的短语 →
   20 条通知长得一模一样，**这一页等于白做**。改成 `withWhat(from, action, what)` 拼出
   「阿妈 派了个活：买酱油」。**展示层字段的措辞属于实现责任**，不是「先随便写、以后再说」。
+- **`utils/*-view.ts` 必须保持纯函数**（不碰 `wx.*`），有副作用的东西单独放
+  （如 `utils/tab-badge.ts`）。**这不是洁癖**：一旦混进 `wx.`，`test-view.mjs` 在
+  `require` 编译产物时会直接炸（node 里没有 `wx` 全局），**连小事 / 通知那两套断言一起废掉**。
+- **未读角标三件事**（`utils/tab-badge.ts`）：
+  ① `count = 0` 要**显式** `removeTabBarBadge` —— 只调 `setTabBarBadge` 的话，
+  角标会一直停在最后一个数字上；② 超过 99 说「99+」（微信的角标最多显示 4 个字符，
+  再多会截成「前 3 个字符 + …」）；③ 数字一律 `Math.floor` —— 2.7 条未读显示成 3 条
+  是**凭空多报**。只在「我的」Tab 的 `onShow` 里刷：我的未读数只会因为**别人**做了事
+  而变化，本地没有触发点，想实时只能轮询，不值当。
+- **跨文件耦合的「静默失败」要配一个自查项。** `MINE_TAB_INDEX = 3` 与 `app.json` 的
+  `tabBar.list` 是耦合关系，挂错 Tab **不报错、不白屏**，只是红点出现在别的栏上 →
+  `check-mp.mjs` 检查项 ⑩ 比对两者，**并且要反向验证**（改成 2 看脚本会不会报）。
+  同类：`swipe-cell` 的 `ACTION_WIDTH = 84` 与 `.swipe__action { width: 84px }`。
+- **「挂一个点了没反应的入口，比暂时不挂更糟」** —— 这条原则已经用过三次：
+  M2-F3 首页提示条、P20 的微信提醒那一行、P20 的隐私政策 / 注销账号。
+  判断方法：问「用户点下去会发生什么」。如果答案是「什么都不发生」或「一句敷衍的 toast」，
+  那就先不挂，把理由写进代码文件头 + `docs/未来需求池.md`。
+  ⚠️ **但不要把「先不做」当成默认**：信息不能丢 —— 比如「还没开微信提醒」，
+  P20 不挂那一行，是因为 P12 消息中心已经在送达失败时告诉用户了。
 
 ## 设计风格
 v1.0「柔光粉彩」，完整规范见 `docs/07`。主色粉桃渐变 `#FF9DB4 → #FFB59B`，背景 `#FDF6F7`，
