@@ -1,0 +1,24 @@
+<!--
+  重复规则选择器（P09 派活 / P08 叮一下 共用）
+
+  三段：不重复 / 每周 / 每月。**没有「每天」** —— PRD §6.3 明确 V0.1 不做
+  （一年 365 次，订阅额度撑不住；且高频重复实质上接近「自动催办」）。
+
+  周几 / 几号与时刻是**从 `baseAt` 推出来的**，不让用户再选一遍：
+  用户已经用「什么时候」说清了「周六 09:00」，再问一次「周几？」是重复劳动，
+  而且两次可能答得不一样。
+-->
+<view class="rpick {{disabled ? 'rpick--off' : ''}}">
+  <view class="rpick__seg">
+    <view
+      wx:for="{{options}}"
+      wx:key="key"
+      class="rpick__seg-item {{item.key === value ? 'rpick__seg-item--on' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="onPick"
+    >{{item.label}}</view>
+  </view>
+
+  <view wx:if="{{disabled}}" class="rpick__hint">定了时间才能重复</view>
+  <view wx:elif="{{hint}}" class="rpick__hint">{{hint}}</view>
+</view>

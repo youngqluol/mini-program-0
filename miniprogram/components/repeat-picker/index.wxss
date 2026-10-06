@@ -1,0 +1,44 @@
+/* 重复规则选择器 —— 分段控件见 docs/07 §6.6 */
+
+:host {
+  display: block;
+}
+
+.rpick--off {
+  opacity: 0.55;
+}
+
+.rpick__seg {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.rpick__seg-item {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-body);
+  color: var(--ink-2);
+}
+
+.rpick__seg-item:active {
+  opacity: 0.7;
+}
+
+.rpick__seg-item--on {
+  background: linear-gradient(135deg, #ff9db4 0%, #ffb59b 100%);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.rpick__hint {
+  margin-top: 8px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
