@@ -1,0 +1,58 @@
+/**
+ * 全局设计令牌 —— 柔光粉彩
+ * 唯一来源：docs/07-视觉设计规范.md §11.1
+ *
+ * ⚠️ 注意：
+ *   1. 小程序 WXSS **不支持把渐变函数存进 CSS 变量**，需要渐变的地方直接写字面量：
+ *      background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+ *   2. 换肤时只需要改这里的 5 个品牌令牌 + 全局替换渐变字面量，页面结构完全不动。
+ */
+page {
+  /* ---------- 品牌 ---------- */
+  --brand-1: #FF9DB4;
+  --brand-2: #FFB59B;
+  --brand-ink: #F97E9B;
+  --brand-soft: #FFEEF2;
+  --brand-soft-2: #FFF4F6;
+
+  /* ---------- 中性 ---------- */
+  --bg: #FDF6F7;
+  --surface: #FFFFFF;
+  --surface-2: #F8F2F9;
+  --ink-1: #1F1F1F;
+  --ink-2: #6B6B70;
+  --ink-3: #9B9B9B;
+  --line: #F5EDEF;
+
+  /* ---------- 语义 ---------- */
+  --success: #5CB87F;
+  --warning: #F5A623;
+  --danger: #F2637B;
+
+  /* ---------- 模块粉彩 ---------- */
+  --pastel-pink: #FFE4EA;
+  --pastel-peach: #FFEFE0;
+  --pastel-yellow: #FFF6DC;
+  --pastel-purple: #EDE9F7;
+  --pastel-green: #E3F3E6;
+  --pastel-blue: #E3F0FB;
+
+  /* ---------- 圆角 ---------- */
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --radius-tile: 18px;
+  --radius-pill: 999px;
+
+  /* ---------- 阴影（粉调，禁用灰阴影） ---------- */
+  --shadow-card: 0 4px 18px rgba(255, 150, 170, 0.10);
+  --shadow-float: 0 8px 24px rgba(255, 150, 170, 0.22);
+
+  /* ---------- 字号 ---------- */
+  --fs-display: 34px;
+  --fs-h1: 26px;
+  --fs-h2: 17px;
+  --fs-h3: 15px;
+  --fs-body: 14px;
+  --fs-cap: 12px;
+}

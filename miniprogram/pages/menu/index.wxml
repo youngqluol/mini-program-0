@@ -1,0 +1,18 @@
+<view class="page">
+  <view class="skeleton-note">骨架预览：随机决策在 M3 接入。</view>
+
+  <view class="wheel">
+    <view class="wheel__question">今天吃什么？</view>
+    <view class="wheel__dish">{{dish || '？'}}</view>
+    <view class="btn-primary wheel__btn" bindtap="onRoll">转一转</view>
+  </view>
+
+  <view class="section-title">最近吃过</view>
+  <view class="card">
+    <view class="empty">
+      <text class="empty__emoji">🍽️</text>
+      <text class="empty__title">还没有记录</text>
+      <text class="empty__hint">决定吃什么之后，这里会留下记录</text>
+    </view>
+  </view>
+</view>

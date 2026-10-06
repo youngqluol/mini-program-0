@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2020"],
+    "strict": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "removeComments": false,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared": ["../packages/shared/src/index"],
+      "@shared/*": ["../packages/shared/src/*"],
+      "@/*": ["./*"]
+    },
+    "types": ["miniprogram-api-typings"]
+  },
+  "include": ["./**/*.ts", "../packages/shared/src/**/*.ts"],
+  "exclude": ["node_modules", "miniprogram_npm"]
+}

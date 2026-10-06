@@ -1,0 +1,164 @@
+/**
+ * 全局样式
+ * 令牌定义见 styles/variables.wxss（唯一来源：docs/07 §11.1）
+ */
+@import './styles/variables.wxss';
+
+page {
+  background: var(--bg);
+  color: var(--ink-1);
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   布局
+   ============================================================ */
+
+.page {
+  /* 大屏（iPad / 微信 PC 端）下约束内容宽度并居中，避免内容被拉宽。
+     480px > 最大手机宽度（iPhone Pro Max 约 430pt），手机端不受影响。
+     单位选择理由见 docs/07 §5.2。 */
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   卡片
+   ============================================================ */
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.card + .card {
+  margin-top: 14px;
+}
+
+.card--tight {
+  padding: 16px;
+}
+
+/* ============================================================
+   区块标题（粉色小竖条，不用 emoji）
+   ============================================================ */
+
+.section-title {
+  display: flex;
+  align-items: center;
+  margin: 20px 0 12px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.section-title::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--brand-1) 0%, var(--brand-2) 100%);
+}
+
+/* ============================================================
+   按钮
+   ============================================================ */
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+  color: #ffffff;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  box-shadow: var(--shadow-float);
+}
+
+.btn-primary:active {
+  opacity: 0.86;
+}
+
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+
+.btn-ghost:active {
+  opacity: 0.86;
+}
+
+/* ============================================================
+   胶囊标签
+   ============================================================ */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-cap);
+}
+
+/* ============================================================
+   空状态
+   ============================================================ */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.empty__emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.empty__title {
+  margin-top: 12px;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.empty__hint {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* ============================================================
+   骨架期提示条（M1 完成后删除）
+   ============================================================ */
+
+.skeleton-note {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--pastel-yellow);
+  color: #8a6d1f;
+  font-size: var(--fs-cap);
+  line-height: 1.5;
+}

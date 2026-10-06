@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/menu/index",
+    "pages/memory/index",
+    "pages/mine/index"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "backgroundColor": "#FDF6F7",
+    "navigationBarBackgroundColor": "#FDF6F7",
+    "navigationBarTitleText": "家有小事",
+    "navigationBarTextStyle": "black"
+  },
+  "tabBar": {
+    "color": "#9B9B9B",
+    "selectedColor": "#F97E9B",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "家里"
+      },
+      {
+        "pagePath": "pages/menu/index",
+        "text": "吃啥呢"
+      },
+      {
+        "pagePath": "pages/memory/index",
+        "text": "留个念"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

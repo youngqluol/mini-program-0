@@ -1,0 +1,87 @@
+.hero {
+  padding: 8px 4px 20px;
+}
+
+.hero__name {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.hero__sub {
+  margin-top: 4px;
+  font-size: var(--fs-body);
+  color: var(--ink-2);
+}
+
+/* ---------- 未开微信提醒提示条 ---------- */
+
+.notify-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+}
+
+.notify-bar__text {
+  font-size: var(--fs-cap);
+  color: var(--brand-ink);
+}
+
+.notify-bar__action {
+  flex-shrink: 0;
+  margin-left: 12px;
+  font-size: var(--fs-cap);
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+/* ---------- 两个高频动作 ---------- */
+
+.quick {
+  display: flex;
+  margin-top: 14px;
+}
+
+.quick__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.quick__item:active {
+  opacity: 0.86;
+}
+
+.quick__item--nudge {
+  background: var(--pastel-pink);
+}
+
+.quick__item--task {
+  background: var(--pastel-peach);
+  margin-left: 14px;
+}
+
+.quick__emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.quick__label {
+  margin-top: 10px;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.quick__desc {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+}

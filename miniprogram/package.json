@@ -1,0 +1,16 @@
+{
+  "name": "@jyss/miniprogram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "家有小事 · 小程序端（原生微信小程序 + TypeScript）",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jyss/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "miniprogram-api-typings": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}

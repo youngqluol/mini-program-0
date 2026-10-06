@@ -1,0 +1,15 @@
+<view class="page">
+  <view class="skeleton-note">骨架预览：图片发布在 M4 接入。</view>
+
+  <view class="section-title">家里的时间线</view>
+
+  <view class="card">
+    <view class="empty">
+      <text class="empty__emoji">📖</text>
+      <text class="empty__title">还没有记录</text>
+      <text class="empty__hint">值得记下来的事，都放这儿</text>
+    </view>
+  </view>
+
+  <view class="btn-primary memory__add" bindtap="onCreate">✨ 记一件</view>
+</view>
