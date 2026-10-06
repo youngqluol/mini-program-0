@@ -12,6 +12,7 @@
     "pages/family/invite",
     "pages/family/setting",
     "pages/family/set-role",
+    "pages/nudge/create",
     "pages/task/create"
   ],
   "window": {

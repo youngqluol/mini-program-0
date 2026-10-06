@@ -1,0 +1,69 @@
+<!-- P08 · 叮一下 -->
+<view class="page">
+  <view class="card">
+    <!-- 叮谁 -->
+    <view class="field">
+      <view class="field__label">叮谁？</view>
+      <member-picker
+        wx:if="{{others.length}}"
+        list="{{others}}"
+        selectedId="{{recipientMemberId}}"
+        bind:select="onPickRecipient"
+      />
+      <view wx:else class="field__hint">家里现在只有你一个人，先邀请家人进来吧</view>
+    </view>
+
+    <!-- 叮什么 -->
+    <view class="field">
+      <view class="field__label">叮什么？</view>
+      <view class="nudge__to">{{recipientName ? '将发送给：' + recipientName : '还没选叮谁'}}</view>
+      <textarea
+        class="field__textarea"
+        value="{{content}}"
+        maxlength="200"
+        auto-height
+        focus="{{autoFocus}}"
+        placeholder="明天记得给宝宝带水杯"
+        placeholder-class="field__placeholder"
+        bindinput="onContentInput"
+        bindblur="onContentBlur"
+      />
+    </view>
+
+    <!-- 什么时候叮 -->
+    <view class="field">
+      <view class="field__label">什么时候叮？</view>
+      <view class="seg">
+        <view
+          class="seg__item {{mode === 'NOW' ? 'seg__item--on' : ''}}"
+          data-mode="NOW"
+          bindtap="onPickMode"
+        >现在就叮</view>
+        <view
+          class="seg__item {{mode === 'SCHEDULED' ? 'seg__item--on' : ''}}"
+          data-mode="SCHEDULED"
+          bindtap="onPickMode"
+        >定时叮</view>
+      </view>
+      <view wx:if="{{mode === 'SCHEDULED'}}" class="nudge__when">
+        <time-picker value="{{whenAt}}" bind:change="onWhenChange" />
+      </view>
+    </view>
+
+    <!-- 要不要重复 -->
+    <view class="field field--last">
+      <view class="field__label">要不要重复？</view>
+      <repeat-picker
+        value="{{repeatType}}"
+        baseAt="{{mode === 'SCHEDULED' ? whenAt : ''}}"
+        disabled="{{mode !== 'SCHEDULED' || !whenAt}}"
+        bind:change="onRepeatChange"
+      />
+    </view>
+  </view>
+
+  <view
+    class="btn-primary nudge__submit {{submitting ? 'nudge__submit--off' : ''}}"
+    bindtap="onSubmit"
+  >{{submitting ? '正在叮…' : '叮 一 下'}}</view>
+</view>

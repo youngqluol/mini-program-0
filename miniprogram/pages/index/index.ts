@@ -28,12 +28,12 @@ Page({
 
   /** 🔔 叮一下 —— P08 */
   onNudge() {
-    wx.showToast({ title: '这个功能正在做，很快就好', icon: 'none' });
+    wx.navigateTo({ url: '/pages/nudge/create' });
   },
 
   /** 🎯 派活 —— P09 */
   onAssign() {
-    wx.showToast({ title: '这个功能正在做，很快就好', icon: 'none' });
+    wx.navigateTo({ url: '/pages/task/create' });
   },
 
   /** 去开启微信提醒 —— P21 */
