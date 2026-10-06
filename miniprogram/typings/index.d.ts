@@ -7,11 +7,13 @@
 
 interface IAppOption {
   globalData: {
-    /** 登录态 token；未登录为空串 */
-    token: string
-    /** 当前家庭 ID；未加入任何家庭时为 undefined */
-    currentFamilyId?: number
-    /** 后端 baseURL（本地开发指向 http://localhost:3000） */
-    baseUrl: string
-  }
+    /**
+     * 冷启动时间戳（毫秒）。
+     *
+     * ⚠️ `globalData` 只放**排查用**的数据。业务状态一律走 store：
+     *    登录态 → `stores/user.ts`；环境配置 → `config.ts`。
+     *    往 globalData 里塞业务数据会让「谁改了它」变得不可追踪。
+     */
+    launchAt: number;
+  };
 }
