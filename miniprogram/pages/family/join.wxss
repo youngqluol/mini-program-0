@@ -1,0 +1,80 @@
+/* P06 · 加入家庭 */
+
+.join__hero {
+  padding: 28px 0 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* emoji 装粉彩 squircle 色块（docs/07 §6.3） */
+.join__logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--pastel-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  line-height: 1;
+  box-shadow: var(--shadow-card);
+}
+
+.join__title {
+  margin-top: 16px;
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.join__sub {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* 邀请码要手抄/口述，字距拉开更好认（字符集已去掉 0/O/1/I/L） */
+.join__code {
+  height: 38px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 6px;
+}
+
+.join__submit {
+  margin-top: 24px;
+}
+
+.join__submit--busy {
+  opacity: 0.7;
+}
+
+.join__hint {
+  margin-top: 18px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.join__alt {
+  margin-top: 20px;
+  text-align: center;
+  font-size: var(--fs-body);
+  color: var(--brand-ink);
+}
+
+/* ---------- 家庭预览卡 ---------- */
+
+.preview__name {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.preview__meta {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+}

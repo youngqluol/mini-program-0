@@ -1,0 +1,49 @@
+<!-- P05 · 创建家庭 -->
+<view class="page create">
+  <view class="create__hero">
+    <view class="create__logo">🏡</view>
+    <view class="create__title">先把家建起来</view>
+    <view class="create__sub">以后家里的小事，都在这里说</view>
+  </view>
+
+  <view class="card">
+    <view class="field">
+      <view class="field__label">家的名字</view>
+      <input
+        class="field__input"
+        value="{{familyName}}"
+        placeholder="例如：我们家"
+        placeholder-class="field__placeholder"
+        maxlength="50"
+        bindinput="onFamilyNameInput"
+      />
+    </view>
+
+    <view class="field field--last">
+      <view class="field__label">你在家里叫什么</view>
+      <input
+        class="field__input"
+        value="{{roleName}}"
+        placeholder="例如：阿爸"
+        placeholder-class="field__placeholder"
+        maxlength="30"
+        bindinput="onRoleNameInput"
+      />
+      <view class="chips">
+        <view
+          wx:for="{{roleSuggestions}}"
+          wx:key="*this"
+          class="chip {{roleName === item ? 'chip--on' : ''}}"
+          data-role="{{item}}"
+          bindtap="onPickRole"
+        >{{item}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="btn-primary create__submit {{submitting ? 'create__submit--busy' : ''}}" bindtap="onSubmit">
+    {{submitting ? '正在创建…' : '创建我们的家'}}
+  </view>
+
+  <view class="create__alt" bindtap="onJoinFamily">家里已经有人建好了？<text class="create__alt-link">去加入</text></view>
+</view>

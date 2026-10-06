@@ -120,6 +120,112 @@ page {
 }
 
 /* ============================================================
+   表单
+   ============================================================ */
+
+.field {
+  padding: 4px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.field + .field {
+  padding-top: 16px;
+}
+
+.field--last {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.field__label {
+  margin-bottom: 8px;
+  font-size: var(--fs-cap);
+  color: var(--ink-2);
+}
+
+.field__input {
+  height: 30px;
+  font-size: var(--fs-h2);
+  color: var(--ink-1);
+}
+
+.field__placeholder {
+  color: var(--ink-3);
+  font-size: var(--fs-h2);
+}
+
+/* 快捷选项 chips —— 点一下就填上，别让用户自己想 */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  margin: 0 8px 8px 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--fs-cap);
+}
+
+.chip--on {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+
+/* ============================================================
+   列表行（设置类页面用）
+   ============================================================ */
+
+.cells {
+  /* 由 .card 提供白底与内边距 */
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cell:last-child {
+  border-bottom: none;
+}
+
+.cell__emoji {
+  width: 34px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.cell__label {
+  flex: 1;
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.cell__extra {
+  margin-right: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.cell__extra--warn {
+  color: var(--warning);
+}
+
+.cell__arrow {
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+/* ============================================================
    空状态
    ============================================================ */
 

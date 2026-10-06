@@ -1,0 +1,18 @@
+<!-- P04 · 授权登录 -->
+<view class="page login">
+  <view class="login__brand">
+    <view class="login__logo">🏠</view>
+    <view class="login__title">家有小事</view>
+    <view class="login__slogan">家里的小事，不必放心上</view>
+  </view>
+
+  <view class="login__actions">
+    <view
+      class="btn-primary login__btn {{loading ? 'login__btn--busy' : ''}}"
+      bindtap="onLogin"
+    >
+      {{loading ? '正在进入…' : '微信一键登录'}}
+    </view>
+    <view class="login__tip">第一次进来会自动帮你建好账号</view>
+  </view>
+</view>

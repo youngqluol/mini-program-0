@@ -1,0 +1,79 @@
+<!-- P06 · 加入家庭 -->
+<view class="page join">
+  <!-- 状态一：输邀请码 -->
+  <block wx:if="{{step === 'input'}}">
+    <view class="join__hero">
+      <view class="join__logo">🤝</view>
+      <view class="join__title">加入家人的家</view>
+      <view class="join__sub">把家人给你的邀请码填进来</view>
+    </view>
+
+    <view class="card">
+      <view class="field field--last">
+        <view class="field__label">邀请码</view>
+        <input
+          class="field__input join__code"
+          value="{{inviteCode}}"
+          placeholder="6 位字母数字"
+          placeholder-class="field__placeholder"
+          maxlength="6"
+          bindinput="onCodeInput"
+        />
+      </view>
+    </view>
+
+    <view
+      class="btn-primary join__submit {{loading ? 'join__submit--busy' : ''}}"
+      bindtap="loadPreview"
+    >{{loading ? '正在查找…' : '下一步'}}</view>
+
+    <view class="join__hint">也可以让家人把邀请分享给你，点开就能直接进来</view>
+  </block>
+
+  <!-- 状态二：预览家庭信息 + 填称谓 -->
+  <block wx:else>
+    <view class="join__hero">
+      <view class="join__logo">🏡</view>
+      <view class="join__title">邀请你加入</view>
+    </view>
+
+    <view class="card">
+      <view class="preview">
+        <view class="preview__name">{{preview.familyName}}</view>
+        <view class="preview__meta">
+          {{preview.inviterRoleName}}邀请你 · 已有 {{preview.memberCount}} 位成员
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="field field--last">
+        <view class="field__label">你在家里叫什么</view>
+        <input
+          class="field__input"
+          value="{{roleName}}"
+          placeholder="例如：阿妈"
+          placeholder-class="field__placeholder"
+          maxlength="30"
+          bindinput="onRoleInput"
+        />
+        <view class="chips">
+          <view
+            wx:for="{{roleSuggestions}}"
+            wx:key="*this"
+            class="chip {{roleName === item ? 'chip--on' : ''}}"
+            data-role="{{item}}"
+            bindtap="onPickRole"
+          >{{item}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view
+      class="btn-primary join__submit {{accepting ? 'join__submit--busy' : ''}}"
+      bindtap="onAccept"
+    >{{accepting ? '正在加入…' : '加入这个家'}}</view>
+
+    <view class="join__alt" bindtap="onBackToInput">换个邀请码</view>
+  </block>
+</view>
