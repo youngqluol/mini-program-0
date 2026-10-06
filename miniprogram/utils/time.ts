@@ -33,3 +33,87 @@ export function describeExpire(expireAt: string): string {
   if (hours < 24) return `${Math.floor(hours)} 小时后过期`;
   return `${Math.floor(hours / 24)} 天后过期`;
 }
+
+// =============================================================
+// 小事的日期 / 时间文案
+// =============================================================
+
+function pad(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d.getTime());
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+/**
+ * 把日期说成「今天 / 明天 / 昨天 / 10-08」。
+ *
+ * 刻意不说「10 月 8 日 18:00」这种绝对时间 —— 家里人看的是
+ * 「这事儿是不是今天的」，相对时间才是答案。
+ *
+ * 跨年时退回完整日期（「2027-01-05」），否则「01-05」会让人以为是今年。
+ */
+export function describeDay(value: string): string {
+  const d = parseBeijingTime(value);
+  if (!d) return '';
+
+  const diffDays = Math.round(
+    (startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / 86400000,
+  );
+  if (diffDays === 0) return '今天';
+  if (diffDays === 1) return '明天';
+  if (diffDays === -1) return '昨天';
+
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return sameYear ? md : `${d.getFullYear()}-${md}`;
+}
+
+/** 「HH:mm」 */
+export function hhmmOf(value: string): string {
+  const d = parseBeijingTime(value);
+  if (!d) return '';
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * 「要求完成时间」说成人话：`今天 18:00` / `明天 07:00` / `不限时间`。
+ *
+ * 传 null 表示「不限时间」—— 这是产品上的正常选择，不是缺数据，
+ * 所以文案要中性（不能写「未设置」，那听起来像没填完）。
+ */
+export function describeDue(value: string | null): string {
+  if (!value) return '不限时间';
+  const time = hhmmOf(value);
+  const day = describeDay(value);
+  if (!day) return '不限时间';
+  return time ? `${day} ${time}` : day;
+}
+
+/** Date → 后端要的 `"YYYY-MM-DD HH:mm:ss"`（北京时间） */
+export function toBeijingString(d: Date): string {
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+}
+
+/**
+ * 当前时间往后推 n 小时，返回后端要的字符串。
+ *
+ * 用途：P09 派活的「今天」默认值（契约是当前时间 + 2 小时）。
+ */
+export function beijingAfterHours(hours: number): string {
+  const d = new Date();
+  d.setHours(d.getHours() + hours);
+  return toBeijingString(d);
+}
+
+/** 今天的日期 `"YYYY-MM-DD"`（给 `<picker mode="date">` 的 start 用） */
+export function todayDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
