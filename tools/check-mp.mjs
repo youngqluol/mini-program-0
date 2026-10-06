@@ -34,6 +34,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MP = join(ROOT, 'miniprogram');
 
 const problems = [];
+/** 不算失败、但值得说一声的事（例如「图片还没放进来」，页面有降级） */
+const notes = [];
 const stats = { pages: 0, components: 0, files: 0, bindings: 0, json: 0, refs: 0 };
 
 function fail(msg) {
@@ -201,6 +203,30 @@ if (exists(BADGE_SRC)) {
 }
 
 // =============================================================
+// ⑪ 微信提醒页的二维码
+// =============================================================
+//
+// `config.ts` 的 `MP_ACCOUNT_QR` 指向 `assets/` 下的图片。图片不在时页面会
+// 自动降级成一句文字说明（`binderror`），**不会崩** —— 所以这里只提示、不判失败。
+//
+// ⚠️ 要的是**公众号二维码**，不是小程序码。两者扫出来的结果完全不同
+//    （前者关注号、后者打开小程序），所以文件名刻意不同名于 wxpush 的
+//    `MP_QRCODE_URL`（那个才是小程序码）。
+
+if (exists('config.ts')) {
+  // 容忍类型标注（`MP_ACCOUNT_QR: string = '...'`）与双引号
+  const m = /MP_ACCOUNT_QR[^=\n]*=\s*['"]([^'"]*)['"]/.exec(readText('config.ts'));
+  if (!m) {
+    fail('config.ts 里找不到 MP_ACCOUNT_QR 的定义（这个检查需要同步）');
+  } else if (m[1] && !exists(m[1])) {
+    notes.push(
+      `微信提醒页的二维码还没放进来：miniprogram/${m[1]} 不存在 —— ` +
+        `页面会退回一句文字说明（不显示破图）`,
+    );
+  }
+}
+
+// =============================================================
 // ⑤⑥⑦ 逐页检查
 // =============================================================
 
@@ -348,4 +374,5 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
+for (const n of notes) console.log(`⏳ ${n}`);
 console.log('✅ 小程序端自查通过');
