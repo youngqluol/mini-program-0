@@ -916,8 +916,11 @@ export class ThingService {
   // 内部：取数
   // =============================================================
 
-  /** 批量取成员简写（称谓 + 头像），一次两条查询，不做 N+1 */
-  private async memberBriefs(
+  /**
+   * 批量取成员简写（称谓 + 头像），一次两条查询，不做 N+1。
+   * 对提醒模块公开 —— 收件箱也要把「谁叮的」显示成称谓。
+   */
+  async memberBriefs(
     memberIds: (bigint | null | undefined)[],
   ): Promise<Map<bigint, ThingMemberBrief>> {
     const ids = [...new Set(memberIds.filter((v): v is bigint => v != null).map(String))].map((s) =>
