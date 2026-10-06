@@ -30,8 +30,12 @@ export const REQUEST_TIMEOUT = 15000;
  *    ⚠️ 顺便记一笔：wxpush Worker 的环境变量 `MP_QRCODE_URL` 要的才是**小程序码**
  *    （用在「中转页」，让用户长按识别跳回小程序）—— **两者不可互换**。
  *
- * 从公众号后台（测试号后台）下载后，另存为
- * `miniprogram/assets/mp-account-qr.png`，这里保持默认值即可。
+ * 从公众号后台（测试号后台）下载后，另存为 `miniprogram/assets/mp-account-qr.*`。
+ * 当前入库的是**微信后台直接下发的 `.jpg`**（没有转码 —— 转成 PNG 只会把体积
+ * 放大，并不会把 JPEG 已经丢掉的信息找回来）。
+ *
+ * ⚠️ **扩展名写在下面这个常量里**，所以换格式时（比如以后换成 `.png`）
+ *    必须**连常量一起改**，否则小程序找不到文件、静默降级成一句文字说明。
  *
  * 图片加载失败时会自动降级成一句文字说明（见页面里的 `binderror`），
  * **不会显示一张破图** —— 少一个便利，好过给一张错的图。
@@ -39,4 +43,4 @@ export const REQUEST_TIMEOUT = 15000;
  * ⚠️ 显式标 `: string` 是必须的：不标的话 TS 会把它推断成字面量类型，
  *    页面里 `MP_ACCOUNT_QR !== ''` 这种判断会被判成「不可能成立」而报 TS2367。
  */
-export const MP_ACCOUNT_QR: string = 'assets/mp-account-qr.png';
+export const MP_ACCOUNT_QR: string = 'assets/mp-account-qr.jpg';
