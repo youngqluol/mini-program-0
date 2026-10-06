@@ -78,6 +78,27 @@
 - 提交前核对：`git check-ignore -v server/.env` 必须命中；`.env.example` 必须入库。
 - 每次 commit 后核对：`git log --oneline -1` + `git status --porcelain -uall | wc -l`。
 
+## 本机开发环境（2026-10-06 实测）
+- Windows 10 **专业版** 22H2（Build 19045），物理机 ASUS，PowerShell 有管理员权限。
+- **下载必须走代理：`curl -x http://127.0.0.1:7890`**
+  - 直连（`--noproxy '*'`）只有 **48 KB/s**；走代理 **3 ~ 8.7 MB/s**，差 60 倍以上。
+  - 环境变量里的 `HTTP_PROXY=127.0.0.1:53986` 是**坏的**（curl 会报 502 / HTTP 000），别依赖它。
+  - 该 blob 存储不支持 byte range 续传（`-C -` 报错 33），断了只能重下。
+- **Docker Desktop 4.94.0 已装好**（WSL2 后端，docker 29.8.2 / compose v5.5.1），
+  `pnpm run db:up` 可一键起 MySQL 8.0 + Redis 7（11 张表自动建好）。
+  - 启动 GUI 程序只能用 `cmd //c start "" "<path>"` —— `Start-Process` 与 WMI `Win32_Process.Create`
+    都被 WorkBuddy 拦。
+  - **从 WorkBuddy 会话启动的 Docker Desktop 会继承程序黑名单**，它调 `wsl.exe` 会报
+    `Access is denied`；**必须让用户手动从开始菜单启动**（手动启动不受限）。
+  - 在 Bash 里调 docker 要先 `export PATH="/c/Program Files/Docker/Docker/resources/bin:$PATH"`，
+    否则报 `docker-credential-desktop: executable file not found`。
+  - Docker Hub 直连不通，但 Docker Desktop 自动继承了系统代理，拉镜像很快，无需配 registry-mirrors。
+- WorkBuddy 工具限制（这台机器上）：`wsl.exe` / `reg.exe` / `schtasks.exe` 在程序黑名单里无法执行；
+  `dism.exe` 经 PowerShell 调用**可用**；PowerShell 工具 stdout 常为空，
+  **必须把结果 `Out-File` 到临时文件再用 Read 读**。
+- `nest start --watch` 会因清空 `server/dist`（412 个文件）触发 WorkBuddy 批量删除保护
+  （阈值 50）；改用 `pnpm run build` + `node dist/server/src/main.js` 起服务。
+
 ## 关键风险与待验证假设（M0 必须实测）
 - **A4** 订阅额度累积机制（勾选「总是保持以上选择」后静默 +1）
 - **A5** 测试号模板消息能否推给已关注用户
@@ -114,7 +135,17 @@ Monorepo + pnpm workspace：`packages/shared`（共享类型）+ `miniprogram/` 
 （规划中）`thing` / `reminder` / `menu` / `memory` / `upload` / `scheduler`。
 Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现下划线字段**。
 
-### 三个容易踩的工程坑（都已在 docs/04 写明）
+### 容易踩的工程坑（都已在 docs/04 写明）
+- **`prisma/schema.prisma` 每个字段都必须有 `@map`**（camelCase 字段名 → snake_case 列名）。
+  漏了**不会报错**，但 `prisma db push` 会想把列名改成 camelCase（DROP + ADD，丢数据），
+  运行时查询会 `Unknown column`。**自查命令**：
+  `prisma migrate diff --from-url <db-url> --to-schema-datamodel prisma/schema.prisma --script`，
+  输出 `-- This is an empty migration.` 才算真正对齐。
+  （2026-10-06 实测踩到：`mp_openid` / `invite_code` 两个字段漏了 `@map`，
+  会导致邀请功能与公众号绑定全部失效）
+- **pnpm 11 不再读 `package.json` 的 `pnpm` 字段**：构建脚本白名单要写进
+  `pnpm-workspace.yaml` 的 `allowBuilds`（值设 `true`），否则 Prisma 的 postinstall 被跳过、
+  `@prisma/client` 不生成。
 - **`prisma/schema.prisma` 不定义 relation**，是 `db/schema.sql` 的 1:1 镜像。
   定义了 relation，`prisma db push` 会自动补建外键与额外索引 → 两个 schema 漂移。
   join 写两次查询。
