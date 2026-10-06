@@ -1,0 +1,65 @@
+# ============================================================
+# 《家有小事》· wxpush 推送服务（Cloudflare Workers）
+# ============================================================
+# 部署：
+#   1) 安装 wrangler：  npm i -g wrangler
+#   2) 登录：           wrangler login
+#   3) 本地调试：        wrangler dev
+#   4) 部署：           wrangler deploy
+#   5) 配置密钥（不要写进本文件）：
+#        wrangler secret put API_TOKEN      # 后端调用 /wxsend 的令牌
+#        wrangler secret put WX_SECRET      # 测试号 appsecret
+#        wrangler secret put WX_TEMPLATE_ID # 模板消息模板 ID（待创建）
+#        wrangler secret put WX_USERID      # 默认接收人 openid（仅联调自测用）
+#
+# ⚠️ name 必须与已部署的 Worker 一致，否则 wrangler deploy 会**新建一个** Worker
+#    而不是更新现有的。当前已部署域名：https://pusher.youngqluol.workers.dev
+#    → 因此 name = "pusher"。
+#
+# 注意：本文件提交到仓库，**不得出现任何密钥（appsecret / token）**。
+#       appID 属于公开标识，可以放在这里。
+# ============================================================
+
+name = "pusher"
+main = "index.js"
+compatibility_date = "2024-11-01"
+
+# ------------------------------------------------------------
+# 定时任务：测试号保活心跳
+# 说明：测试号长期不活跃会被微信回收。这里每天触发一次，
+#       由 index.js 的 scheduled() 判断是否到达 ALIVE_DAYS 间隔。
+#       未配置 ALIVE_DAYS 时，scheduled() 直接 return，不发任何消息。
+# ------------------------------------------------------------
+[triggers]
+crons = ["0 3 * * *"]
+
+# ------------------------------------------------------------
+# 非敏感变量（敏感值一律用 wrangler secret put 配置）
+# ------------------------------------------------------------
+[vars]
+# 微信公众号【接口测试号】的 appID（沙盒账号，非敏感）
+# 来源：https://mp.weixin.qq.com/debug/cgi-bin/sandbox
+WX_APPID = "wx62cdca803132c220"
+
+# 点击模板消息后跳转的中转页地址（= 本 Worker 的 /skin 路由）
+WX_BASE_URL = "https://pusher.youngqluol.workers.dev/skin"
+
+# 要跳转的小程序 appID（=「家有小事」）
+# ⚠️ 官方要求「服务号已关联该小程序」，测试号无关联入口 → 该字段大概率不生效。
+#    M0 阶段必须实测（假设 A6）。不生效时自动降级为中转页小程序码长按识别。
+MP_APPID = "wxbc7ba7e34f589d38"
+
+# 点击模板消息要打开的小程序页面
+MP_PAGEPATH = "pages/index/index"
+
+# 小程序名称，用于中转页文案
+MP_NAME = "家有小事"
+
+# 测试号保活间隔（天）。留空 = 不保活
+ALIVE_DAYS = "30"
+
+# ------------------------------------------------------------
+# 可观测性：开启 Workers 日志，便于排查微信返回的错误码
+# ------------------------------------------------------------
+[observability]
+enabled = true
