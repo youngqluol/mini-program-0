@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+*.log
+.git
+.vscode
+test
+**/*.spec.ts
+**/*.e2e-spec.ts
