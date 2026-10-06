@@ -102,6 +102,29 @@ export function fromTodayReminder(reminder: TodayReminder): ThingCardItem {
   };
 }
 
+/** 首页「今天的提醒」的一行 = 卡片 + 要不要给那个快速完成的圈 */
+export interface TodayRowView {
+  /** 与 `card.id` 同值，只是为了让 `wx:key` 能直接取 */
+  id: number;
+  card: ThingCardItem;
+  /**
+   * 右侧要不要给「快速完成」的圈。
+   *
+   * 判据与 P10 / P11 完全一致：**只有执行人能完成**。
+   * 不是执行人却给一个能点的圈，点下去就是一次 403 toast ——
+   * 不如一开始就不给这个圈。
+   */
+  canCheck: boolean;
+}
+
+export function buildTodayReminderRow(item: TodayReminder, myMemberId: number): TodayRowView {
+  return {
+    id: item.id,
+    card: fromTodayReminder(item),
+    canCheck: item.assignee != null && item.assignee.memberId === myMemberId,
+  };
+}
+
 // =============================================================
 // P10 详情页展示模型
 // =============================================================
@@ -256,4 +279,57 @@ export function buildThingDetailView(detail: ThingDetail, myMemberId: number): T
   }
 
   return view;
+}
+
+// =============================================================
+// P11 列表行视图（卡片 + 左滑快捷操作）
+// =============================================================
+
+/** 行上能做的快捷操作 */
+export type ThingRowActionKey = 'COMPLETE' | 'CANCEL' | 'REOPEN';
+
+export interface ThingRowAction {
+  key: ThingRowActionKey;
+  label: string;
+  /** 破坏性动作单独染色，别和普通操作长一样 */
+  tone: 'normal' | 'danger';
+}
+
+export interface ThingRowView {
+  /** 与 `card.id` 同值，只是为了让 `wx:key` 能直接取 */
+  id: number;
+  card: ThingCardItem;
+  /** 左滑露出的快捷操作；**空数组表示这一行不可滑**（不是「滑了没反应」） */
+  actions: ThingRowAction[];
+}
+
+/**
+ * P11 列表的一行 = 卡片 + 这一行此刻能做的快捷操作。
+ *
+ * 操作与 P10 详情页同一套权限判断（执行人 / 发起人），只是换了形态：
+ * 详情页给一个主操作，列表给一排短标签。
+ *
+ * 权限规则（与 `server/src/modules/thing/thing.service.ts` 对齐）：
+ *   PENDING  → 执行人可「搞定啦」；发起人可「取消」
+ *   已结束   → 发起人可「重新打开」
+ *
+ * 后端还允许**家庭创建者**越过身份操作（数据阀门），这里同样刻意不露出 ——
+ * 理由见 P10 的 `buildThingDetailView()`。
+ *
+ * ⚠️ 返回空 `actions` 时，页面要真的**关掉这一行的左滑能力**，
+ *    而不是滑开一个空抽屉。所以 swipe-cell 见到空数组会直接不响应手势。
+ */
+export function buildThingRowView(item: ThingListItem, myMemberId: number): ThingRowView {
+  const isAssignee = item.assignee != null && item.assignee.memberId === myMemberId;
+  const isCreator = item.creator.memberId === myMemberId;
+  const actions: ThingRowAction[] = [];
+
+  if (item.status === 'PENDING') {
+    if (isAssignee) actions.push({ key: 'COMPLETE', label: '搞定啦', tone: 'normal' });
+    if (isCreator) actions.push({ key: 'CANCEL', label: '取消', tone: 'danger' });
+  } else if (isCreator) {
+    actions.push({ key: 'REOPEN', label: '重新打开', tone: 'normal' });
+  }
+
+  return { id: item.id, card: fromThingListItem(item), actions };
 }
