@@ -1,0 +1,31 @@
+<!-- P14 · 家庭成员 -->
+<view class="page">
+  <view class="card cells">
+    <view
+      wx:for="{{members}}"
+      wx:key="memberId"
+      class="member"
+      data-member-id="{{item.memberId}}"
+      data-is-me="{{item.isMe}}"
+      data-is-owner="{{item.isOwner}}"
+      bindtap="onMemberTap"
+      bindlongpress="onMemberLongPress"
+    >
+      <image wx:if="{{item.avatarUrl}}" class="member__avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+      <view wx:else class="member__avatar member__avatar--ph">👤</view>
+
+      <view class="member__main">
+        <view class="member__role">
+          <text class="member__role-text">{{item.roleName}}</text>
+          <text wx:if="{{item.isMe}}" class="tag tag--me">我</text>
+          <text wx:if="{{item.isOwner}}" class="tag">创建者</text>
+        </view>
+        <view wx:if="{{item.nickname}}" class="member__nick">{{item.nickname}}</view>
+      </view>
+
+      <text class="cell__arrow">›</text>
+    </view>
+  </view>
+
+  <view class="members__tip">点自己那一条，可以改在家的称谓</view>
+</view>

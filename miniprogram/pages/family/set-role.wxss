@@ -1,0 +1,25 @@
+/* P07 · 设置称谓 */
+
+.setrole__hero {
+  padding: 24px 0 20px;
+}
+
+.setrole__title {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.setrole__sub {
+  margin-top: 8px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.setrole__submit {
+  margin-top: 24px;
+}
+
+.setrole__submit--busy {
+  opacity: 0.7;
+}

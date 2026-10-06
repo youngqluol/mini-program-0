@@ -1,0 +1,20 @@
+/* P13 · 家庭信息 */
+
+.fam-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 20px;
+}
+
+.fam-hero__name {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.fam-hero__meta {
+  margin-top: 8px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}

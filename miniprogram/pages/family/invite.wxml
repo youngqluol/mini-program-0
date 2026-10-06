@@ -1,0 +1,20 @@
+<!-- P15 · 邀请成员 -->
+<view class="page invite">
+  <view class="invite__hero">
+    <view class="invite__title">邀请家人加入「{{familyName}}」</view>
+  </view>
+
+  <view class="card invite__code-card">
+    <view class="invite__code">{{inviteCode || '……'}}</view>
+    <view class="invite__expire">{{expireText}}</view>
+  </view>
+
+  <view class="invite__actions">
+    <button class="invite__btn invite__btn--share" open-type="share">分享给家人</button>
+    <view class="invite__btn invite__btn--copy" bindtap="onCopyCode">复制邀请码</view>
+  </view>
+
+  <view class="invite__refresh" bindtap="onRefreshCode">换一个邀请码</view>
+
+  <view class="invite__hint">家人点开你分享的卡片，填个称谓就能进来</view>
+</view>

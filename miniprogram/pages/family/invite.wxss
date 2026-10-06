@@ -1,0 +1,88 @@
+/* P15 · 邀请成员 */
+
+.invite__hero {
+  padding: 20px 0 18px;
+  text-align: center;
+}
+
+.invite__title {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.invite__code-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px;
+}
+
+/* 邀请码要手抄/口述，字距拉开更好认（字符集已去掉 0/O/1/I/L） */
+.invite__code {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  /* 让字距在右侧不留空，视觉上居中 */
+  margin-right: -8px;
+  color: var(--ink-1);
+}
+
+.invite__expire {
+  margin-top: 14px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.invite__actions {
+  display: flex;
+  margin-top: 24px;
+}
+
+.invite__btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.invite__btn--share {
+  margin-right: 12px;
+  background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+  color: #ffffff;
+  box-shadow: var(--shadow-float);
+}
+
+/* 覆盖小程序 button 的默认外观（默认灰底 + ::after 边框） */
+.invite__btn--share::after {
+  border: none;
+}
+
+.invite__btn--copy {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+.invite__btn:active {
+  opacity: 0.86;
+}
+
+.invite__refresh {
+  margin-top: 18px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.invite__hint {
+  margin-top: 28px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  line-height: 1.6;
+  color: var(--ink-3);
+}

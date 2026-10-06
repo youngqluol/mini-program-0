@@ -1,3 +1,5 @@
+/* P20 · 我的 */
+
 .profile {
   display: flex;
   align-items: center;
@@ -7,6 +9,7 @@
   box-shadow: var(--shadow-card);
 }
 
+/* emoji 装粉彩 squircle 色块（docs/07 §6.3） */
 .profile__avatar {
   display: flex;
   align-items: center;
@@ -37,46 +40,8 @@
   color: var(--ink-3);
 }
 
-/* ---------- 列表项 ---------- */
-
-.cell {
-  display: flex;
-  align-items: center;
-  padding: 14px 0;
-}
-
-.cell + .cell {
-  border-top: 1px solid var(--line);
-}
-
-.cell:active {
-  opacity: 0.7;
-}
-
-.cell__emoji {
-  width: 32px;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.cell__label {
-  flex: 1;
-  font-size: var(--fs-h3);
-  color: var(--ink-1);
-}
-
-.cell__extra {
-  margin-right: 6px;
-  font-size: var(--fs-cap);
-  color: var(--ink-3);
-}
-
-.cell__arrow {
-  font-size: 18px;
-  color: var(--ink-3);
-}
-
-/* ---------- 版本号 ---------- */
+/* 列表行（.cell / .cell__*）与「我的」以外页面共用，
+   统一定义在 app.wxss，这里不再重复 —— 两份定义迟早会走偏。 */
 
 .version {
   margin-top: 24px;

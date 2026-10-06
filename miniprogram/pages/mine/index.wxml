@@ -1,30 +1,65 @@
+<!-- P20 · 我的（Tab 4） -->
 <view class="page">
-  <view class="skeleton-note">骨架预览：登录与家庭数据在 M1 接入。</view>
-
+  <!-- 个人 + 家庭抬头 -->
   <view class="profile">
     <view class="profile__avatar">👤</view>
     <view class="profile__info">
-      <view class="profile__name">还没登录</view>
-      <view class="profile__role">登录后显示你在家里的称谓</view>
+      <view class="profile__name">{{nickname}}</view>
+      <view class="profile__role">{{roleLine || '还没加入家庭'}}</view>
     </view>
   </view>
 
-  <view class="section-title">我的</view>
-
-  <view class="card card--tight">
-    <view
-      class="cell"
-      wx:for="{{cells}}"
-      wx:key="key"
-      bindtap="onCellTap"
-      data-key="{{item.key}}"
-    >
-      <text class="cell__emoji">{{item.emoji}}</text>
-      <text class="cell__label">{{item.label}}</text>
-      <text class="cell__extra" wx:if="{{item.extra}}">{{item.extra}}</text>
+  <!-- 家庭 -->
+  <view class="section-title">家庭</view>
+  <view class="card cells">
+    <view class="cell" bindtap="onFamilyInfo">
+      <text class="cell__emoji">🏡</text>
+      <text class="cell__label">{{familyName || '我的家'}}</text>
+      <text class="cell__extra">{{memberCountText}}</text>
+      <text class="cell__arrow">›</text>
+    </view>
+    <view class="cell" bindtap="onMembers">
+      <text class="cell__emoji">👥</text>
+      <text class="cell__label">家庭成员</text>
+      <text class="cell__arrow">›</text>
+    </view>
+    <view class="cell" bindtap="onInvite">
+      <text class="cell__emoji">➕</text>
+      <text class="cell__label">邀请家人</text>
+      <text class="cell__arrow">›</text>
+    </view>
+    <view class="cell" bindtap="onSetting">
+      <text class="cell__emoji">⚙️</text>
+      <text class="cell__label">家庭设置</text>
       <text class="cell__arrow">›</text>
     </view>
   </view>
 
-  <view class="version">家有小事 · v0.1 骨架</view>
+  <!-- 消息与提醒 -->
+  <view class="section-title">消息与提醒</view>
+  <view class="card cells">
+    <view class="cell" bindtap="onNotice">
+      <text class="cell__emoji">💬</text>
+      <text class="cell__label">消息中心</text>
+      <text class="cell__arrow">›</text>
+    </view>
+    <view class="cell" bindtap="onWechatNotify">
+      <text class="cell__emoji">🔔</text>
+      <text class="cell__label">微信提醒</text>
+      <text class="cell__extra cell__extra--warn">还没开</text>
+      <text class="cell__arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 其他 -->
+  <view class="section-title">其他</view>
+  <view class="card cells">
+    <view class="cell" bindtap="onAbout">
+      <text class="cell__emoji">ℹ️</text>
+      <text class="cell__label">关于「家有小事」</text>
+      <text class="cell__arrow">›</text>
+    </view>
+  </view>
+
+  <view class="version">家有小事 · v0.1</view>
 </view>

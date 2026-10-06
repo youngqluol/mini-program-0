@@ -1,0 +1,77 @@
+/* P14 · 家庭成员 */
+
+.member {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  border-bottom: 1px solid var(--line);
+}
+
+.member:last-child {
+  border-bottom: none;
+}
+
+/* emoji 装粉彩 squircle 色块（docs/07 §6.3） */
+.member__avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.member__avatar--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pastel-pink);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.member__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.member__role {
+  display: flex;
+  align-items: center;
+}
+
+.member__role-text {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.member__nick {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* 标签：我 / 创建者 */
+.tag {
+  margin-left: 6px;
+  padding: 0 8px;
+  height: 20px;
+  line-height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+.tag--me {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+
+.members__tip {
+  margin-top: 16px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}

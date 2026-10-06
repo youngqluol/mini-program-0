@@ -1,0 +1,39 @@
+/* P16 · 家庭设置 */
+
+.setting__edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.setting__edit-cancel {
+  padding: 8px 18px;
+  font-size: var(--fs-h3);
+  color: var(--ink-2);
+}
+
+.setting__edit-save {
+  padding: 8px 22px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+  color: #ffffff;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+
+.setting__edit-save--busy {
+  opacity: 0.7;
+}
+
+/* 危险操作：弱化样式，不用大红底 */
+.setting__danger .cell__label {
+  color: var(--danger);
+}
+
+.setting__hint {
+  margin-top: 18px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  line-height: 1.6;
+  color: var(--ink-3);
+}

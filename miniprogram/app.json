@@ -6,7 +6,12 @@
     "pages/mine/index",
     "pages/login/index",
     "pages/family/create",
-    "pages/family/join"
+    "pages/family/join",
+    "pages/family/index",
+    "pages/family/members",
+    "pages/family/invite",
+    "pages/family/setting",
+    "pages/family/set-role"
   ],
   "window": {
     "backgroundTextStyle": "dark",

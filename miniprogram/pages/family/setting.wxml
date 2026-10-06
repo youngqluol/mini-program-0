@@ -1,0 +1,54 @@
+<!-- P16 · 家庭设置 -->
+<view class="page">
+  <!-- 家庭名（创建者可改） -->
+  <view class="card">
+    <block wx:if="{{!editingName}}">
+      <view class="cell" bindtap="onEditName">
+        <text class="cell__emoji">🏡</text>
+        <text class="cell__label">家庭名称</text>
+        <text class="cell__extra">{{detail.familyName}}</text>
+        <text class="cell__arrow" wx:if="{{detail.isOwner}}">›</text>
+      </view>
+    </block>
+
+    <block wx:else>
+      <view class="field field--last">
+        <view class="field__label">家庭名称</view>
+        <input
+          class="field__input"
+          value="{{nameDraft}}"
+          placeholder="例如：我们家"
+          placeholder-class="field__placeholder"
+          maxlength="50"
+          focus="{{true}}"
+          bindinput="onNameInput"
+        />
+      </view>
+      <view class="setting__edit-actions">
+        <view class="setting__edit-cancel" bindtap="onCancelEditName">先不改</view>
+        <view class="setting__edit-save {{saving ? 'setting__edit-save--busy' : ''}}" bindtap="onSaveName">
+          {{saving ? '保存中…' : '保存'}}
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <!-- 危险操作 -->
+  <view class="card">
+    <!-- 创建者：解散 -->
+    <view wx:if="{{detail.isOwner}}" class="cell setting__danger" bindtap="onDissolve">
+      <text class="cell__emoji">🗑️</text>
+      <text class="cell__label">解散家庭</text>
+      <text class="cell__arrow">›</text>
+    </view>
+
+    <!-- 非创建者：退出 -->
+    <view wx:else class="cell setting__danger" bindtap="onLeave">
+      <text class="cell__emoji">🚪</text>
+      <text class="cell__label">退出家庭</text>
+      <text class="cell__arrow">›</text>
+    </view>
+  </view>
+
+  <view class="setting__hint">解散或退出都不会删掉记过的事，它们会一直留着</view>
+</view>

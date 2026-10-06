@@ -58,3 +58,43 @@ export function showLoading(title = '稍等一下'): void {
 export function hideLoading(): void {
   wx.hideLoading();
 }
+
+/**
+ * 危险操作的二次确认 —— 要求用户**把指定文本原样输一遍**。
+ *
+ * 解散家庭这类操作是不可逆的（数据保留但家没了），一个「确定」按钮太轻。
+ * 让用户亲手打出家庭名，是让他停一下、确认自己真的要这么做。
+ */
+export function confirmWithText(options: {
+  title: string;
+  placeholder: string;
+  /** 要求用户输入的文本 */
+  expect: string;
+  confirmText?: string;
+  mismatchMessage?: string;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    wx.showModal({
+      title: options.title,
+      editable: true,
+      placeholderText: options.placeholder,
+      confirmText: options.confirmText ?? '确定',
+      cancelText: '再想想',
+      confirmColor: '#F2637B',
+      success: (res) => {
+        if (!res.confirm) {
+          resolve(false);
+          return;
+        }
+        const input = (res.content ?? '').trim();
+        if (input !== options.expect) {
+          toast(options.mismatchMessage ?? '没对上，先不继续了');
+          resolve(false);
+          return;
+        }
+        resolve(true);
+      },
+      fail: () => resolve(false),
+    });
+  });
+}

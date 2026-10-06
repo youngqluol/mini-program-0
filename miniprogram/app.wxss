@@ -198,6 +198,10 @@ page {
   border-bottom: none;
 }
 
+.cell:active {
+  opacity: 0.7;
+}
+
 .cell__emoji {
   width: 34px;
   font-size: 18px;
