@@ -12,3 +12,8 @@ ui/
 
 # 上游第三方代码保持原样
 wxpush/index.js
+
+# WXML 没有 prettier 解析器：不显式忽略的话，一旦被当成参数传进来
+# （例如 prettier --check "miniprogram/**/*"）会直接报
+# 「No parser could be inferred」，看起来像格式错误，其实是解析器缺失。
+*.wxml
