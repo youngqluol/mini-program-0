@@ -1,12 +1,14 @@
 /**
  * 展示模型的行为断言（`miniprogram/utils/*-view.ts`）
  *
- * 覆盖五个纯函数：
+ * 覆盖的纯函数：
  *   - `buildThingDetailView()`     —— P10 详情页
  *   - `buildThingRowView()`        —— P11 列表行（卡片 + 左滑操作）
  *   - `buildTodayReminderRow()`    —— P01 首页「今天的提醒」行（卡片 + 完成圈）
  *   - `buildNoticeView()`          —— P12 消息中心（通知行 + 送达说明）
  *   - `buildMineProfile()` / `buildUnreadBadge()` / `buildLeaveRow()` —— P20「我的」
+ *   - `buildWechatNotifyRow()` / `buildWechatNotifyView()` —— P20 的行 + P21 微信提醒页
+ *   - `describeExpire()`           —— 相对过期时间（P15 邀请码 / P21 绑定码）
  *
  * 为什么单独测这一层：它们全是纯函数，但分支不少（三种状态 × 我是执行人 /
  * 我是发起人 / 都与我无关 × 有没有提醒），而 `tsc` 只能保证**类型**对，
@@ -81,8 +83,9 @@ if (diagnostics.length > 0) {
 const thingViewPath = join(outDir, 'miniprogram', 'utils', 'thing-view.js');
 const noticeViewPath = join(outDir, 'miniprogram', 'utils', 'notice-view.js');
 const mineViewPath = join(outDir, 'miniprogram', 'utils', 'mine-view.js');
+const timePath = join(outDir, 'miniprogram', 'utils', 'time.js');
 
-for (const p of [thingViewPath, noticeViewPath, mineViewPath]) {
+for (const p of [thingViewPath, noticeViewPath, mineViewPath, timePath]) {
   if (!existsSync(p)) {
     console.error(`没找到编译产物：${p}`);
     console.error('（大概率是 tsconfig 的 include / rootDir 变了，需要同步这个脚本）');
@@ -93,7 +96,14 @@ for (const p of [thingViewPath, noticeViewPath, mineViewPath]) {
 
 const { buildThingDetailView, buildThingRowView, buildTodayReminderRow } = require(thingViewPath);
 const { buildNoticeView } = require(noticeViewPath);
-const { buildLeaveRow, buildMineProfile, buildUnreadBadge } = require(mineViewPath);
+const {
+  buildLeaveRow,
+  buildMineProfile,
+  buildUnreadBadge,
+  buildWechatNotifyRow,
+  buildWechatNotifyView,
+} = require(mineViewPath);
+const { describeExpire } = require(timePath);
 
 // ---------------------------------------------------------------
 // 小工具
@@ -672,6 +682,91 @@ function authUser(over = {}) {
   check('退出家庭 · 说明指向真正的出口', owner.hint.indexOf('家庭设置') >= 0, true);
   // 后端那句报错里有「转给别人」，但 V0.1 没有转让功能 —— 界面不能跟着说
   check('退出家庭 · 不承诺「转给别人」这个不存在的出口', owner.hint.indexOf('转给') >= 0, false);
+}
+
+// ---------------------------------------------------------------
+// 15. P20 的「微信提醒」行 + P21 微信提醒页
+// ---------------------------------------------------------------
+
+/**
+ * 一个「还剩 n 分钟**多一点**」的时刻，格式与后端一致。
+ *
+ * ⚠️ 必须留那半分钟余量：`describeExpire()` 是**向下取整**的，
+ *    而这里造出的时刻到断言执行之间会过去几毫秒 —— 正好卡在整分钟上
+ *    会算成「n-1 分钟」（第一版就踩了这个，期望 9 实际 8）。
+ */
+function expiresInMinutes(n) {
+  const d = new Date(Date.now() + (n + 0.5) * 60000);
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+}
+
+{
+  // P20 的行
+  const on = buildWechatNotifyRow(true);
+  check('提醒行 · 开了就说「已开启」', on.text, '已开启');
+  check('提醒行 · 开了不染色', on.warn, false);
+
+  const off = buildWechatNotifyRow(false);
+  check('提醒行 · 没开就说「还没开」', off.text, '还没开');
+  check('提醒行 · 没开要染色（这是一件还没做的事）', off.warn, true);
+}
+
+{
+  // P21 已开启
+  const boundAt = expiresInMinutes(-30);
+  const on = buildWechatNotifyView({ bound: true, boundAt, pending: false });
+  check('微信提醒 · 已开启的形态', on.mode, 'ON');
+  check('微信提醒 · 已开启带时间', on.boundAtText.endsWith(' 开启'), true);
+  check('微信提醒 · 已开启不带数字', on.codeText, '');
+  check('微信提醒 · 已开启 hasCode 为假', on.hasCode, false);
+
+  // 后端理论上一定给 boundAt，但拿不到时不能说「 开启」这种半句话
+  const noAt = buildWechatNotifyView({ bound: true, pending: false });
+  check('微信提醒 · 拿不到开启时间时说整句', noAt.boundAtText, '已经开启');
+}
+
+{
+  // P21 还没开：六位数字要分组，用户是要照着打字的
+  const setup = buildWechatNotifyView({
+    bound: false,
+    pending: true,
+    bindCode: '735241',
+    bindCodeExpireAt: expiresInMinutes(9),
+  });
+  check('微信提醒 · 还没开的形态', setup.mode, 'SETUP');
+  check('微信提醒 · 六位数字按 3+3 分组', setup.codeText, '735 241');
+  check('微信提醒 · 有数字', setup.hasCode, true);
+  check('微信提醒 · 带过期时间', setup.expireText, '9 分钟后过期');
+
+  // 不足 3 位 / 正好 3 位 / 超过 3 位都不能多出空格
+  check(
+    '分组 · 3 位不加空格',
+    buildWechatNotifyView({ bound: false, pending: true, bindCode: '123' }).codeText,
+    '123',
+  );
+  check(
+    '分组 · 8 位按 3+3+2',
+    buildWechatNotifyView({ bound: false, pending: true, bindCode: '12345678' }).codeText,
+    '123 456 78',
+  );
+
+  // 后端还没生成出数字（或生成失败）时，页面不该渲染「②」那一块
+  const noCode = buildWechatNotifyView({ bound: false, pending: false });
+  check('微信提醒 · 没有数字时 hasCode 为假', noCode.hasCode, false);
+  check('微信提醒 · 没有数字时文案是空串', noCode.codeText, '');
+}
+
+{
+  // describeExpire 的三档。改动它会影响 P15（邀请码 72 小时）—— 一起钉住
+  check('过期 · 9 分钟', describeExpire(expiresInMinutes(9)), '9 分钟后过期');
+  check('过期 · 3 小时', describeExpire(expiresInMinutes(180)), '3 小时后过期');
+  check('过期 · 3 天', describeExpire(expiresInMinutes(4320)), '3 天后过期');
+  // 不足 1 分钟也说「1 分钟」—— 说「0 分钟后过期」等于告诉用户已经没了
+  check('过期 · 不到 1 分钟也说 1 分钟', describeExpire(expiresInMinutes(0)), '1 分钟后过期');
+  check('过期 · 已经过去了', describeExpire(expiresInMinutes(-1)), '已经过期了');
 }
 
 // ---------------------------------------------------------------
