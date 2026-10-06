@@ -11,6 +11,7 @@ import type {
   FamilyMember,
   InvitePreview,
   MyFamily,
+  MyMembership,
   UpdateMyRoleRequest,
 } from '@shared/dto/family';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -210,6 +211,29 @@ export class FamiliesService {
         joinedAt: formatDateTimeRequired(m.joinedAt),
       };
     });
+  }
+
+  /**
+   * 我的身份（M2-B26）。
+   *
+   * 消息文案要用**家庭称谓**而不是微信昵称，前端也需要在「我的」页面
+   * 与首页抬头显示「阿妈」这样的称谓 —— 这个接口就是那个直读入口。
+   */
+  async myMembership(familyId: bigint, memberId: bigint): Promise<MyMembership> {
+    const member = await this.prisma.familyMember.findFirst({
+      where: { id: memberId, familyId, status: MemberStatus.ACTIVE },
+    });
+    if (!member) throw BusinessException.notMember();
+
+    const ownerMemberId = await this.ownerMemberIdOf(familyId);
+
+    return {
+      familyId: toNumberRequired(familyId),
+      memberId: toNumberRequired(member.id),
+      roleName: member.roleName,
+      isOwner: ownerMemberId != null && ownerMemberId === member.id,
+      joinedAt: formatDateTimeRequired(member.joinedAt),
+    };
   }
 
   /**

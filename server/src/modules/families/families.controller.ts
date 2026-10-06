@@ -29,6 +29,7 @@ import type {
   FamilyMember,
   InvitePreview,
   MyFamily,
+  MyMembership,
 } from '@shared/dto/family';
 
 /**
@@ -142,6 +143,18 @@ export class FamiliesController {
       ctx.memberId,
       includeLeft === 'true',
     );
+  }
+
+  /**
+   * 我的身份 / 称谓（M2-B26）。
+   *
+   * ⚠️ 必须写在 `@Get(':familyId/members')` **之前**吗？不必 —— 两条路径段数不同
+   *    （3 段 vs 2 段），Nest 不会混淆。但同一段数内的顺序仍然要紧。
+   */
+  @Get(':familyId/members/me')
+  @UseGuards(FamilyMemberGuard)
+  async myMembership(@FamilyMemberCtx() ctx: FamilyMemberContext): Promise<MyMembership> {
+    return this.families.myMembership(ctx.familyId, ctx.memberId);
   }
 
   /** 改我的称谓（M1-B14） */
