@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+coverage
+pnpm-lock.yaml
+
+# 文档与原型不参与格式化（避免表格/排版被反复重排）
+docs/
+prototypes/
+ui/
+*.md
+
+# 上游第三方代码保持原样
+wxpush/index.js

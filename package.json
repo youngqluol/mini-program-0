@@ -1,0 +1,36 @@
+{
+  "name": "jia-you-xiao-shi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "家有小事 —— 面向家庭成员的轻量事务协作微信小程序",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @jyss/server run start:dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "check:ts": "node tools/check-ts.mjs",
+    "check:links": "node tools/check-links.mjs",
+    "check": "pnpm run check:ts && pnpm run check:links",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:logs": "docker compose logs -f mysql"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ]
+  }
+}

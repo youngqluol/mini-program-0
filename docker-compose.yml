@@ -1,0 +1,60 @@
+# =============================================================
+# 本地开发环境：MySQL 8.0 + Redis 7
+# =============================================================
+# 用法：
+#   docker compose up -d      起库（首次会自动执行 db/schema.sql 建表）
+#   docker compose down       停库（保留数据）
+#   docker compose down -v    停库并清空数据（重新建表时用）
+#
+# 注意：
+#   - 只有首次创建数据卷时才会执行 initdb 脚本。
+#     改了 db/schema.sql 后需要 down -v 再 up 才会重新建表。
+#   - 时区固定 +00:00（**不是 +08:00**），与生产保持一致。
+#     理由：Prisma 的 MySQL 连接器固定按 UTC 读写 DATETIME，且不支持
+#     连接串里的 timezone 参数。会话时区设成 +08:00 会让
+#     DEFAULT CURRENT_TIMESTAMP 产出北京时间，被 Prisma 当作 UTC 读回来就差 8 小时。
+#     北京时间只在接口层格式化输出，详见 docs/01 §4.3。
+# =============================================================
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: family-things-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: family_things
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    ports:
+      - '3306:3306'
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-proot']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: family-things-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  mysql-data:
+  redis-data:
