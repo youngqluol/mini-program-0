@@ -11,4 +11,5 @@ export * from './dto/common';
 export * from './dto/auth';
 export * from './dto/family';
 export * from './dto/thing';
+export * from './dto/menu';
 export * from './dto/notify';

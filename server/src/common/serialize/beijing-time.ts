@@ -112,3 +112,15 @@ export function formatTimeOfDay(d: Date | null | undefined): string | null {
   if (!d || Number.isNaN(d.getTime())) return null;
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/**
+ * 北京时间「今天 + `dayOffset` 天」的零点。
+ *
+ * `beijingDayRange()` 只回答「今天」，而「最近 3 天吃过的」这类窗口需要往前推 ——
+ * 用 `new Date(y, m, d + dayOffset)` 而不是 `getTime() - n * 86400000`：
+ * 前者由 Date 自己处理跨月跨年，后者要自己算闰年。中国不实行夏令时，
+ * 两种写法结果一样，但前者更难写错。
+ */
+export function beijingDayStartOffset(dayOffset: number, at: Date = new Date()): Date {
+  return new Date(at.getFullYear(), at.getMonth(), at.getDate() + dayOffset, 0, 0, 0, 0);
+}

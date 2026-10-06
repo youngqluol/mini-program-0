@@ -11,6 +11,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FamiliesModule } from './modules/families/families.module';
 import { ThingModule } from './modules/thing/thing.module';
+import { MenuModule } from './modules/menu/menu.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { WechatModule } from './modules/wechat/wechat.module';
 import { NotifyModule } from './modules/notify/notify.module';
@@ -51,8 +52,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
           // jsonwebtoken 把 expiresIn 声明成模板字面量类型（`${number}d` 之类），
           // 而我们从环境变量读到的是普通 string，只能断言一次。
           // 值本身是可信的：AuthService 另有 parseDurationSeconds 兜底。
-          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
-            '7d') as JwtSignOptions['expiresIn'],
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ?? '7d') as JwtSignOptions['expiresIn'],
         },
       }),
     }),
@@ -68,6 +68,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     AuthModule,
     NotifyModule,
     ThingModule,
+    MenuModule,
     SchedulerModule,
   ],
   providers: [
