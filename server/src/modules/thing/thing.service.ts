@@ -54,6 +54,8 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 /** 一条小事最多挂多少条提醒 */
 const MAX_REMINDERS = 20;
+/** `family_things.title` 是 `VARCHAR(200)` */
+const MAX_TITLE_LENGTH = 200;
 /** 「在册成员」的状态值（family_members.status = 1） */
 const MEMBER_ACTIVE = 1;
 
@@ -87,14 +89,50 @@ export class ThingService {
   /**
    * 创建小事（派活 / 叮一下）。
    *
-   * 事务内一次写 `family_things` + `thing_reminders` ——
-   * 不允许出现「小事建好了但提醒丢了」这种半成品。
-   * 通知在事务**之外**发：推送失败不该让创建回滚。
+   * 三段式：**准备（事务外）→ 写库（事务内）→ 通知（提交后）**。
+   * 这样切是**刻意的**，吃啥呢的「一键派活」（`POST /menu/decide-and-assign`）
+   * 要把「写用餐记录」和「派活」放进**同一个事务**，只能借中间那段；
+   * 三段共用同一份字段口径（`title` 措辞、可见性默认值、提醒组装方式），
+   * 不会在两个入口各长一套。
+   *
+   * 为什么把准备放在事务外：里面有一次**微信内容安全**的网络往返
+   * （`assertTextSafe`）。docs/02 §6.8 写明了「事务里不要做网络调用」——
+   * 在事务里等微信接口会让锁持有时间不可控。
    */
   async create(ctx: FamilyMemberContext, dto: CreateThingDto): Promise<ThingDetail> {
+    const prepared = await this.prepareThing(ctx, dto);
+    const created = await this.prisma.$transaction((tx) => this.insertThing(tx, ctx, prepared));
+
+    this.logger.log(
+      `用户 ${ctx.userId} 在家庭 ${ctx.familyId} 创建小事 ${created.thing.id}「${created.thing.title}」`,
+    );
+
+    await this.dispatchCreatedThing(ctx, created);
+
+    return this.detail(ctx, created.thing.id);
+  }
+
+  /**
+   * 创建前的准备：内容安全 + 校验 + 归一化。**不写任何库**，可在事务外调用。
+   *
+   * ⚠️ **不要另写一份创建逻辑。** `title` 的措辞、可见性默认值
+   * （`TASK` → `FAMILY`、`REMINDER` → `RELATED`）、`dueAt` 的解析口径、
+   * 提醒的组装都在这里，抄一份到别处迟早会不一致。
+   *
+   * 拿到的 `PreparedThing` 交给 `insertThing` 落库；落库后**必须**调
+   * `dispatchCreatedThing`，否则对方收不到派活通知、立即叮也不会发出去。
+   */
+  async prepareThing(ctx: FamilyMemberContext, dto: CreateThingDto): Promise<PreparedThing> {
     const type = requireThingType(dto.type);
     const title = dto.title.trim();
     if (!title) throw BusinessException.invalidParam('要写点什么呢');
+    // 这里再挡一道，是因为**不是所有调用方都过 class-validator** ——
+    // 吃啥呢的「一键派活」直接构造 DTO 对象（`title` 由菜名拼出来），
+    // 拼得长了会撞上 `VARCHAR(200)`，MySQL 严格模式下直接报错，
+    // 用户看到的是 50000「出了点小问题」而不是「太长了」。
+    if (title.length > MAX_TITLE_LENGTH) {
+      throw BusinessException.invalidParam(`标题最多 ${MAX_TITLE_LENGTH} 个字`);
+    }
     const content = dto.content?.trim() || null;
 
     // 内容安全（M2-B9）：写库前拦掉确定违规的内容。
@@ -112,38 +150,116 @@ export class ThingService {
           ? ThingVisibility.FAMILY
           : ThingVisibility.RELATED;
 
-    const dueAt = this.parseDueAt(dto.dueAt);
-    const recurrenceType = requireRecurrenceType(dto.recurrenceType);
-    const reminders = this.normalizeReminders(dto.reminders, assignee.id);
+    return {
+      type,
+      title,
+      content,
+      visibility,
+      dueAt: this.parseDueAt(dto.dueAt),
+      recurrenceType: requireRecurrenceType(dto.recurrenceType),
+      recurrenceConfig: dto.recurrenceConfig ?? null,
+      assignee,
+      reminders: this.normalizeReminders(dto.reminders, assignee.id),
+    };
+  }
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const thing = await tx.familyThing.create({
-        data: {
-          familyId: ctx.familyId,
-          creatorMemberId: ctx.memberId,
-          type,
-          title,
-          content,
-          assigneeMemberId: assignee.id,
-          visibility,
-          status: ThingStatus.PENDING,
-          dueAt,
-          recurrenceType,
-          recurrenceConfig: toJson(dto.recurrenceConfig),
-        },
-      });
-
-      await this.insertReminders(tx, thing.id, reminders);
-
-      return thing;
+  /**
+   * 在**调用方的事务里**写入小事（不读 detail、不发通知）。
+   *
+   * 事务内一次写 `family_things` + `thing_reminders` ——
+   * 不允许出现「小事建好了但提醒丢了」这种半成品。
+   */
+  async insertThing(
+    tx: Prisma.TransactionClient,
+    ctx: FamilyMemberContext,
+    prepared: PreparedThing,
+  ): Promise<CreatedThing> {
+    const thing = await tx.familyThing.create({
+      data: {
+        familyId: ctx.familyId,
+        creatorMemberId: ctx.memberId,
+        type: prepared.type,
+        title: prepared.title,
+        content: prepared.content,
+        assigneeMemberId: prepared.assignee.id,
+        visibility: prepared.visibility,
+        status: ThingStatus.PENDING,
+        dueAt: prepared.dueAt,
+        recurrenceType: prepared.recurrenceType,
+        recurrenceConfig: toJson(prepared.recurrenceConfig),
+      },
     });
 
-    this.logger.log(`用户 ${ctx.userId} 在家庭 ${ctx.familyId} 创建小事 ${created.id}「${title}」`);
+    await this.insertReminders(tx, thing.id, prepared.reminders);
 
-    // 通知是尽力而为：放在事务外，失败只记日志
-    await this.dispatchOnCreate(ctx, created, assignee, reminders);
+    return { thing, assignee: prepared.assignee, reminders: prepared.reminders };
+  }
 
-    return this.detail(ctx, created.id);
+  /**
+   * 小事落库**之后**的通知：派活通知 + 立即叮一下（后者即时下发）。
+   *
+   * 必须在事务提交后调用 —— 通知里带着 `thing.id`，事务没提交的话
+   * 对方点进去会 `404`。失败只记日志，不影响主流程。
+   */
+  async dispatchCreatedThing(ctx: FamilyMemberContext, created: CreatedThing): Promise<void> {
+    const { thing, assignee, reminders } = created;
+    const familyName = await this.familyName(ctx.familyId);
+    const creatorRoleName = ctx.roleName;
+
+    // 派活：交给别人时通知对方（自己派给自己不必通知）
+    if (thing.type === ThingType.TASK && assignee.id !== ctx.memberId) {
+      await this.safeNotify(async () => {
+        await this.notify.notifyTaskAssigned({
+          userId: assignee.userId,
+          familyId: ctx.familyId,
+          thingId: thing.id,
+          ctx: {
+            roleName: await this.roleNameOfMember(assignee.id),
+            familyName,
+            thingTitle: thing.title,
+            thingContent: thing.content ?? undefined,
+            fromRoleName: creatorRoleName,
+            dueAt: thing.dueAt ?? undefined,
+          },
+        });
+      });
+    }
+
+    // 立即叮：创建时就发出去，并把该条提醒置为已发送
+    const nowReminders = reminders.filter((r) => r.remindType === RemindType.NOW);
+    if (nowReminders.length === 0) return;
+
+    const now = new Date();
+    for (const r of nowReminders) {
+      const recipientUserId = await this.userIdOfMember(r.recipientMemberId);
+      if (recipientUserId != null) {
+        await this.safeNotify(async () => {
+          await this.notify.notifyReminder({
+            userId: recipientUserId,
+            familyId: ctx.familyId,
+            thingId: thing.id,
+            ctx: {
+              roleName: await this.roleNameOfMember(r.recipientMemberId),
+              familyName,
+              thingTitle: thing.title,
+              thingContent: thing.content ?? undefined,
+              fromRoleName: creatorRoleName,
+              remindAt: now,
+            },
+          });
+        });
+      }
+
+      await this.prisma.thingReminder.updateMany({
+        where: {
+          thingId: thing.id,
+          recipientMemberId: r.recipientMemberId,
+          remindType: RemindType.NOW,
+          status: ReminderStatus.PENDING,
+        },
+        data: { status: ReminderStatus.SENT, sentCount: 1, lastSentAt: now, nextRemindAt: null },
+      });
+    }
   }
 
   // =============================================================
@@ -190,11 +306,7 @@ export class ThingService {
     const thing = await this.loadVisibleThing(ctx, thingId);
 
     const [briefs, reminders] = await Promise.all([
-      this.memberBriefs([
-        thing.creatorMemberId,
-        thing.assigneeMemberId,
-        thing.completedByMemberId,
-      ]),
+      this.memberBriefs([thing.creatorMemberId, thing.assigneeMemberId, thing.completedByMemberId]),
       this.prisma.thingReminder.findMany({
         where: { thingId: thing.id },
         orderBy: { createdAt: 'asc' },
@@ -512,9 +624,8 @@ export class ThingService {
 
     /** 叮一下显示哪个时刻：优先 dueAt，其次今天会响的那条提醒 */
     const timeOf = (row: FamilyThing): string => {
-      const fromDue = row.dueAt && row.dueAt >= start && row.dueAt < end
-        ? formatTimeOfDay(row.dueAt)
-        : null;
+      const fromDue =
+        row.dueAt && row.dueAt >= start && row.dueAt < end ? formatTimeOfDay(row.dueAt) : null;
       return fromDue ?? formatTimeOfDay(firingAt.get(row.id) ?? null) ?? '--:--';
     };
 
@@ -780,7 +891,11 @@ export class ThingService {
       const nextAt =
         r.recurrenceType === RecurrenceType.NONE
           ? shifted
-          : nextOccurrence(r.recurrenceType, r.recurrenceConfig as RecurrenceConfig | null, nextDue);
+          : nextOccurrence(
+              r.recurrenceType,
+              r.recurrenceConfig as RecurrenceConfig | null,
+              nextDue,
+            );
 
       await tx.thingReminder.create({
         data: {
@@ -802,72 +917,6 @@ export class ThingService {
   // =============================================================
   // 内部：通知
   // =============================================================
-
-  /** 创建后的通知：派活通知 + 立即叮一下（后者即时下发） */
-  private async dispatchOnCreate(
-    ctx: FamilyMemberContext,
-    thing: FamilyThing,
-    assignee: { id: bigint; userId: bigint },
-    reminders: NormalizedReminder[],
-  ): Promise<void> {
-    const familyName = await this.familyName(ctx.familyId);
-    const creatorRoleName = ctx.roleName;
-
-    // 派活：交给别人时通知对方（自己派给自己不必通知）
-    if (thing.type === ThingType.TASK && assignee.id !== ctx.memberId) {
-      await this.safeNotify(async () => {
-        await this.notify.notifyTaskAssigned({
-          userId: assignee.userId,
-          familyId: ctx.familyId,
-          thingId: thing.id,
-          ctx: {
-            roleName: await this.roleNameOfMember(assignee.id),
-            familyName,
-            thingTitle: thing.title,
-            thingContent: thing.content ?? undefined,
-            fromRoleName: creatorRoleName,
-            dueAt: thing.dueAt ?? undefined,
-          },
-        });
-      });
-    }
-
-    // 立即叮：创建时就发出去，并把该条提醒置为已发送
-    const nowReminders = reminders.filter((r) => r.remindType === RemindType.NOW);
-    if (nowReminders.length === 0) return;
-
-    const now = new Date();
-    for (const r of nowReminders) {
-      const recipientUserId = await this.userIdOfMember(r.recipientMemberId);
-      if (recipientUserId != null) {
-        await this.safeNotify(async () => {
-          await this.notify.notifyReminder({
-            userId: recipientUserId,
-            familyId: ctx.familyId,
-            thingId: thing.id,
-            ctx: {
-              roleName: await this.roleNameOfMember(r.recipientMemberId),
-              familyName,
-              thingTitle: thing.title,
-              thingContent: thing.content ?? undefined,
-              fromRoleName: creatorRoleName,
-              remindAt: now,
-            },
-          });
-        });
-      }
-
-      await this.prisma.thingReminder.updateMany({
-        where: {
-          thingId: thing.id,
-          recipientMemberId: r.recipientMemberId,
-          remindType: RemindType.NOW,
-          status: ReminderStatus.PENDING,
-        },
-        data: { status: ReminderStatus.SENT, sentCount: 1, lastSentAt: now, nextRemindAt: null },
-      });
-    }
-  }
 
   /** 通知失败绝不能影响主流程 —— 只记日志 */
   private async safeNotify(fn: () => Promise<unknown>): Promise<void> {
@@ -1060,6 +1109,36 @@ interface NormalizedReminder {
   remindAt: Date | null;
   recurrenceType: number;
   recurrenceConfig: RecurrenceConfig | null;
+}
+
+/**
+ * `prepareThing` 的产物 —— 校验与归一化都做完了，只差落库。
+ *
+ * 单独成类型是因为它要**跨事务边界**传递：`prepareThing` 在事务外产出它
+ * （里面有一次微信内容安全的网络往返），`insertThing` 在事务内消费它，
+ * `dispatchCreatedThing` 在事务提交后才读 `CreatedThing`（通知里带着
+ * `thing.id`，事务没提交时对方点进去会 404）。
+ * `MenuService.decideAndAssign` 也走同一条路。
+ */
+export interface PreparedThing {
+  type: number;
+  title: string;
+  content: string | null;
+  visibility: number;
+  dueAt: Date | null;
+  recurrenceType: number;
+  recurrenceConfig: Record<string, unknown> | null;
+  assignee: { id: bigint; userId: bigint };
+  reminders: NormalizedReminder[];
+}
+
+/**
+ * `insertThing` 的产物 —— 事务里写好的小事 + 归一化后的提醒。
+ */
+export interface CreatedThing {
+  thing: FamilyThing;
+  assignee: { id: bigint; userId: bigint };
+  reminders: NormalizedReminder[];
 }
 
 function clamp(n: number, min: number, max: number): number {
