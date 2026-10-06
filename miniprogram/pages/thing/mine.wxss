@@ -1,0 +1,69 @@
+/*
+  P11 · 我的小事
+  视觉规范见 docs/07；颜色只用 variables.wxss 的令牌。
+*/
+
+/* ---------- 顶部 Tab ---------- */
+
+.tabs {
+  display: flex;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.tabs__item {
+  flex: 1;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-h3);
+  color: var(--ink-2);
+}
+
+.tabs__item--on {
+  background: var(--surface);
+  color: var(--brand-ink);
+  font-weight: 600;
+  /* 粉调阴影，不用灰的（docs/07） */
+  box-shadow: 0 2px 8px rgba(255, 150, 170, 0.18);
+}
+
+/* ---------- 状态筛子 ---------- */
+
+.filter {
+  display: inline-flex;
+  align-items: center;
+  margin: 14px 0 4px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-cap);
+}
+
+.filter__caret {
+  margin-left: 6px;
+  font-size: 10px;
+}
+
+/* ---------- 列表 ---------- */
+
+.rows {
+  margin-top: 12px;
+}
+
+.row + .row {
+  margin-top: 8px;
+}
+
+/* ---------- 底部 ---------- */
+
+.foot {
+  padding: 18px 0 4px;
+  text-align: center;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}

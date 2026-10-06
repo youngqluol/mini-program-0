@@ -1,0 +1,59 @@
+<!-- P11 · 我的小事 -->
+<view class="page">
+  <!-- 谁的事 -->
+  <view class="tabs">
+    <view
+      wx:for="{{tabs}}"
+      wx:key="key"
+      class="tabs__item {{tab === item.key ? 'tabs__item--on' : ''}}"
+      data-tab="{{item.key}}"
+      bindtap="onPickTab"
+    >{{item.label}}</view>
+  </view>
+
+  <!-- 什么状态。第三个 Tab 自己锁死了「已完成」，就不再给这个筛子 -->
+  <picker
+    wx:if="{{showStatusFilter}}"
+    mode="selector"
+    range="{{statusLabels}}"
+    value="{{statusIndex}}"
+    bindchange="onStatusChange"
+  >
+    <view class="filter">
+      <text class="filter__label">{{statusLabel}}</text>
+      <text class="filter__caret">▾</text>
+    </view>
+  </picker>
+
+  <!-- 列表 -->
+  <view wx:if="{{rows.length > 0}}" class="rows">
+    <view class="row" wx:for="{{rows}}" wx:key="id">
+      <swipe-cell
+        itemId="{{item.id}}"
+        openId="{{openId}}"
+        actions="{{item.actions}}"
+        bind:open="onRowOpen"
+        bind:close="onRowClose"
+        bind:action="onRowAction"
+      >
+        <thing-card item="{{item.card}}" variant="list" bind:click="onRowClick" />
+      </swipe-cell>
+    </view>
+  </view>
+
+  <!-- 空状态：只在「加载过一次且确实没有」时出现，避免首屏闪一下 -->
+  <view wx:elif="{{loaded && !loading}}" class="card">
+    <view class="empty">
+      <text class="empty__emoji">{{emptyEmoji}}</text>
+      <text class="empty__title">{{emptyTitle}}</text>
+      <text class="empty__hint">{{emptyHint}}</text>
+    </view>
+  </view>
+
+  <!-- 底部状态 -->
+  <view wx:if="{{rows.length > 0}}" class="foot">
+    <text wx:if="{{loading}}">正在加载…</text>
+    <text wx:elif="{{hasMore}}">上拉看看更多</text>
+    <text wx:else>就这些了</text>
+  </view>
+</view>

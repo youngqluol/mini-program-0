@@ -14,7 +14,8 @@
     "pages/family/set-role",
     "pages/nudge/create",
     "pages/task/create",
-    "pages/thing/detail"
+    "pages/thing/detail",
+    "pages/thing/mine"
   ],
   "window": {
     "backgroundTextStyle": "dark",
