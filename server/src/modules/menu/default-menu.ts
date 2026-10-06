@@ -60,10 +60,10 @@
  * 代价：改名等于**新增一道菜**（历史 `meal_records` 留的是改名前的快照，这是对的）。
  */
 
-/** 五个分类。顺序即 P17 分组展示的顺序。 */
-export const MENU_CATEGORIES = ['家常菜', '素菜', '汤', '主食', '外食'] as const;
+import { MENU_CATEGORY, type MenuCategory } from '@shared';
 
-export type MenuCategory = (typeof MENU_CATEGORIES)[number];
+/** 五个分类，按界面展示顺序（声明顺序就是 `MENU_CATEGORY` 的书写顺序）。 */
+export const MENU_CATEGORIES: readonly MenuCategory[] = Object.values(MENU_CATEGORY);
 
 export interface SystemDish {
   /** 菜名。**唯一**，也是接口上唯一的标识（系统菜谱没有 `id`）。 */

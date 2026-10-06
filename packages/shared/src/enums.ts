@@ -102,6 +102,38 @@ export enum MealType {
 }
 
 /**
+ * 菜谱分类（`menu_items.category`，存中文字符串）。
+ *
+ * ⚠️ **这不是纯展示标签，改它会改推荐行为。** 「一荤一素一汤」的组合搭配
+ * （PRD §16.3）就是靠分类实现的：
+ *   - `HOME`（家常菜）= 荤 → 组合的第 1 道
+ *   - `VEGGIE`（素菜）   = 素 → 组合的第 2 道
+ *   - `SOUP` / `STAPLE`  → 组合的第 3 道（汤和主食共用一个位置）
+ *   - `DINING_OUT`（外食）→ **不参与组合**（出去吃就不存在「一荤一素」）
+ *
+ * ⚠️ **这里刻意用 `as const` 对象 + 联合类型，而不是 `enum`**（与下面的 `MenuSource`
+ * 不同，是本文件唯一的例外）。原因是**消费方的写法**：
+ * `server/src/modules/menu/default-menu.ts` 里有 72 行「菜名 → 分类」的字面量，
+ * 用 `enum` 就得每行写 `MenuCategory.HOME`（噪音大、容易看串行）；
+ * 用联合类型可以直接写 `'家常菜'`，而**打错字照样是编译错误**（TS2322）——
+ * 安全性一模一样，可读性差很多。
+ *
+ * 声明顺序 = 界面展示顺序（`Object.values(MENU_CATEGORY)` 即可用）。
+ */
+export const MENU_CATEGORY = {
+  /** 家常菜 —— 组合里的「荤」 */
+  HOME: '家常菜',
+  /** 素菜 —— 组合里的「素」 */
+  VEGGIE: '素菜',
+  SOUP: '汤',
+  STAPLE: '主食',
+  /** 外食 —— 不参与「一荤一素一汤」组合 */
+  DINING_OUT: '外食',
+} as const;
+
+export type MenuCategory = (typeof MENU_CATEGORY)[keyof typeof MENU_CATEGORY];
+
+/**
  * 菜谱来源（接口字段 `source`）—— **不入库**，由 `menu_items.family_id` 是否为 NULL 推导。
  *
  * ⚠️ 系统菜谱是**代码常量**（`server/src/modules/menu/default-menu.ts`），
