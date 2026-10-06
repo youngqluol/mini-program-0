@@ -1,25 +1,270 @@
-.wheel {
+/* P02 · 吃啥呢 */
+
+/* ---------------------------------------------------------------
+   抬头
+   --------------------------------------------------------------- */
+
+.head {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 36px 20px 28px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 2px 14px;
+}
+
+.head__q {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.head__manage {
+  font-size: var(--fs-cap);
+  color: var(--brand-ink);
+}
+
+/* ---------------------------------------------------------------
+   随机卡片
+
+   高度写死在 `.wheel__swiper` 上 —— `swiper` 必须有确定高度，
+   否则它按 0 高渲染（白屏，且不报错）。
+   --------------------------------------------------------------- */
+
+.wheel {
+  padding: 18px 14px;
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
 
-.wheel__question {
-  font-size: var(--fs-h2);
-  color: var(--ink-2);
+.wheel__swiper {
+  height: 236px;
 }
 
-.wheel__dish {
-  margin: 16px 0 28px;
-  font-size: var(--fs-display);
+/* 「换一个」时轻微「翻一下」。刻意只做到 0.92 / 1.5 度 ——
+   这是「重新抽了」，不是「翻牌中奖」。 */
+@keyframes roll-pop {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  40% {
+    transform: scale(0.92) rotate(-1.5deg);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.wheel--rolling {
+  animation: roll-pop 320ms ease-out;
+}
+
+.dish {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* emoji 装粉彩 squircle 色块（docs/07）—— 不用大号 emoji 直接裸排 */
+.dish__emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-tile);
+  background: var(--pastel-pink);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.dish__name {
+  margin-top: 14px;
+  font-size: var(--fs-h1);
   font-weight: 700;
   color: var(--brand-ink);
+  text-align: center;
 }
 
-.wheel__btn {
-  width: 100%;
+.dish__cat {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* 首屏骨架：只占位，不转圈 */
+.skel-dish {
+  height: 200px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+/* ---------------------------------------------------------------
+   多菜组合指示器
+   --------------------------------------------------------------- */
+
+.dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0 0;
+}
+
+.dots__dot {
+  width: 6px;
+  height: 6px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 160ms ease-out;
+}
+
+.dots__dot--on {
+  background: var(--brand-ink);
+}
+
+/* ---------------------------------------------------------------
+   两个按钮
+   --------------------------------------------------------------- */
+
+.acts {
+  display: flex;
+  margin-top: 16px;
+}
+
+.acts__item {
+  flex: 1;
+}
+
+.acts__item + .acts__item {
+  margin-left: 12px;
+}
+
+/* ---------------------------------------------------------------
+   最近吃过
+   --------------------------------------------------------------- */
+
+.recent {
+  display: flex;
+  align-items: baseline;
+  padding: 9px 0;
+}
+
+.recent + .recent {
+  border-top: 1px solid var(--line);
+}
+
+.recent__date {
+  flex: none;
+  width: 62px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.recent__names {
+  flex: 1;
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+/* 空状态里的「去添加」按钮不要撑满整行 */
+.empty__btn {
+  width: 140px;
+  margin-top: 18px;
+}
+
+/* ---------------------------------------------------------------
+   底部确认层
+   --------------------------------------------------------------- */
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.sheet__mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(31, 31, 31, 0.32);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.sheet__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  animation: sheet-up 220ms ease-out;
+}
+
+.sheet__dishes {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  color: var(--ink-1);
+  text-align: center;
+}
+
+.sheet__cap {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.sheet__list {
+  margin-top: 16px;
+}
+
+.sheet__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+
+.sheet__item:active {
+  opacity: 0.86;
+}
+
+/* 「不用派，自己解决」是另一类选择 —— 用中性色，不与「派给谁」抢注意力 */
+.sheet__item--skip {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.sheet__cancel {
+  margin-top: 4px;
+  padding: 12px 0 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
 }

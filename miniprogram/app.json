@@ -2,6 +2,7 @@
   "pages": [
     "pages/index/index",
     "pages/menu/index",
+    "pages/menu/manage",
     "pages/memory/index",
     "pages/mine/index",
     "pages/mine/wechat-notify",

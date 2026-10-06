@@ -1,0 +1,114 @@
+<!--
+  P17 · 菜谱管理
+
+  两组：系统菜谱（只读）/ 我家菜谱（可改可停）。
+
+  系统那一组刻意**不给开关、不给左滑** —— 它们不在库里，改不了。
+  给一个能点但会报错的开关，比不给更糟。
+
+  「+ 添加」放在页面抬头右侧（导航栏按钮需要自定义导航，代价更大）。
+-->
+<view class="page">
+  <view class="head">
+    <view class="head__title">我家菜谱</view>
+    <view class="head__add" bindtap="onAdd">+ 添加</view>
+  </view>
+
+  <!-- 加载骨架 -->
+  <block wx:if="{{loading && !loaded}}">
+    <view class="skel"></view>
+    <view class="skel"></view>
+  </block>
+
+  <block wx:else>
+    <!-- 我家菜谱（可编辑）。放前面 —— 这一页主要是来管它的 -->
+    <view class="section-title">我家菜谱</view>
+    <view class="card">
+      <block wx:if="{{family.length > 0}}">
+        <swipe-cell
+          wx:for="{{family}}"
+          wx:key="key"
+          itemId="{{item.id}}"
+          openId="{{openId}}"
+          actions="{{item.actions}}"
+          bind:open="onRowOpen"
+          bind:close="onRowClose"
+          bind:action="onRowAction"
+        >
+          <view class="row {{item.dim ? 'row--dim' : ''}}">
+            <text class="row__emoji">{{item.emoji}}</text>
+            <view class="row__main">
+              <view class="row__name">{{item.name}}</view>
+              <view wx:if="{{item.category}}" class="row__cat">{{item.category}}</view>
+            </view>
+            <switch
+              class="row__switch"
+              checked="{{item.enabled}}"
+              color="#F97E9B"
+              data-id="{{item.id}}"
+              bindchange="onToggleSwitch"
+            />
+          </view>
+        </swipe-cell>
+      </block>
+
+      <view wx:else class="empty">
+        <text class="empty__emoji">🍳</text>
+        <text class="empty__title">还没有自己的菜</text>
+        <text class="empty__hint">想到什么，加一个吧</text>
+      </view>
+    </view>
+
+    <!-- 系统菜谱（只读） -->
+    <view class="section-title" bindtap="onSystemHint">
+      自带菜谱
+      <text class="section-title__hint">改不了</text>
+    </view>
+    <view class="card">
+      <view wx:for="{{system}}" wx:key="key" class="row row--readonly">
+        <text class="row__emoji">{{item.emoji}}</text>
+        <view class="row__main">
+          <view class="row__name">{{item.name}}</view>
+          <view wx:if="{{item.category}}" class="row__cat">{{item.category}}</view>
+        </view>
+        <text class="row__tag">自带</text>
+      </view>
+    </view>
+
+    <!-- 上拉加载中 / 还有更多 -->
+    <view wx:if="{{hasMore}}" class="more">上拉看更多</view>
+  </block>
+</view>
+
+<!-- 添加 / 编辑表单 -->
+<view wx:if="{{formOpen}}" class="sheet">
+  <view class="sheet__mask" bindtap="onFormClose"></view>
+  <view class="sheet__panel">
+    <view class="sheet__title">{{formTitle}}</view>
+
+    <view class="field">
+      <view class="field__label">菜名</view>
+      <input
+        class="field__input"
+        value="{{formName}}"
+        maxlength="100"
+        placeholder="比如 可乐鸡翅"
+        placeholder-class="field__placeholder"
+        bindinput="onFormName"
+      />
+    </view>
+
+    <view class="field field--last">
+      <view class="field__label">归到哪一类</view>
+      <picker mode="selector" range="{{categoryPicker}}" value="{{categoryIndex}}" bindchange="onFormCategory">
+        <view class="field__picker">{{categoryLabel}}</view>
+      </picker>
+      <view class="field__hint">分类会影响「今天吃什么」怎么搭配，不确定就选「不分类」</view>
+    </view>
+
+    <view class="btn-primary sheet__submit" bindtap="onFormSubmit">
+      {{formMode === 'create' ? '加进菜谱' : '保存'}}
+    </view>
+    <view class="sheet__cancel" bindtap="onFormClose">再想想</view>
+  </view>
+</view>

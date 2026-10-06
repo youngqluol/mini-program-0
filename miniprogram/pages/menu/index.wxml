@@ -1,18 +1,109 @@
-<view class="page">
-  <view class="skeleton-note">骨架预览：随机决策在 M3 接入。</view>
+<!--
+  P02 · 吃啥呢（Tab 2）
 
-  <view class="wheel">
-    <view class="wheel__question">今天吃什么？</view>
-    <view class="wheel__dish">{{dish || '？'}}</view>
-    <view class="btn-primary wheel__btn" bindtap="onRoll">转一转</view>
+  「今天吃什么」只有三块：一张随机卡片（多菜可左右滑）、两个按钮、
+  下面的「最近吃过」。任何超出这个范围的东西都不该出现在这一页 ——
+  它要回答的只有一句「今天吃什么」。
+
+  圆点指示器直接从 `cards` + `cardIndex` 渲染，不另存一份数组：
+  两份状态迟早不同步，而这里 `index === cardIndex` 就是全部逻辑。
+-->
+<view class="page">
+  <view class="head">
+    <view class="head__q">今天吃什么？</view>
+    <view class="head__manage" bindtap="onManage">菜谱</view>
   </view>
 
+  <!-- 首屏加载：骨架块，不用转圈（与 P01 一致） -->
+  <block wx:if="{{loading}}">
+    <view class="wheel">
+      <view class="skel-dish"></view>
+    </view>
+  </block>
+
+  <!-- 池子里一条菜都没有 —— 引导去加菜谱 -->
+  <view wx:elif="{{emptyPool}}" class="card empty">
+    <text class="empty__emoji">🍽️</text>
+    <text class="empty__title">还没有菜谱</text>
+    <text class="empty__hint">先去加几个吧</text>
+    <view class="btn-primary empty__btn" bindtap="onManage">去添加</view>
+  </view>
+
+  <block wx:else>
+    <!-- 随机卡片。`rolling` 期间播一个轻微的「翻一下」动画 -->
+    <view class="wheel {{rolling ? 'wheel--rolling' : ''}}">
+      <swiper
+        class="wheel__swiper"
+        current="{{cardIndex}}"
+        bindchange="onCardChange"
+        indicator-dots="{{false}}"
+        duration="220"
+      >
+        <swiper-item wx:for="{{cards}}" wx:key="name">
+          <view class="dish">
+            <view class="dish__emoji">{{item.emoji}}</view>
+            <view class="dish__name">{{item.name}}</view>
+            <view wx:if="{{item.category}}" class="dish__cat">{{item.category}}</view>
+          </view>
+        </swiper-item>
+      </swiper>
+    </view>
+
+    <!-- 多菜组合指示器。只有一道菜时不显示 —— 一个点没有信息量 -->
+    <view wx:if="{{cards.length > 1}}" class="dots">
+      <view
+        wx:for="{{cards}}"
+        wx:key="name"
+        class="dots__dot {{index === cardIndex ? 'dots__dot--on' : ''}}"
+      ></view>
+    </view>
+
+    <view class="acts">
+      <view class="btn-ghost acts__item" bindtap="roll">换一个</view>
+      <view class="btn-primary acts__item" bindtap="onOpenSheet">就吃这个</view>
+    </view>
+  </block>
+
+  <!-- 最近吃过 -->
   <view class="section-title">最近吃过</view>
   <view class="card">
-    <view class="empty">
+    <block wx:if="{{recentRows.length > 0}}">
+      <view class="recent" wx:for="{{recentRows}}" wx:key="dateText">
+        <text class="recent__date">{{item.dateText}}</text>
+        <text class="recent__names">{{item.namesText}}</text>
+      </view>
+    </block>
+    <view wx:else class="empty">
       <text class="empty__emoji">🍽️</text>
       <text class="empty__title">还没有记录</text>
       <text class="empty__hint">决定吃什么之后，这里会留下记录</text>
     </view>
+  </view>
+</view>
+
+<!--
+  底部确认层（「就吃这个」之后）
+
+  刻意不用 `wx.showActionSheet`：它最多 6 项，家里人多就选不全，
+  也没法在选项上方排一栏「这一餐是什么」。自己画一个面板，两项都没有限制。
+-->
+<view wx:if="{{sheetOpen}}" class="sheet">
+  <view class="sheet__mask" bindtap="onCloseSheet"></view>
+  <view class="sheet__panel">
+    <view class="sheet__dishes">{{sheetNames}}</view>
+    <view class="sheet__cap">要派给谁做吗？</view>
+
+    <view class="sheet__list">
+      <view
+        wx:for="{{sheetChoices}}"
+        wx:key="memberId"
+        class="sheet__item {{item.kind === 'skip' ? 'sheet__item--skip' : ''}}"
+        data-member-id="{{item.memberId}}"
+        data-kind="{{item.kind}}"
+        bindtap="onPickChoice"
+      >{{item.label}}</view>
+    </view>
+
+    <view class="sheet__cancel" bindtap="onCloseSheet">再想想</view>
   </view>
 </view>

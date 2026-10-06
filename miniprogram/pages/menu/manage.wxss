@@ -1,0 +1,186 @@
+/* P17 · 菜谱管理 */
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 6px;
+}
+
+.head__title {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.head__add {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--fs-cap);
+  font-weight: 600;
+}
+
+.head__add:active {
+  opacity: 0.86;
+}
+
+/* 区块标题右侧的小字说明（「改不了」）—— 中性色，不抢标题 */
+.section-title__hint {
+  margin-left: 8px;
+  font-size: var(--fs-cap);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------
+   行
+   --------------------------------------------------------------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row__emoji {
+  width: 38px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.row__name {
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.row__cat {
+  margin-top: 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+.row__switch {
+  flex: none;
+  margin-left: 8px;
+  transform: scale(0.9);
+}
+
+/* 停用后整行置灰 —— 它还在列表里，只是不进随机池 */
+.row--dim .row__emoji,
+.row--dim .row__name,
+.row--dim .row__cat {
+  opacity: 0.42;
+}
+
+/* 系统菜谱：只读。没有开关，右侧是一个静态标签 */
+.row--readonly .row__name {
+  color: var(--ink-2);
+}
+
+.row__tag {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: var(--fs-cap);
+}
+
+/* ---------------------------------------------------------------
+   骨架 / 更多
+   --------------------------------------------------------------- */
+
+.skel {
+  height: 76px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.more {
+  padding: 18px 0;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------
+   添加 / 编辑表单面板
+   --------------------------------------------------------------- */
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.sheet__mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(31, 31, 31, 0.32);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.sheet__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  animation: sheet-up 220ms ease-out;
+}
+
+.sheet__title {
+  margin-bottom: 16px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  color: var(--ink-1);
+  text-align: center;
+}
+
+.field__picker {
+  height: 30px;
+  font-size: var(--fs-h2);
+  color: var(--ink-1);
+}
+
+.sheet__submit {
+  margin-top: 22px;
+}
+
+.sheet__cancel {
+  margin-top: 4px;
+  padding: 12px 0 2px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
+}

@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "菜谱管理",
+  "usingComponents": {
+    "swipe-cell": "/components/swipe-cell/index"
+  }
+}
