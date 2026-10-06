@@ -120,6 +120,12 @@
 - `wx-open-launch-weapp` 需认证公众号 + JSSDK → 测试号不具备
 - **小程序码长按识别**是个人主体唯一可靠的中转页跳转手段
 - openid 是「用户 × 应用」维度：**小程序 openid ≠ 公众号 openid，无法互推**（`users.mp_openid` 单独存）
+- **个人主体小程序可以调用 `security.msgSecCheck`**（无 48001）—— 2026-10-06 实测
+  - 结论看 `result.suggest`（`pass` / `review` / `risky`），老接口形态用 `errcode=87014`
+  - 唯一能看到原始结论的方式：`node tools/probe-seccheck.mjs [--text=…]`（服务端只回 40002，看不到原因）
+  - 策略唯一出口 `server/src/modules/wechat/content-security.service.ts`：
+    **`risky` 拦（40002），`review` 与「判不了」放行**（fail-open，理由见文件头）
+  - ⚠️ 冒烟验不到「违规被拦」：夹具 openid 是假的（`smoke_xxx`）→ 微信必回 40003 → 走放行。别被全绿骗了
 - **已排除**：认证服务号模板消息（需企业主体）、企业微信、原生 App（PRD 6.5.4）
 
 ## V0.1 明确不做
