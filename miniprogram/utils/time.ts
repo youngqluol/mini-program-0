@@ -80,17 +80,32 @@ export function hhmmOf(value: string): string {
 }
 
 /**
+ * 一个**绝对时刻**说成人话：`今天 17:30` / `昨天 18:05` / `09-20 10:00`。
+ *
+ * 用在「单独出现、需要定位是哪天」的时间上（消息中心的「什么时候来的」）。
+ * 消息列表里相邻两条可能跨天，只写「17:30」就不知道是哪天的 17:30。
+ *
+ * 与 `shortMoment()` 的分工：那个是给**成对出现**的时间用的（同一天只说时刻），
+ * 这个是给**单独出现**的时间用的。
+ */
+export function describeMoment(value: string): string {
+  const day = describeDay(value);
+  if (!day) return '';
+  const time = hhmmOf(value);
+  return time ? `${day} ${time}` : day;
+}
+
+/**
  * 「要求完成时间」说成人话：`今天 18:00` / `明天 07:00` / `不限时间`。
  *
  * 传 null 表示「不限时间」—— 这是产品上的正常选择，不是缺数据，
  * 所以文案要中性（不能写「未设置」，那听起来像没填完）。
+ *
+ * 有值时的说法与 `describeMoment()` 完全一致，直接复用它。
  */
 export function describeDue(value: string | null): string {
   if (!value) return '不限时间';
-  const time = hhmmOf(value);
-  const day = describeDay(value);
-  if (!day) return '不限时间';
-  return time ? `${day} ${time}` : day;
+  return describeMoment(value) || '不限时间';
 }
 
 /**
@@ -98,7 +113,7 @@ export function describeDue(value: string | null): string {
  *
  * 用在**成对出现**的时间上 —— 「18:00 前完成」配「17:30 提醒」，
  * 两条都写「今天」是废话，还会把这一行挤长。单说一个时刻的场景
- * 用 `describeDue()`，那个要带上「今天 / 明天」才不至于有歧义。
+ * 用 `describeMoment()`，那个要带上「今天 / 明天」才不至于有歧义。
  *
  * 不传 `base` 就与「今天」比。
  */
