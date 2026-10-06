@@ -1,9 +1,13 @@
 # MySQL 数据库设计
 
-> **版本：v0.2.1** ｜ 最后更新：2026-10-06
+> **版本：v0.2.2** ｜ 最后更新：2026-10-06
 >
 > **本文档的定位：** 解释每张表**为什么**这样设计。
 > **可执行 DDL 在 [`db/schema.sql`](../db/schema.sql)**——那是唯一真相。本文与它冲突时，以 schema.sql 为准。
+>
+> **v0.2.2 相对 v0.2.1 的变化：**
+> 1. `thing_reminders` / `notification_logs` 各新增 `read_at`（已读时刻，`NULL` = 未读，见第八、十三章）
+> 2. **勘误**：§八 `thing_reminders` 的 DDL 补齐 `sent_count` / `next_remind_at`，索引名由 `idx_remind_at_status` 更正为 `idx_next_remind`（以 schema.sql 为准）
 >
 > **v0.2.1 相对 v0.1 的变化：**
 > 1. `users` 新增 `mp_openid` / `mp_bound_at`（公众号推送绑定，见第二章）
@@ -378,18 +382,34 @@ CREATE TABLE thing_reminders (
 
     status TINYINT NOT NULL DEFAULT 1 COMMENT '1待发送 2已发送 3已取消',
 
+    sent_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '累计发送次数',
+
     last_sent_at DATETIME DEFAULT NULL COMMENT '最近发送时间',
+
+    next_remind_at DATETIME DEFAULT NULL COMMENT '下一次触发时间（调度扫描用）',
+
+    read_at DATETIME DEFAULT NULL COMMENT '接收人已读时间（NULL=未读）',
 
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
 
-    KEY idx_remind_at_status (remind_at, status),
+    KEY idx_next_remind (next_remind_at, status),
     KEY idx_thing_id (thing_id),
     KEY idx_recipient (recipient_member_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='小事提醒表';
 ```
+
+> **v0.2.2 勘误（2026-10-06）**：本段的 DDL 之前与 `db/schema.sql` 漂移 ——
+> 缺了 `sent_count`、`next_remind_at` 两个字段，索引名写的是 `idx_remind_at_status`
+> 而实际是 `idx_next_remind`。已按 `db/schema.sql`（DDL 唯一真相）对齐，
+> 并补上 `read_at`。
+>
+> `read_at` 的存在理由：`GET /reminders/inbox` 需要「已读 / 未读数 / 全部已读」
+> 三件事（docs/02 §5.4），**一个 `read_at` 就够了** —— NULL 表示未读，非 NULL
+> 既表示已读也记录了时刻。不再另建 `is_read TINYINT`，避免两个字段互相矛盾。
+> 查询「我的未读」走已有的 `idx_recipient`，不需要新索引。
 
 例如：
 
@@ -657,6 +677,8 @@ CREATE TABLE notification_logs (
 
     error_message VARCHAR(1000) DEFAULT NULL COMMENT '失败原因',
 
+    read_at DATETIME DEFAULT NULL COMMENT '接收人已读时间（NULL=未读）',
+
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
@@ -666,6 +688,15 @@ CREATE TABLE notification_logs (
     KEY idx_thing_id (thing_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='通知记录表';
 ```
+
+> **v0.2.2 补充（2026-10-06）**：新增 `read_at`，供消息中心的
+> 「已读 / 未读数 / 全部已读」使用（docs/02 §9）。
+>
+> ⚠️ 它与 `thing_reminders.read_at` 是**两条独立记录**，各自维护已读状态：
+> 一条提醒会同时产生一条 `thing_reminders`（供 `/reminders/inbox` 收件箱）
+> 和一条 `notification_logs`（供消息中心 + 发送留痕）。它们是两个不同的用户
+> 入口，不该互相耦合 —— 在收件箱里读过，不等于在消息中心里也读过。
+> 查询「我的未读」走已有的 `idx_user_created`，不需要新索引。
 
 ### 为什么 channel 有三档、status 有五档？
 

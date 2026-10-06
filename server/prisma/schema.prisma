@@ -199,6 +199,8 @@ model ThingReminder {
   lastSentAt        DateTime? @map("last_sent_at") @db.DateTime(0)
   /// 下一次触发时间（调度扫描用）
   nextRemindAt      DateTime? @map("next_remind_at") @db.DateTime(0)
+  /// 接收人已读时间（NULL=未读）。提醒收件箱的「已读/未读数/全部已读」共用此字段
+  readAt            DateTime? @map("read_at") @db.DateTime(0)
   createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(0)
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
 
@@ -331,6 +333,8 @@ model NotificationLog {
   /// 微信返回错误码，例如 43101
   errorCode    String?   @map("error_code") @db.VarChar(32)
   errorMessage String?   @map("error_message") @db.VarChar(1000)
+  /// 接收人已读时间（NULL=未读）。消息中心的「已读/未读数/全部已读」共用此字段
+  readAt       DateTime? @map("read_at") @db.DateTime(0)
   createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(0)
 
   @@index([userId, createdAt], map: "idx_user_created")

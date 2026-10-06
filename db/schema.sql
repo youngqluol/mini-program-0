@@ -159,6 +159,10 @@ CREATE TABLE IF NOT EXISTS `thing_reminders` (
     `sent_count`           INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '累计发送次数',
     `last_sent_at`         DATETIME        DEFAULT NULL            COMMENT '最近发送时间',
     `next_remind_at`       DATETIME        DEFAULT NULL            COMMENT '下一次触发时间（调度扫描用）',
+    -- v0.2 补充：提醒收件箱（docs/02 §5.4）需要「已读 / 未读数 / 全部已读」。
+    -- 用单个 read_at 表达三件事：NULL = 未读，非 NULL = 已读（同时也是已读时刻）。
+    -- 比再建一个 is_read TINYINT 少一个字段、少一次「两个字段互相矛盾」的机会。
+    `read_at`              DATETIME        DEFAULT NULL            COMMENT '接收人已读时间（NULL=未读）',
     `created_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -275,6 +279,12 @@ CREATE TABLE IF NOT EXISTS `notification_logs` (
     `sent_at`         DATETIME        DEFAULT NULL            COMMENT '发送时间',
     `error_code`      VARCHAR(32)     DEFAULT NULL            COMMENT '微信返回错误码，例如 43101',
     `error_message`   VARCHAR(1000)   DEFAULT NULL            COMMENT '失败原因',
+    -- v0.2 补充：消息中心（docs/02 §9）需要「已读 / 未读数 / 全部已读」。
+    -- 语义与 thing_reminders.read_at 一致：NULL = 未读。
+    -- 注意与 thing_reminders.read_at 是**两条独立记录**：一条提醒会同时产生
+    -- 一条 thing_reminders（收件箱用）和一条 notification_logs（发送留痕用），
+    -- 已读状态各自维护 —— 它们是不同的用户入口，不该互相耦合。
+    `read_at`         DATETIME        DEFAULT NULL            COMMENT '接收人已读时间（NULL=未读）',
     `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_user_created` (`user_id`, `created_at`),
