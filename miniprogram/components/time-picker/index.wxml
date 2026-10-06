@@ -1,0 +1,37 @@
+<!--
+  「什么时候」选择器（P09 派活）
+
+  三段：不限 / 今天 / 指定。
+  选「今天」时日期固定是今天，只能改时间；选「指定」时日期时间都能改。
+
+  `value` 传的是后端的北京时间字符串 `"YYYY-MM-DD HH:mm:ss"`，空串表示「不限时间」。
+-->
+<view class="tpick {{disabled ? 'tpick--off' : ''}}">
+  <view class="tpick__seg">
+    <view
+      wx:for="{{segments}}"
+      wx:key="key"
+      class="tpick__seg-item {{item.key === segment ? 'tpick__seg-item--on' : ''}}"
+      data-seg="{{item.key}}"
+      bindtap="onSeg"
+    >{{item.label}}</view>
+  </view>
+
+  <view wx:if="{{segment !== 'NONE'}}" class="tpick__row">
+    <picker
+      wx:if="{{segment === 'CUSTOM'}}"
+      class="tpick__cell"
+      mode="date"
+      value="{{date}}"
+      start="{{minDate}}"
+      bindchange="onDate"
+    >
+      <view class="tpick__box">{{dateText}}</view>
+    </picker>
+    <view wx:else class="tpick__cell tpick__box tpick__box--static">今天</view>
+
+    <picker class="tpick__cell" mode="time" value="{{time}}" bindchange="onTime">
+      <view class="tpick__box">{{time}}</view>
+    </picker>
+  </view>
+</view>

@@ -1,0 +1,67 @@
+/* 「什么时候」选择器 —— 分段控件见 docs/07 §6.6 */
+
+:host {
+  display: block;
+}
+
+/* 小事已完成 / 已取消时整体只读 */
+.tpick--off {
+  opacity: 0.55;
+}
+
+.tpick__seg {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.tpick__seg-item {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-body);
+  color: var(--ink-2);
+}
+
+.tpick__seg-item:active {
+  opacity: 0.7;
+}
+
+.tpick__seg-item--on {
+  background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.tpick__row {
+  display: flex;
+  margin-top: 12px;
+}
+
+.tpick__cell {
+  margin-right: 10px;
+}
+
+.tpick__cell:last-child {
+  margin-right: 0;
+}
+
+.tpick__box {
+  height: 36px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink-1);
+  font-size: var(--fs-body);
+}
+
+.tpick__box--static {
+  color: var(--ink-2);
+}
