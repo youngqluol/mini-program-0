@@ -1,10 +1,22 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.5
+**版本：** v0.2.6
 **协议：** HTTPS + REST + JSON
 **Base URL：** `https://<云托管服务名>.ap-shanghai.run.tcloudbase.com/api`
 **鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
 
+**v0.2.6 变更：** 吃啥呢（M3）动工前把 §6 的口径钉死 ——
+① **系统菜谱的 `id` 恒为 `null`**（它们是代码常量，`menu_items` 里没有行；
+给个假 id 会让人以为能拿去查库），`source` 取 `SYSTEM` / `FAMILY`
+（新增 `packages/shared` 的 `MenuSource`）；
+② §6.1 补**推荐口径四条**：池子构成、**按菜名**排除最近 3 天、池子被排空时**自动放宽**
+（否则「换一个」一片空白）、`count>=3` 且晚餐时尽量「一荤一素一汤」（`外食` 不参与组合）；
+③ §6.2 补 `canEdit` / `source` / 排序 / `enabled` / 分页五条说明 ——
+**系统菜谱在前（按分类分组）、家庭菜谱在后**；
+④ §6.6 / §6.8 的 `menuItemId` 改为允许 `null`，并写明「`name` 是权威的」
+「传了 id 必须校验属于该家庭」「无论是否派活都要写 `meal_records`」；
+⑤ §6.8 补事务约束：**三步必须同事务**、**派活必须复用 `ThingService` 不能另写一份**、
+**事务里不做网络调用**
 **v0.2.5 变更：** §9.1 修正两处与实现不符的地方 ——
 ① 补 `title` / `content` 的**分工表**：`title` 是消息中心列表**唯一**显示的字段，
 所以它必须带上事项名（实现原先写死成「提醒你一下」这种泛化短语，20 条通知在
@@ -934,8 +946,20 @@ GET /api/menu/random?familyId=10001&mealType=DINNER&count=1&excludeRecent=true
 | --- | --- |
 | `mealType` | `BREAKFAST`/`LUNCH`/`DINNER`/`OTHER` |
 | `count` | 推荐数量，默认 1，最大 5（用于「一荤一素一汤」组合） |
-| `category` | 可选，限定分类 |
+| `category` | 可选，限定分类。**传了就不做组合搭配**（只在这个分类里抽） |
 | `excludeRecent` | 是否排除最近 3 天吃过的（默认 `true`） |
+
+**推荐口径（PRD §16.3）：**
+
+1. 池子 = 系统默认菜谱（代码常量）+ 本家庭**启用中**的自定义菜谱；传了 `category` 再按分类过滤。
+2. `excludeRecent=true` 时，按**菜名**排除最近 3 天出现在 `meal_records` 里的菜。
+   ⚠️ **按菜名而不是按 id** —— 系统菜谱没有 id，而家庭菜谱也有菜名，
+   一套判据同时覆盖两种来源。
+3. **池子被排空时自动放宽**（不再排除）—— 否则「换一个」会一片空白。
+   宁可重复一次，也不能给用户一个空卡片。
+4. `count >= 3` 且 `mealType=DINNER` 且没传 `category` 时，**尽量**按
+   「一荤（家常菜）+ 一素（素菜）+ 一汤/主食」搭配；凑不齐就退回随机不重复抽。
+   `外食` **不参与组合**（出去吃就不存在「一荤一素」）。
 
 **响应：**
 
@@ -945,13 +969,23 @@ GET /api/menu/random?familyId=10001&mealType=DINNER&count=1&excludeRecent=true
   "message": "ok",
   "data": {
     "items": [
-      { "id": 1, "name": "番茄炒蛋", "category": "家常菜", "imageUrl": null, "source": "SYSTEM" },
-      { "id": 2, "name": "炒青菜",   "category": "素菜",   "imageUrl": null, "source": "SYSTEM" }
+      { "id": null, "name": "番茄炒蛋", "category": "家常菜", "imageUrl": null, "source": "SYSTEM" },
+      { "id": null, "name": "炒青菜",   "category": "素菜",   "imageUrl": null, "source": "SYSTEM" }
     ],
     "poolSize": 18
   }
 }
 ```
+
+> ⚠️ **系统菜谱的 `id` 恒为 `null`。** 它们存在 `server/src/modules/menu/default-menu.ts`
+> 这个**代码常量**里，`menu_items` 表里没有对应的行（PRD §16.4）——
+> 所以它们**没有 id 可给**。给个假 id 会让人以为能拿它去查数据库。
+>
+> `source` 取 `SYSTEM` / `FAMILY`（`packages/shared` 的 `MenuSource`）：
+> 家庭菜谱有真实 `id`，可以拿去 `PATCH /menu/items/{id}`；
+> 系统菜谱的 `id` 是 `null`，前端据此不展示编辑入口（配 `canEdit`，见 §6.2）。
+>
+> `poolSize` 是**排除之后**的池子大小，用于调试与空状态判断。
 
 ### 6.2 菜谱列表
 
@@ -968,21 +1002,43 @@ GET /api/menu/items?familyId=10001&category=家常菜&keyword=&page=1&pageSize=5
   "data": {
     "list": [
       {
-        "id": 1,
+        "id": null,
         "name": "番茄炒蛋",
         "category": "家常菜",
         "imageUrl": null,
         "source": "SYSTEM",
         "enabled": true,
         "canEdit": false
+      },
+      {
+        "id": 30012,
+        "name": "可乐鸡翅",
+        "category": "家常菜",
+        "imageUrl": null,
+        "source": "FAMILY",
+        "enabled": true,
+        "canEdit": true
       }
     ],
-    "page": 1, "pageSize": 50, "total": 20, "hasMore": false
+    "page": 1, "pageSize": 50, "total": 73, "hasMore": false
   }
 }
 ```
 
-> `canEdit` 仅家庭自定义菜谱为 `true`。系统菜谱前端不展示编辑入口。
+> **`canEdit` 与 `source` 是同一个判断的两种说法**，前端用哪个都行：
+> 系统菜谱 `id` 为 `null` / `source` 为 `SYSTEM` / `canEdit` 为 `false`。
+> 三个字段都给出，是为了让前端**不必反推**（反推的规则一旦改动就会静默失效）。
+>
+> **排序：** 系统菜谱在前（按 `default-menu.ts` 的书写顺序，即按分类分组），
+> 家庭菜谱在后（按 `sort_no`、再按 `id`）。P17 的两个分组直接按顺序切即可，
+> 不需要前端再排一次。
+>
+> **`enabled`：** 系统菜谱恒为 `true`（它们不在库里，没有启停状态）。
+> 家庭菜谱停用后**仍然出现在列表里**（否则用户再也找不到它去重新启用），
+> 但**不会进 `/menu/random` 的池子**。
+>
+> **分页：** `total` 是「系统 + 家庭」的合计数。系统菜谱只有 72 条，
+> 所以默认 `pageSize=50` 时 P17 需要翻两页 —— 前端按正常分页处理即可。
 
 ### 6.3 新增家庭自定义菜谱
 
@@ -1026,8 +1082,8 @@ POST /api/menu/decide
   "mealDate": "2026-09-28",
   "mealType": "DINNER",
   "items": [
-    { "menuItemId": 1, "name": "番茄炒蛋" },
-    { "menuItemId": 7, "name": "炒青菜" }
+    { "menuItemId": null, "name": "番茄炒蛋" },
+    { "menuItemId": 30012, "name": "可乐鸡翅" }
   ]
 }
 ```
@@ -1040,12 +1096,26 @@ POST /api/menu/decide
   "message": "ok",
   "data": {
     "mealRecordIds": [50001, 50002],
-    "summary": "今晚吃：番茄炒蛋、炒青菜"
+    "summary": "今晚吃：番茄炒蛋、可乐鸡翅"
   }
 }
 ```
 
 > 写入 `meal_records`。`name` 做快照冗余，菜单后续被删也不影响历史。
+>
+> ⚠️ **`menuItemId` 允许 `null`** —— 系统菜谱没有 id（见 §6.1），传 `null` 即可；
+> 库里 `meal_records.menu_item_id` 也允许 NULL（DDL 注释：「可能为空，允许记录自定义菜」）。
+> 传了非 `null` 的 id 时，服务端**必须校验它属于该家庭**，否则就是越权改别人的菜谱数据。
+>
+> **`name` 是权威的**（`mealItemId` 只是可选线索）：服务端以请求里的 `name` 落库，
+> 不回头去查菜谱表取名字 —— 用户看到的就是这个名字，记下来的也该是这个。
+>
+> **`summary` 是给 toast 用的现成句子**（「今晚吃：番茄炒蛋、可乐鸡翅」），
+> 省得前端自己拼一遍、两处措辞还可能不一致。
+>
+> ⚠️ **无论之后是否派活都要写 `meal_records`**（PRD §16.5）——
+> 「吃啥呢」的价值是**帮家庭做决定**，决定了就是决定了；
+> 「最近吃过」的防重复逻辑也建立在这条记录上。
 
 ### 6.7 最近吃过
 
@@ -1079,8 +1149,8 @@ POST /api/menu/decide-and-assign
   "mealDate": "2026-09-28",
   "mealType": "DINNER",
   "items": [
-    { "menuItemId": 1, "name": "番茄炒蛋" },
-    { "menuItemId": 7, "name": "炒青菜" }
+    { "menuItemId": null, "name": "番茄炒蛋" },
+    { "menuItemId": null, "name": "炒青菜" }
   ],
   "assigneeMemberId": 20001,
   "dueAt": "2026-09-28 18:30:00",
@@ -1104,6 +1174,22 @@ POST /api/menu/decide-and-assign
 ```
 
 > 一个接口完成「记录用餐 + 生成派活 + 挂提醒」三步，保证前端只发一次请求。这是核心业务闭环的关键接口。
+>
+> **`items` 的语义与 §6.6 完全一致**（含 `menuItemId` 可为 `null`）——
+> 两个接口共用同一套「决定吃什么」的入参校验与落库逻辑，
+> 差别只在于「要不要顺手派个活」。
+>
+> ⚠️ **三步必须在同一个事务里。** 只写一半的后果很具体：
+> 记了用餐却没派活 → 用户以为已经派了，没人做饭；
+> 派了活却没记用餐 → 「最近吃过」第二天还推同一道菜。
+>
+> ⚠️ **派活不能另写一份。** 这里要复用小事模块的创建逻辑（`ThingService`），
+> 否则「派活」的字段口径（可见性默认值、`title` 的措辞、提醒的组装方式）
+> 会在两个入口各长一套，迟早不一致。V0.1 的 `POST /menu/decide-and-assign`
+> 与 `POST /things` 必须产出**形状完全相同**的一条小事。
+>
+> ⚠️ **事务里不要做网络调用。** 发提醒是异步的（`notification_logs` + 调度器），
+> 事务里只落库，推送交给既有的派活链路 —— 在事务里等微信接口会让锁持有时间不可控。
 
 ---
 
