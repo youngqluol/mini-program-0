@@ -1,0 +1,22 @@
+# 统一行尾为 LF。
+#
+# 背景：本机 `git config core.autocrlf=true`，而仓库原先没有 .gitattributes。
+# 结果是「索引里存 LF、checkout 出来变 CRLF」——
+#   · prettier 配置是 endOfLine: "lf"，换台机器克隆一次就会全仓 format:check 失败
+#   · 编辑器把 CRLF 写回，git 又会把每个文件都标成已修改
+# 两边都不报错，只是「看着怪」，最难查。
+#
+# text=auto 让 git 自己判断哪些是文本；eol=lf 保证文本文件在索引与工作区都是 LF。
+* text=auto eol=lf
+
+# 图片与字体是二进制，写明确，免得 text=auto 判断失误把文件改坏
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
