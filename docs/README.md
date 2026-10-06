@@ -35,9 +35,9 @@
 
 | 篇 | 版本 | 篇 | 版本 |
 | --- | --- | --- | --- |
-| 产品需求文档 | **v0.2.4** | 05 开发计划 | **v0.2.20** |
+| 产品需求文档 | **v0.2.4** | 05 开发计划 | **v0.2.21** |
 | 01 技术架构 | **v0.2.4** | 06 环境准备 | **v0.2.3** |
-| 02 API 设计 | **v0.2.6** | 07 视觉规范 | v1.0 |
+| 02 API 设计 | **v0.2.7** | 07 视觉规范 | v1.0 |
 | 03 页面原型 | **v0.2.7** | 08 推送集成 | **v1.0.3** |
 | 04 工程规范 | **v0.2.18** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
 
@@ -50,7 +50,7 @@
 | [packages/shared/](../packages/shared/) | 前后端共享的枚举与类型（`enums.ts` 是枚举唯一来源） |
 | [prototypes/prototype.html](../prototypes/prototype.html) | 10 屏核心页面的可视化原型 + 色彩系统 + 组件库（浏览器直接打开） |
 | [wxpush/](../wxpush/) | 推送 Worker 代码 + 部署配置（Cloudflare Workers）；基于上游 MIT 项目改造，见 `wxpush/LICENSE`。`wxpush/assets/miniprogram-code.png` 是**中转页用的小程序码**源图（待上传 COS） |
-| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`test-view.mjs`（**展示模型行为断言**，127 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
+| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`test-view.mjs`（**展示模型行为断言**，127 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
 
 ---
@@ -130,6 +130,18 @@
 | `packages/shared` 新增 `MenuSource` 枚举 | `SYSTEM` / `FAMILY`，**字符串枚举、不入库** —— 由 `menu_items.family_id` 是否为 NULL 推导，与既有的 `UploadScene` 同类 |
 | 顺手修：`server/package.json` 的 `start:prod` 指向不存在的 `dist/main` | 实际产物是 `dist/server/src/main.js`（`tsconfig` 的 `include` 含 `../packages/shared/src`，tsc 推断 `rootDir` 为仓库根，见 docs/04 §一）。**生产启动命令失效**级别的问题。同一个坑 Dockerfile 早已修好，`package.json` 漏了 |
 | 顺手修：docs/04 §3.2 后端目录树的多处失真 | 写的是 `family/` 实际是 `families/`；`reminder` 其实挂在 `thing/` 下；漏了 `health/` 与 `scripts/`；写了不存在的 `test/`、`prisma/migrations/`、`prisma/seed.ts` |
+
+**M3 吃啥呢 · 后端接口完成（2026-10-06）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| **M3-3 / M3-4 / M3-6 / M3-8 ✅ 读接口**（docs/05 §五） | `GET /menu/random`（支持 `excludeRecent`）、`GET /menu/items`（系统 + 家庭合集，带 `canEdit`）、`POST /menu/decide`、`GET /menu/recent`（按日期 + 餐次归组） |
+| **M3-5 / M3-7 ✅ 写接口** | `POST /menu/items` 增菜、`PATCH /menu/items/:id` 改菜、`PATCH /menu/items/:id/enabled` 启停、`POST /menu/decide-and-assign` 一键派活 |
+| ⚠️ **踩到一个全局性的静默 bug 并已修** | 全局 `ValidationPipe` 开了 `enableImplicitConversion: true`，而 class-transformer 是**先隐式转换、后跑 `@Transform`** —— `boolean` 字段的 `design:type` 先把 `'false'` 变成 `true`，`@Transform` 才拿到布尔值，原始字符串已丢。症状：`?excludeRecent=false` **静默等于 `true`**（不报错、无日志）。修法是新增 `ParseBoolean()` 装饰器（内部先 `@Type(() => String)`）。**不能**直接删 `enableImplicitConversion` —— 有一批数字字段正靠它把 `'5'` 转成 `5`。见 docs/04 §5.3 |
+| **一键派活复用 `ThingService`，没有另写一份** | 把 `ThingService.create` 拆成 `prepareThing`（事务外：内容安全网络往返 + 校验）/ `insertThing`（事务内）/ `dispatchCreatedThing`（提交后）。`decideAndAssign` = prepare → `$transaction([writeMealRecords, insertThing])` → dispatch。冒烟**逐字段比对**两条路径产出的小事，**键集合必须完全一致**（docs/02 §6.8） |
+| **`PATCH /menu/items/:id` 不挂 `FamilyMemberGuard`** | URL 和 body 都没有 `familyId`，守卫拿不到上下文。改用「由资源反查家庭」`contextForItem`：资源不存在 → 40400；存在但不是你家 → **40300**（不涉及隐私，给准确原因更好排查）。与小事模块 `contextForThing` 同一模式 |
+| **同家庭菜名唯一（40900）** | 菜名是池子里的唯一标识（系统菜谱没有 `id`），重名会让随机连出同名菜、「排除最近吃过的」一次误伤两道。挡在写入前 + `buildPool()` 按菜名去重（家庭版覆盖系统版）。**仅限本家庭** —— 家庭菜谱与系统菜谱同名允许 |
+| 新增 `tools/smoke-m3-menu.mjs`（**180 项断言**） | 两个家庭 + 5 用户夹具，覆盖四个读接口 + 四个写接口 + 边界（跨家庭越权、重名、布尔字符串回归、两条派活路径字段一致） |
 
 **M2 小事域后端（2026-10-06）：**
 
@@ -340,7 +352,7 @@ M1 骨架贯通   ✅ 后端 15 项 + 小程序端 13 项全部完成（真机�
 M2 核心闭环   ✅ 后端 B1–B26 全部收口（只剩 B23 云托管 Cron，控制台操作）；
               ✅ 小程序端 P04–P12 + P20 + P21 全部完成（真机验收待做）
    ↓
-M3 吃啥呢     ← 你在这里（M3-1 / M3-2 已完成，剩随机决策 + 一键派活）
+M3 吃啥呢     ← 你在这里（后端 M3-1~M3-8 全部完成，剩小程序端 M3-9~M3-12）
    ↓
 M4 留个念     图片发布 + 家庭时间线
    ↓

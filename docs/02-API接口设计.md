@@ -1,10 +1,16 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.6
+**版本：** v0.2.7
 **协议：** HTTPS + REST + JSON
 **Base URL：** `https://<云托管服务名>.ap-shanghai.run.tcloudbase.com/api`
 **鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
 
+**v0.2.7 变更：** §6.3~§6.8 的写接口落地后把实现口径写回文档 ——
+① §6.3 补**同家庭菜名唯一（40900）** 与 `name` 长度守卫；
+② §6.4 / §6.5 补**本路由不挂 `FamilyMemberGuard`**、改用「由资源反查家庭」，
+失败语义 **40400（不存在）/ 40300（不是你家）**；`enabled` 走 `@ParseBoolean()`；
+③ §6.8 把「`POST /things`」**勘误为 `POST /family-things`**，补 `title`（今晚**做饭**）与
+§6.6 `summary`（今晚**吃**）的动词差异，以及「内容安全校验在事务外」
 **v0.2.6 变更：** 吃啥呢（M3）动工前把 §6 的口径钉死 ——
 ① **系统菜谱的 `id` 恒为 `null`**（它们是代码常量，`menu_items` 里没有行；
 给个假 id 会让人以为能拿去查库），`source` 取 `SYSTEM` / `FAMILY`
@@ -1052,6 +1058,16 @@ POST /api/menu/items
 { "familyId": 10001, "name": "可乐鸡翅", "category": "家常菜", "imageUrl": null }
 ```
 
+**响应：** 新建的家庭菜谱对象（形状同 §6.2 的 `FAMILY` 条目）。
+
+> **`name` 长度**：与 `family_things.title` 一样有上限，服务层另有守卫（超长 → 40001）。
+>
+> ⚠️ **同家庭内菜名唯一（40900）。** 菜名是池子里的唯一标识（系统菜谱没有 `id`），
+> 重名会让随机连出同名菜、「排除最近吃过的」一次误伤两道。挡在写入前。
+> **仅限本家庭** —— 家庭菜谱与系统菜谱同名是允许的（就是「我家的番茄炒蛋」覆盖内置那条）。
+>
+> **`category`** 取 `packages/shared` 的 `MenuCategory` 联合（家常菜 / 素菜 / 汤 / 主食 / 外食）。
+
 ### 6.4 修改菜谱
 
 ```http
@@ -1060,6 +1076,13 @@ PATCH /api/menu/items/{id}
 
 **权限：** 仅家庭自定义菜谱（`family_id` 不为 NULL 且属于该家庭）。
 
+> ⚠️ **本路由不挂 `FamilyMemberGuard`。** URL 和 body 里都没有 `familyId`，守卫拿不到
+> 家庭上下文。改用「由资源反查家庭」：先查菜谱拿到 `familyId`，再校验调用者是该家庭成员。
+> 失败语义：**资源不存在 → 40400；资源存在但不是你家 → 40300**（不是 40400 ——
+> 不涉及隐私内容，给准确原因更好排查）。与小事模块的 `contextForThing` 同一模式。
+>
+> 改名的唯一性校验同 §6.3（排除自己这条）。
+
 ### 6.5 停用/启用菜谱
 
 ```http
@@ -1067,6 +1090,12 @@ PATCH /api/menu/items/{id}/enabled
 ```
 
 **请求：** `{ "enabled": false }`
+
+> ⚠️ **`enabled` 支持布尔或字符串 `"true"` / `"false"`** —— 必须走 `@ParseBoolean()`
+> （docs/04 §5.3）。全局 `enableImplicitConversion` 会把 `Boolean("false")` 变成
+> `true`，参数过了校验但行为相反。
+>
+> 权限与错误码同 §6.4。
 
 ### 6.6 确认今天吃什么
 
@@ -1186,10 +1215,17 @@ POST /api/menu/decide-and-assign
 > ⚠️ **派活不能另写一份。** 这里要复用小事模块的创建逻辑（`ThingService`），
 > 否则「派活」的字段口径（可见性默认值、`title` 的措辞、提醒的组装方式）
 > 会在两个入口各长一套，迟早不一致。V0.1 的 `POST /menu/decide-and-assign`
-> 与 `POST /things` 必须产出**形状完全相同**的一条小事。
+> 与 `POST /family-things` 必须产出**形状完全相同**的一条小事。
+> 实现上把 `ThingService.create` 拆成「准备（事务外）/ 写库（事务内）/ 通知（提交后）」
+> 三段，`decideAndAssign` 直接复用这三段。
+>
+> **`title` 与 §6.6 的 `summary` 刻意不同。** 这里是「今晚**做饭**：番茄炒蛋、炒青菜」
+> （把做饭交给谁），§6.6 是「今晚**吃**：番茄炒蛋、炒青菜」（决定了吃什么）——
+> 一个动词之差，是两个动作。
 >
 > ⚠️ **事务里不要做网络调用。** 发提醒是异步的（`notification_logs` + 调度器），
 > 事务里只落库，推送交给既有的派活链路 —— 在事务里等微信接口会让锁持有时间不可控。
+> 内容安全校验也是网络往返，因此放在**开事务之前**。
 
 ---
 
