@@ -143,9 +143,10 @@
   全部已读」，M2 前需决定。
 - docs/04 里 `husky + lint-staged` / `commitlint` 仍标「M1 接入」，尚未接入。
 - **`pnpm run format:check` 目前不通过：43 个文件**（含 `server/`）—— 前几轮手写时
-  没跑 prettier 留下的。2026-10-06 **刻意没做整仓重排**（`tools/smoke-m2-things.mjs`
-  一个文件就要改 178 行，会淹掉真正的改动）。**待用户拍板后单独一个 `style:` 提交。**
-  已记入 docs/README 的「已知偏差」。
+  没跑 prettier 留下的（`tools/smoke-m2-things.mjs` 一个文件就要改 178 行）。
+  2026-10-06 **用户已拍板：「先不用，记录下」** → 不做整仓重排，已记入 docs/README 的「已知偏差」。
+  **沿用纪律：只格式化自己新增/改动的文件**（提交前 `npx prettier --check <本次改动>`），
+  不动历史欠账。若日后要做，单独开一个 `style:` 提交。
 - 已加 `.gitattributes`（`* text=auto eol=lf`）：本机 `core.autocrlf=true`，
   原先「索引存 LF、checkout 出 CRLF」，会让 prettier 的 `endOfLine: "lf"` 换台机器就全仓失败。
 - Worker 4 个 secret（`API_TOKEN` / `WX_SECRET` / `WX_TEMPLATE_ID` / `WX_USERID`）
@@ -156,8 +157,8 @@
 - `docs/README.md` — 索引 + **文档权威性表**（一份信息只有一个权威来源，防矛盾机制）
 - `docs/产品需求文档.md` — ★ 产品需求唯一权威来源
 - `docs/核心数据模型与业务流程.md` / `docs/MySQL 数据库设计.md` — 设计基线（v0.2.1）
-- 文档版本**按篇独立**：04 = **v0.2.4**；PRD / 01 / 02 / 05 / 06 = v0.2.3；08 = v1.0.1；
-  03 / 07 / 核心数据模型 / MySQL 设计 仍 v0.2.1
+- 文档版本**按篇独立**，随时在变 —— **不要在这里抄具体版本号**，
+  当前值以 `docs/README.md` 的「文档权威性表」为唯一来源。
 - `docs/未来需求池.md` — 超出 V0.1 的想法一律记这里
 - `docs/01~08` — 架构 / API / 页面 / 工程规范 / 开发计划 / 上线准备 / 视觉设计规范 / wxpush 推送集成方案
 - 配套：`db/schema.sql`（DDL 唯一真相）、`packages/shared/src/enums.ts`（枚举唯一来源）、`prototypes/prototype.html`、`wxpush/`、`tools/`
