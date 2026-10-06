@@ -35,6 +35,23 @@ export interface DispatchResult {
   logId: bigint;
 }
 
+/** `dispatch()` 的可选行为，只有补偿任务会用到 */
+export interface DispatchOptions {
+  /**
+   * 复用已有日志，而不是新建一条。
+   *
+   * 补偿重发必须走这条路：`notification_logs` 就是**消息中心的数据源**，
+   * 重发时新建日志会让用户在消息中心看到两条一模一样的通知。
+   */
+  reuseLogId?: bigint;
+  /**
+   * 第几次尝试（0 = 首次）。**补偿重发必须递增**：
+   * `client_msg_id` 是**微信侧**的 24 小时去重键，用同一个 ID 重发会被微信直接拦掉，
+   * 补偿就成了空转。
+   */
+  attempt?: number;
+}
+
 /**
  * 通知下发服务 —— 通道选择、降级、日志，全部在这里收口。
  *
@@ -65,19 +82,30 @@ export class NotifyService {
    *
    * 入参用 `Omit<DispatchInput, 'type'>` —— 类型由方法本身决定，
    * 调用方再传一遍 `type` 没有意义，还容易传错（传了也会被覆盖）。
+   *
+   * `opts` 只有补偿任务会传（复用日志 + 递增 attempt），普通调用不用管。
    */
-  async notifyTaskAssigned(input: Omit<DispatchInput, 'type'>): Promise<DispatchResult> {
-    return this.dispatch({ ...input, type: NotifyType.TASK_ASSIGNED });
+  async notifyTaskAssigned(
+    input: Omit<DispatchInput, 'type'>,
+    opts?: DispatchOptions,
+  ): Promise<DispatchResult> {
+    return this.dispatch({ ...input, type: NotifyType.TASK_ASSIGNED }, opts);
   }
 
   /** 叮一下提醒 */
-  async notifyReminder(input: Omit<DispatchInput, 'type'>): Promise<DispatchResult> {
-    return this.dispatch({ ...input, type: NotifyType.REMINDER });
+  async notifyReminder(
+    input: Omit<DispatchInput, 'type'>,
+    opts?: DispatchOptions,
+  ): Promise<DispatchResult> {
+    return this.dispatch({ ...input, type: NotifyType.REMINDER }, opts);
   }
 
   /** 完成回执 */
-  async notifyTaskDone(input: Omit<DispatchInput, 'type'>): Promise<DispatchResult> {
-    return this.dispatch({ ...input, type: NotifyType.TASK_DONE });
+  async notifyTaskDone(
+    input: Omit<DispatchInput, 'type'>,
+    opts?: DispatchOptions,
+  ): Promise<DispatchResult> {
+    return this.dispatch({ ...input, type: NotifyType.TASK_DONE }, opts);
   }
 
   /**
@@ -86,25 +114,36 @@ export class NotifyService {
    * 流程：先落库（status=PENDING）→ 依次尝试通道 → 回写最终状态。
    * 落库在前是刻意的：**即使所有推送都失败，站内消息也一定存在**。
    */
-  async dispatch(input: DispatchInput): Promise<DispatchResult> {
+  async dispatch(input: DispatchInput, opts: DispatchOptions = {}): Promise<DispatchResult> {
     const built = buildTemplate(input.type, input.ctx);
 
     // ① 先落库。channel 先按兜底的「站内消息」记，成功后回写真实渠道。
-    const log = await this.prisma.notificationLog.create({
-      data: {
-        userId: input.userId,
-        familyId: input.familyId ?? null,
-        thingId: input.thingId ?? null,
-        type: input.type,
-        title: built.title,
-        content: built.content,
-        channel: NotifyChannel.IN_APP,
-        status: NotifyStatus.PENDING,
-      },
-    });
+    //    落库在前是刻意的：**即使所有推送都失败，站内消息也一定存在**。
+    //    补偿重发走 update 复用同一条 —— 见 DispatchOptions.reuseLogId。
+    const logData = {
+      title: built.title,
+      content: built.content,
+      channel: NotifyChannel.IN_APP,
+      status: NotifyStatus.PENDING,
+    };
+    const log =
+      opts.reuseLogId != null
+        ? await this.prisma.notificationLog.update({
+            where: { id: opts.reuseLogId },
+            data: logData,
+          })
+        : await this.prisma.notificationLog.create({
+            data: {
+              userId: input.userId,
+              familyId: input.familyId ?? null,
+              thingId: input.thingId ?? null,
+              type: input.type,
+              ...logData,
+            },
+          });
 
     // ② 通道一：公众号模板消息（主力）
-    const mpResult = await this.tryMpTemplate(input.userId, built, log.id);
+    const mpResult = await this.tryMpTemplate(input.userId, built, log.id, opts.attempt ?? 0);
     if (mpResult) {
       await this.markLog(log.id, mpResult.channel, mpResult.status, mpResult.errcode);
       return { channel: mpResult.channel, result: mpResult.result, logId: log.id };
@@ -132,6 +171,7 @@ export class NotifyService {
     userId: bigint,
     built: BuiltTemplate,
     logId: bigint,
+    attempt = 0,
   ): Promise<{ channel: NotifyChannel; status: NotifyStatus; result: DeliveryResult; errcode?: number } | null> {
     if (!this.wxpush.enabled) return null;
 
@@ -150,8 +190,10 @@ export class NotifyService {
       content: built.content,
       data: built.templateData,
       templateKind: built.mpKind,
-      // 用日志 ID 做防重：同一条通知不会重复推给用户
-      clientMsgId: `log-${logId}`,
+      // 用日志 ID 做防重：同一条通知不会重复推给用户。
+      // 补偿重发要带 attempt 后缀 —— 微信按这个 ID 做 24 小时去重，
+      // 原样重发会被直接拦掉，补偿就成了空转（见 DispatchOptions.attempt）。
+      clientMsgId: attempt > 0 ? `log-${logId}-r${attempt}` : `log-${logId}`,
     });
 
     // 通道未启用 / 模板 ID 未配置 —— 静默降级，**不要**记成 FAILED
