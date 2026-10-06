@@ -38,6 +38,13 @@
    行
    --------------------------------------------------------------- */
 
+/* 家庭菜谱那一组的包裹层 —— 只为做相邻兄弟分隔线。
+   swipe-cell 是插槽结构，里面的 `.row` 永远是自己容器里的 last-child，
+   `+` 选择器够不着，所以分隔线必须落在这一层上。 */
+.mrow + .mrow {
+  border-top: 1px solid var(--line);
+}
+
 .row {
   display: flex;
   align-items: center;

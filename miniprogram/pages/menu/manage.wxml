@@ -25,31 +25,33 @@
     <view class="section-title">我家菜谱</view>
     <view class="card">
       <block wx:if="{{family.length > 0}}">
-        <swipe-cell
-          wx:for="{{family}}"
-          wx:key="key"
-          itemId="{{item.id}}"
-          openId="{{openId}}"
-          actions="{{item.actions}}"
-          bind:open="onRowOpen"
-          bind:close="onRowClose"
-          bind:action="onRowAction"
-        >
-          <view class="row {{item.dim ? 'row--dim' : ''}}">
-            <text class="row__emoji">{{item.emoji}}</text>
-            <view class="row__main">
-              <view class="row__name">{{item.name}}</view>
-              <view wx:if="{{item.category}}" class="row__cat">{{item.category}}</view>
+        <!-- 外面这层 .mrow 是给相邻兄弟分隔线用的：swipe-cell 是插槽结构，
+             里面的 .row 永远是自己容器里的 last-child，`+` 选择器够不着 -->
+        <view class="mrow" wx:for="{{family}}" wx:key="key">
+          <swipe-cell
+            itemId="{{item.id}}"
+            openId="{{openId}}"
+            actions="{{item.actions}}"
+            bind:open="onRowOpen"
+            bind:close="onRowClose"
+            bind:action="onRowAction"
+          >
+            <view class="row {{item.dim ? 'row--dim' : ''}}">
+              <text class="row__emoji">{{item.emoji}}</text>
+              <view class="row__main">
+                <view class="row__name">{{item.name}}</view>
+                <view wx:if="{{item.category}}" class="row__cat">{{item.category}}</view>
+              </view>
+              <switch
+                class="row__switch"
+                checked="{{item.enabled}}"
+                color="#F97E9B"
+                data-id="{{item.id}}"
+                bindchange="onToggleSwitch"
+              />
             </view>
-            <switch
-              class="row__switch"
-              checked="{{item.enabled}}"
-              color="#F97E9B"
-              data-id="{{item.id}}"
-              bindchange="onToggleSwitch"
-            />
-          </view>
-        </swipe-cell>
+          </swipe-cell>
+        </view>
       </block>
 
       <view wx:else class="empty">
