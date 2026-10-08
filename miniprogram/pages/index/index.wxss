@@ -226,3 +226,106 @@
   font-size: 16px;
   color: var(--ink-3);
 }
+
+/* ---------- 隐私协议提示（M5-5） ---------- */
+
+.privacy {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  /* 高于底部弹层的 100：它是必须先处理的一层 */
+  z-index: 200;
+  /* 用 flex 居中而**不用** `top: 50% + transform`：下面的入场动画也占用了
+     transform，两者会互相覆盖 —— 动画结束时弹窗会跳一下。 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.privacy__mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(31, 31, 31, 0.32);
+}
+
+@keyframes privacy-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.privacy__panel {
+  /* relative 让面板盖在遮罩之上（遮罩是 absolute，不占位） */
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  padding: 24px 22px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  animation: privacy-in 200ms ease-out;
+}
+
+.privacy__title {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  color: var(--ink-1);
+  text-align: center;
+}
+
+.privacy__body {
+  margin-top: 10px;
+  font-size: var(--fs-body);
+  color: var(--ink-2);
+  line-height: 1.7;
+}
+
+.privacy__acts {
+  display: flex;
+  margin-top: 20px;
+}
+
+.privacy__btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.privacy__btn--ghost {
+  margin-right: 10px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.privacy__btn--main {
+  background: linear-gradient(135deg, #FF9DB4 0%, #FFB59B 100%);
+  color: #ffffff;
+  box-shadow: var(--shadow-float);
+}
+
+/* 覆盖小程序 button 的默认外观（默认灰底 + ::after 边框） */
+.privacy__btn--main::after {
+  border: none;
+}
+
+.privacy__btn:active {
+  opacity: 0.86;
+}

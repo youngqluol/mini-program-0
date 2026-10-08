@@ -93,4 +93,23 @@
     </view>
     <text class="jump__arrow">›</text>
   </view>
+
+  <!-- 隐私协议提示（M5-5）：只在「首次进入」且微信说还没同步过时出现。
+       「同意」走 open-type，微信据此记录同步状态，不需要我们调接口；
+       其余场景（比如用户没理这一层、直接去发照片）由微信官方弹窗兜底。 -->
+  <view wx:if="{{showPrivacy}}" class="privacy">
+    <view class="privacy__mask" bindtap="onDismissPrivacy"></view>
+    <view class="privacy__panel">
+      <view class="privacy__title">先说一句</view>
+      <view class="privacy__body">发「留个念」要从相册选照片。点「同意」表示你已阅读并同意{{privacyContractName}}。</view>
+      <view class="privacy__acts">
+        <view class="privacy__btn privacy__btn--ghost" bindtap="onOpenPrivacy">查看指引</view>
+        <button
+          class="privacy__btn privacy__btn--main"
+          open-type="agreePrivacyAuthorization"
+          bindagreeprivacyauthorization="onAgreePrivacy"
+        >同意</button>
+      </view>
+    </view>
+  </view>
 </view>

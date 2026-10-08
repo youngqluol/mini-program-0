@@ -22,6 +22,10 @@
  *    docs/07 与 `app.wxss` 的 `.section-title` 明确约定「粉色小竖条，不用 emoji」——
  *    草图上的 emoji 是速记，不是设计。卡片自己已经有类型 emoji 了。
  *
+ * 5. **隐私提示只做「首次进入主动提示」，不接管 `onNeedPrivacyAuthorization`。**
+ *    微信自己有官方隐私弹窗兜底，接管只会多出一套要自己维护的边界逻辑。
+ *    详细理由见 `checkPrivacy()` 的注释。
+ *
  * ⚠️ **「未开微信提醒」提示条（M2-F3）本次不做。**
  *    docs/03 要求它出现在「**别人**没开微信提醒」时，但
  *    `GET /notify/mp-bind/status` 只回**我自己**的状态，
@@ -48,6 +52,15 @@ import { toast, toastError } from '../../utils/toast';
 /** 拉不到留念时的兜底文案（与 `describeLatestMemory(null)` 一致） */
 const NO_MEMORY_YET = '还没有记录';
 
+/**
+ * 本次启动是否已经检查过隐私协议。
+ *
+ * 放**模块级**而不是 `data`：`data` 会随页面卸载重置，而这里要表达的是
+ * 「本次启动内不再打扰」—— 用户拒绝过之后，每切一次 Tab 都弹一遍很糟。
+ * 小程序启动时模块只求值一次，所以这个变量天然就是「每次启动一份」。
+ */
+let privacyChecked = false;
+
 Page({
   data: {
     familyId: 0,
@@ -63,6 +76,11 @@ Page({
     taskRows: [] as ThingCardItem[],
 
     memoryPreview: NO_MEMORY_YET,
+
+    /** 隐私提示弹窗是否显示（M5-5） */
+    showPrivacy: false,
+    /** 后台配置的那份指引的名称。微信返回时**自带书名号** */
+    privacyContractName: '',
   },
 
   onShow() {
@@ -80,6 +98,7 @@ Page({
     });
     void this.load();
     void this.loadMemoryPreview();
+    this.checkPrivacy();
   },
 
   /** 下拉刷新（docs/03 P01） */
@@ -185,5 +204,68 @@ Page({
     }
 
     toast('搞定啦');
+  },
+
+  // ---------------------------------------------------------------
+  // 隐私协议提示（M5-5）
+  // ---------------------------------------------------------------
+
+  /**
+   * 首次进入时主动提示隐私协议。
+   *
+   * **为什么做**（微信本身有官方弹窗兜底，不做也能跑）：
+   *   官方弹窗只在**用户真正触发隐私接口**的那一刻才弹 —— 也就是他点
+   *   「选图片」的时候。首次进来是看不到任何提示的，而提审自查清单里
+   *   明确要求「首次进入有隐私协议弹窗」（docs/06 §八）。主动提示一次，
+   *   用户才知道自己同意的是什么。
+   *
+   * **为什么不接管 `wx.onNeedPrivacyAuthorization`**：
+   *   接管了就得自己实现一套弹窗、还要处理「多个隐私接口同时调用」这类边界。
+   *   不接管时微信会自动弹官方弹窗兜底，效果一致、代码为零。
+   *   所以这里只做「首次进入主动提示」，其余场景交给官方弹窗。
+   *
+   * **为什么放在 `guardEntry()` 之后**：被守卫踢走时页面会立刻卸载，
+   *   而 `wx.getPrivacySetting` 是异步的 —— 回调回来再 `setData` 就打在了
+   *   已卸载的页面上。登录 / 建家完成后回到首页会重新触发 `onShow`，
+   *   那时再提示，路径不会断。
+   */
+  checkPrivacy() {
+    if (privacyChecked) return;
+    privacyChecked = true;
+
+    wx.getPrivacySetting({
+      success: (res) => {
+        if (!res.needAuthorization) return;
+        this.setData({
+          showPrivacy: true,
+          // 微信返回的名称自带书名号。取不到时兜一个，避免拼出
+          // 「同意隐私保护指引」这种没有书名号的半句话（合规文案不能有歧义）
+          privacyContractName: res.privacyContractName || '《隐私保护指引》',
+        });
+      },
+      // 基础库 < 2.32.3 没有这个接口，fail 是预期内的：
+      // 那种版本下微信的官方隐私弹窗照样兜底，静默即可，不打扰用户。
+      fail: () => {},
+    });
+  },
+
+  /** 用户点了「同意」—— 微信已在 `open-type` 里同步过状态，这里只需收起弹窗 */
+  onAgreePrivacy() {
+    this.setData({ showPrivacy: false });
+  },
+
+  /**
+   * 点遮罩收起。
+   *
+   * 给用户一条退路：不同意也照样能用「家里」「吃啥呢」这些不碰隐私的功能。
+   * 等他真要用相册时，微信的官方弹窗会再问一次。
+   */
+  onDismissPrivacy() {
+    this.setData({ showPrivacy: false });
+  },
+
+  /** 打开后台配置的那份《用户隐私保护指引》 */
+  onOpenPrivacy() {
+    wx.openPrivacyContract({});
   },
 });
