@@ -1,0 +1,64 @@
+# =============================================================
+# Docker 构建上下文排除规则
+# =============================================================
+# ⚠️⚠️ **这个文件必须在仓库根，不能放在 server/ 下。**
+#
+#   为什么：`server/Dockerfile` 里的 COPY 源包含 `package.json`、
+#   `pnpm-workspace.yaml`、`packages/shared` —— 说明**构建上下文是仓库根**。
+#   而 Docker 只读取**上下文根**的 .dockerignore，Dockerfile 所在目录下的
+#   同名文件**从不生效**（曾把规则误放在 server/.dockerignore，等于没写）。
+#
+#   云托管部署时对应设置：
+#     · Dockerfile 路径 = server/Dockerfile
+#     · 构建上下文     = 仓库根
+#
+# ⚠️ 最要命的一条是 `**/node_modules`：
+#   本机是 Windows，`server/node_modules` 里装的是 **Windows 版 Prisma
+#   query engine**。Dockerfile 在容器里 `pnpm install` 装好 Linux 版之后，
+#   紧接着的 `COPY server ./server` 会把宿主机那份**原样覆盖回去** →
+#   运行时 Prisma 报「找不到当前平台的 query engine」，起不来。
+#   同时镜像还会白白多背 45MB+。
+#
+# 自检：`node tools/check-docker.mjs`
+#   —— 校验 Dockerfile 的每个 COPY 源在过滤后仍然存在，防止以后往这里
+#      加规则时把构建搞挂（这类错误只在云托管构建时才暴露，本地很难发现）。
+# =============================================================
+
+# ---------- 依赖与构建产物（最关键） ----------
+# 见上：宿主机 node_modules 覆盖容器内的，会直接让运行时崩掉
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.pnpm-store
+**/.eslintcache
+
+# ---------- 环境变量（绝不进镜像） ----------
+# 真实值由云托管控制台的环境变量注入，见 server/.env.example
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# ---------- 版本控制 ----------
+.git
+.gitattributes
+
+# ---------- 与后端镜像无关的目录 ----------
+# 小程序、原型、视觉参考、推送 Worker、文档、建表脚本、自检工具
+# 都不参与后端镜像构建。排除掉能显著缩小上下文（.git 本身就有 4.4MB）。
+miniprogram
+prototypes
+ui
+wxpush
+docs
+db
+tools
+.workbuddy-ai
+.vscode
+
+# ---------- 日志与临时文件 ----------
+**/*.log
+**/.tmp
+**/_tmp_*
+**/*.tmp
+**/*.bak
