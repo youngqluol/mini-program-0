@@ -35,11 +35,11 @@
 
 | 篇 | 版本 | 篇 | 版本 |
 | --- | --- | --- | --- |
-| 产品需求文档 | **v0.2.5** | 05 开发计划 | **v0.2.23** |
-| 01 技术架构 | **v0.2.4** | 06 环境准备 | **v0.2.3** |
+| 产品需求文档 | **v0.2.5** | 05 开发计划 | **v0.2.24** |
+| 01 技术架构 | **v0.2.4** | 06 环境准备 | **v0.2.4** |
 | 02 API 设计 | **v0.2.8** | 07 视觉规范 | v1.0 |
 | 03 页面原型 | **v0.2.9** | 08 推送集成 | **v1.0.3** |
-| 04 工程规范 | **v0.2.20** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
+| 04 工程规范 | **v0.2.21** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
 
 ### 配套资源
 
@@ -50,7 +50,7 @@
 | [packages/shared/](../packages/shared/) | 前后端共享的枚举与类型（`enums.ts` 是枚举唯一来源） |
 | [prototypes/prototype.html](../prototypes/prototype.html) | 10 屏核心页面的可视化原型 + 色彩系统 + 组件库（浏览器直接打开） |
 | [wxpush/](../wxpush/) | 推送 Worker 代码 + 部署配置（Cloudflare Workers）；基于上游 MIT 项目改造，见 `wxpush/LICENSE`。`wxpush/assets/miniprogram-code.png` 是**中转页用的小程序码**源图（待上传 COS） |
-| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`test-view.mjs`（**展示模型行为断言**，256 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
+| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`check-docker.mjs`（Docker 构建上下文：COPY 源有没有被 `.dockerignore` 误伤）、`test-view.mjs`（**展示模型行为断言**，256 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
 
 ---
@@ -179,6 +179,16 @@
 | **`sizeType: ['compressed']` 不是为了省流量** | 微信的图片检测接口有 **1MB 上限**，原图 3–5MB 根本检不了、只能 fail-open 放行。压缩后通常 100–500KB |
 | 新增 `miniprogram/constants/memory.ts`（**第 4 份镜像**）+ `utils/memory-view.ts` | 展示模型断言 **195 → 256 项** |
 | ⚠️ **踩到并修掉一个「开发者工具和 `tsc` 都不报」的坑** | P18 一开始 `import { MEMORY_CONTENT_MAX } from '@shared/dto/memory'` —— 小程序端不能引 shared 的**运行时值**（不解析 tsconfig 的 `paths`），只有真机跑到那一行才 `module not found`。除改成镜像外，还给 `check-ts.mjs` 加了静态防线（**反向验证过**：故意改回去，脚本立刻报出文件与行号） |
+
+**M5 上线 · 前置收口（2026-10-08）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| ⚠️⚠️ **修掉一个部署级缺陷：`.dockerignore` 放错了位置** | 它在 `server/` 下，而 Docker 只读**构建上下文根**（仓库根）的忽略文件 —— **从不生效、也不报任何错**。后果不是「多拷几个文件」：本机 Windows 的 `server/node_modules` 里是 **Windows 版 Prisma query engine**，`COPY server ./server` 会把它盖掉容器里刚装好的 Linux 版 → **容器启动即崩**，而且这类错误**只在云端构建时才暴露**，本地怎么跑都复现不出来。已移到仓库根、删掉 `server/.dockerignore`（死文件），并把两条约束固化成 `tools/check-docker.mjs`（**已反向验证**：缺关键规则 / 位置放错 / COPY 源被排除，三种情况都能拦住） |
+| **M5-5 ✅ 隐私协议弹窗** | 口径是「**P01 首次进入主动提示 + 微信官方弹窗兜底**」，**不接管** `onNeedPrivacyAuthorization`（接管就要多维护一套弹窗与并发边界，不接管时微信自己会兜底）。核实过官方文档：2023-10-17 之后 `__usePrivacyCheck__` 配不配都会启用（所以不配），而官方弹窗**只在用户真正触发隐私接口时**才弹（所以首次进入仍需自己提示一次）。⚠️ 弹窗文案刻意用「**同意**」而非「授权」—— 后者是 AGENTS.md §6 的界面禁用词 |
+| **`BASE_URL` 改为按版本自动切换** | 原来硬编码 `http://localhost:3000`，部署后要手改代码。现在用 `wx.getAccountInfoSync().miniProgram.envVersion` 区分 `develop` / `trial` / `release`，生产域名是一个**显式占位符常量** —— 防「本地调试改成局域网 IP、发版前忘了改回来」 |
+| **`docs/06` §五 收口成部署手册** | 补「Dockerfile 路径 / 构建上下文」、`.dockerignore` 的位置要求、**可直接粘贴到控制台的生产环境变量清单**、建议的部署顺序（§5.A ~ §5.D）。§六 补 `BASE_URL` 切换说明（部署后只改一个常量） |
+| ⚠️ **顺手补全 `docs/04` §七 的环境变量表** | 原表漏了 `CONTENT_SECURITY_ENABLED` 与三个 `MP_TEMPLATE_*`，而 `docs/06` §五 正是让人「照 §七 配」—— 漏配 `MP_TEMPLATE_*` 会让**主力推送通道整个哑掉**（它只打 warn、**不阻止启动**）。另补「缺了会怎样」的两档说明（启动失败 / 只降级），以及「部署完必须看一次启动日志」 |
 
 **M2 小事域后端（2026-10-06）：**
 
@@ -394,7 +404,9 @@ M3 吃啥呢     ✅ 后端 M3-1~M3-8 + 小程序端 M3-9~M3-12 全部完成
 M4 留个念     ✅ 后端 M4-1~M4-7 + 小程序端 M4-8~M4-12 全部完成
               （真机上传待用户提供 COS 凭证）
    ↓
-M5 上线       提审 → 发布 → 家人真机安装
+M5 上线       ⏳ 代码侧前置已收口（M5-5 隐私弹窗 ✅ / 部署手册 ✅ /
+              .dockerignore 部署缺陷已修 ✅）
+              接下来是控制台操作：云托管部署 → 建库 → 配域名 → 定时任务 → 提审 → 发布
 ```
 
 ---
@@ -411,33 +423,50 @@ M5 上线       提审 → 发布 → 家人真机安装
 > 吃啥呢 → 决定 → 一键派活 → 详情 → 完成 → 「📖 记个念 →」 → 发布 → 时间线 → 详情
 > ```
 >
-> ### ⚠️ 现在卡在「只有你能做」的三件事上
+> ### 下一步：云托管部署（M5-1）
 >
-> **① 对象存储凭证（唯一的硬阻塞）**
->
-> `POST /upload/image` 要往腾讯云 COS 写文件。请把 `server/.env` 第 8 节的
-> 四个值填上（开通步骤与权限要求写在 `server/.env.example` 里）：
+> **部署手册已经写好了** —— 照着 `docs/06` §5.A ~ §5.D 点即可：
 >
 > ```text
-> COS_BUCKET=        # 桶名，形如 family-1250000000（要带 APPID 后缀）
-> COS_REGION=        # 地域，与云托管实例同地域，例如 ap-shanghai
-> COS_SECRET_ID=
-> COS_SECRET_KEY=
+> ① 开通云托管 → 建环境（建议 test / prod 两个）
+> ② 建 MySQL（utf8mb4 / 时区 +00:00）+ Redis，记下**内网**地址
+> ③ 执行 db/schema.sql
+> ④ 建服务，填 §5.B 的环境变量清单（**可直接粘贴**）
+> ⑤ 首次部署 —— 目标是「接口能起来」，不是「功能全通」
+> ⑥ **看启动日志**，把「未配置的环境变量」warn 逐条对完
+> ⑦ 配 3 个定时任务，并确认每分钟真的在触发
 > ```
 >
-> **没有它代码也是完整的** —— 校验路径全部能跑，只是真机上传验不了
-> （上传会明确报错，**不会假装成功**）。填好之后跑一次
+> ⚠️ **两个填错就构建失败的地方**（`docs/06` §5.A）：
+> `Dockerfile 路径 = server/Dockerfile`、`构建上下文 = 仓库根`。
+>
+> 💡 **本地没装成 Docker 不阻塞这一步** —— 云托管是**云端构建**，
+> 本地只需把代码推上去；Docker 只服务于「本地跑 MySQL + Redis」。
+>
+> ### 对象存储凭证：按你的意思，等云部署完再补
+>
+> `POST /upload/image` 要往腾讯云 COS 写文件。四个值（`COS_BUCKET` / `COS_REGION` /
+> `COS_SECRET_ID` / `COS_SECRET_KEY`）**延后到云部署之后**。
+> 没有它代码也是完整的 —— 校验路径全部能跑，只是真机上传验不了
+> （会明确报错，**不会假装成功**）。填好之后跑一次
 > `SMOKE_BASE_URL=http://127.0.0.1:3000 node tools/smoke-m4-memory.mjs`，
 > 脚本会**自动补上**「真实上传 + 回读校验」那几条断言，不需要改脚本。
 >
-> **② M2 真机验收**（`docs/05` §四 末尾那七步）—— 仍待做。
+> ### 其他还在等你的（都是控制台操作，代码里没有可做的事）
 >
-> **③ 云托管 Cron 配置**（M2-B23，控制台操作，不是代码）。
+> - **M2 真机验收**（`docs/05` §四 末尾那七步）
+> - **云托管 Cron 配置**（M2-B23 / M5-4）
+> - Worker 那 4 个 secret + `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN`
+> - 提审前确认：「留个念」要不要举报入口（PRD §18.4 要求，V0.1 大概率不是硬要求）
 >
-> 另外 Worker 那 4 个 secret + `MP_QRCODE_URL` + `MP_CALLBACK_TOKEN` 也还在等你。
+> ### 这一轮已经做完、不用再操心的
 >
-> ### 已经做完、不用再操心的
->
+> - ✅ **M5-5 隐私协议弹窗** —— P01 首次进入主动提示 + 微信官方弹窗兜底
+> - ✅ **`.dockerignore` 部署缺陷已修** —— 原来放在 `server/` 下，**从不生效也不报错**，
+>   会让容器用上 Windows 版 Prisma engine → 云端起不来；已移到仓库根，
+>   并加了 `check-docker` 防线（反向验证过）
+> - ✅ **`BASE_URL` 按版本自动切换** —— 部署后只改一个常量，不用动逻辑
+> - ✅ **`docs/06` §五 收口** + 可直接粘贴的生产环境变量清单
 > - ✅ 公众号二维码已放进 `miniprogram/assets/mp-account-qr.jpg`（微信后台原图，未转码）
 > - ✅ M3 全部（180 项冒烟 + P02 / P17 + 195 项展示模型断言）
 > - ✅ M4 全部（76 项冒烟 + P03 / P18 / P19 + P10 入口 + 首页预览 + 256 项展示模型断言）
@@ -446,8 +475,8 @@ M5 上线       提审 → 发布 → 家人真机安装
 >
 > ### 动 M5 之前值得先读的
 >
-> - `docs/06-上线前环境准备清单.md` —— 域名、类目、隐私协议、提审材料
-> - `docs/未来需求池.md` —— 本轮新增的已知缺口（图片不可改、举报入口、
+> - `docs/06-上线前环境准备清单.md` §5.A ~ §5.D —— **部署手册**
+> - `docs/未来需求池.md` —— 已知缺口（图片不可改、举报入口、
 >   `mediaCheckAsync`、P02 餐次不可改、P17 无搜索筛选）
 > - PRD §32「风险与假设」—— 还有几条**没实测过**的假设（A4 / A5 / A6 / A7）
 

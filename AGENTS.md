@@ -307,6 +307,8 @@ pnpm run typecheck                        # 全仓类型检查
 pnpm run format                           # Prettier 格式化
 node tools/check-ts.mjs                   # TS 语法校验（无需装 typescript）
 node tools/check-links.mjs                # Markdown 内部链接校验（文档移动后必跑）
+node tools/check-docker.mjs               # Docker 构建上下文（改了 Dockerfile / .dockerignore 必跑）
+pnpm run check                            # 以上全部 + 小程序端自查 + 展示模型断言 + 上传链路自检
 
 # 推送
 cd wxpush && wrangler login && wrangler deploy
@@ -329,6 +331,7 @@ node tools/test-wxpush.mjs                # 推送连通性测试
 | 推送通道逻辑变化 | `docs/08-wxpush推送集成方案.md`（必要时同步 `docs/01` §5） |
 | 视觉令牌、组件样式变化 | `docs/07-视觉设计规范.md` |
 | 环境变量增删 | `server/.env.example` / `wxpush/.env.example` + `docs/04` §7 |
+| 部署配置变化（`server/Dockerfile` / `.dockerignore` / 云托管参数） | `docs/04` §九 + `docs/06` §五（`.dockerignore` **必须在仓库根**，见 §九） |
 | 新增或推翻产品决策 | `docs/产品需求文档.md`（并在变更记录里写明原因） |
 | 冒出超出 V0.1 的想法 | `docs/未来需求池.md`（**不要写进代码**） |
 
@@ -391,4 +394,5 @@ chore(db): 初始化 11 张核心表
 - [ ] 是否写了 `console.log` 或 `any`？
 - [ ] 是否调用了 `wx.request`（小程序端）/ 绕过 `notify.service.ts`（后端）？
 - [ ] 用户可见文案里是否出现了禁用词（绑定 / 授权 / 公众号 / openid / 订阅 / 模板消息 / 测试号）？
+- [ ] 改了 `server/Dockerfile` 或 `.dockerignore` 是否跑过 `node tools/check-docker.mjs`？
 - [ ] **第 10 节的文档同步是否都做了？**
