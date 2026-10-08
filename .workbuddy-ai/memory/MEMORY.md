@@ -302,7 +302,7 @@ vendor 第三方代码要连 LICENSE 一起带（`wxpush/` 是 MIT）。
 
 ## 自查与测试工具（`tools/`）
 一条命令跑全部：**`pnpm run check`**（= check:ts + check:links + check:shared + check:mp +
-check:view + **check:upload**）。
+check:view + check:upload + **check:docker**）。
 
 | 脚本 | 用途 | 何时跑 |
 | --- | --- | --- |
@@ -310,6 +310,7 @@ check:view + **check:upload**）。
 | `check-links.mjs` | Markdown 内部链接校验 | 文档移动/重命名后 |
 | `check-shared.mjs` | 小程序侧常量镜像防漂移（**4 份 / 25 成员**：`ErrorCode` 数值 + `DELIVERY_TOAST` 文案 + `MENU_CATEGORY` 分类 + **`MEMORY_LIMITS` 数量上限**） | 改了 `packages/shared` 或 `miniprogram/constants` 后 |
 | `check-mp.mjs` | 小程序端静态自查（页面/组件四件套、事件绑定、`usingComponents` 引用、**未读角标挂的 Tab 下标**、**二维码图片在不在**；另有 `notes` 通道打 `⏳` 提示，**只提示不判失败**） | 改了页面、组件、`app.json` 或 `config.ts` 后 |
+| `check-docker.mjs` | Docker 构建上下文：校验 `server/Dockerfile` 每个**同阶段** COPY 的源没被 `.dockerignore` 误伤，并断言 `.dockerignore` 在**仓库根**、含关键规则、`server/.dockerignore` 不存在（三条都反向验证过） | 改了 `Dockerfile` / `.dockerignore` / 部署配置后 |
 | `test-view.mjs` | **展示模型层的行为断言**（**256 项**：详情 38 + 列表行 14 + 首页提醒行 10 + 通知 18 + 我的 25 + 微信提醒 22 + 吃啥呢 68 + **留个念 61**） | 改了 `utils/thing-view.ts` / `notice-view.ts` / `mine-view.ts` / `menu-view.ts` / **`memory-view.ts`** / `time.ts` 后 |
 | `smoke-m1.mjs` | 家庭链路端到端冒烟（14 阶段 / 83 断言） | 改完后端接口后 |
 | `smoke-m2-things.mjs` | 派活 / 叮一下 / 提醒 / 消息中心 / 调度器冒烟（215 断言） | 改完后端接口后 |
@@ -421,6 +422,16 @@ Prisma `@map` 做 snake_case ↔ camelCase 映射，**接口层永远不出现�
   同类：可空数字 ID 用 `toNullableNumber`（`@Type(() => Number)` 对 `null` 安全，
   但 `Number('') === 0` → `@Min(1)` 误报）。详见 `docs/04 §5.3`。
 - 全局前缀 `/api`（不是 `/api/v1`），以 `docs/02` 的 Base URL 为准。
+- **⚠️ `.dockerignore` 必须在仓库根，不能放 `server/` 下**。`server/Dockerfile` 的 COPY 源
+  含 `package.json` / `pnpm-workspace.yaml` / `packages/shared` → **构建上下文是仓库根**，
+  而 Docker **只读上下文根**的忽略文件。放 `server/` 下**从不生效、也不报任何错**。
+  后果：本机 Windows 的 `server/node_modules`（含 **Windows 版 Prisma query engine**）
+  会经 `COPY server ./server` 盖掉容器里刚装好的 Linux 版 → 容器启动即崩，
+  且**只在云端构建时才暴露**，本地怎么跑都复现不出来。
+  云托管部署时：Dockerfile 路径 = `server/Dockerfile`、**构建上下文 = 仓库根**。
+  **自检 `node tools/check-docker.mjs`**（已挂进 `pnpm run check`）。
+  （2026-10-08 实测踩到；根因是 `docs/04` §一 的目录树当时就把位置画错了，
+  实现照着文档做 → 文档错会导致代码错）
 
 ### 小程序端专属的坑（都已在 docs/04 写明）
 - **不能 import `@shared` 的运行时值，只能 `import type`。**
