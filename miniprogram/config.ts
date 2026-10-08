@@ -1,17 +1,68 @@
 /**
  * 环境配置
  *
- * ⚠️ **真机调试注意**：`localhost` 只在开发者工具的模拟器里可用 ——
- *    真机上的 `localhost` 指向手机自己，连不到你的电脑。
- *    真机调试时把 `BASE_URL` 换成电脑的局域网 IP（例如 `http://192.168.1.8:3000`），
- *    并确保手机与电脑在同一个 Wi-Fi 下。
- *
  * 开发者工具需要勾选「详情 → 本地设置 → 不校验合法域名」
  * （`project.config.json` 里已设 `urlCheck: false`，通常无需手动勾）。
  */
 
-/** 后端地址。本地开发指向 NestJS 的 3000 端口。 */
-export const BASE_URL = 'http://localhost:3000';
+// -------------------------------------------------------------
+// 后端地址：按小程序版本自动切换
+// -------------------------------------------------------------
+//
+// 小程序有三种版本，`wx.getAccountInfoSync().miniProgram.envVersion` 能区分：
+//
+//   develop   开发者工具 + **真机预览**   → 连本机后端
+//   trial     体验版（上传后在后台设为体验版）→ 连线上后端
+//   release   正式版（审核通过后发布）      → 连线上后端
+//
+// ⚠️ **真机预览也算 `develop`** —— 此时手机上的 `localhost` 指向手机自己，
+//    连不到你的电脑。真机调试要把 `DEV_BASE_URL` 换成电脑的局域网 IP
+//    （例如 `http://192.168.1.8:3000`），并确保手机与电脑在同一个 Wi-Fi 下。
+//
+// 之所以按版本自动切，是为了防一类事故：本地调试时把地址改成了局域网 IP，
+// 发版前忘了改回来。现在改 `DEV_BASE_URL` 只影响本地，碰不到线上。
+
+/** 后端地址：本地开发（开发者工具 / 真机预览）。 */
+const DEV_BASE_URL = 'http://localhost:3000';
+
+/**
+ * 后端地址：体验版 + 正式版。
+ *
+ * ⚠️⚠️ **部署到云托管之后，把这里换成服务地址** —— 形如
+ *     `https://xxxx-xxxx.ap-shanghai.run.tcloudbase.com`，
+ *     在云托管控制台「服务 → 访问方式」里取。云托管默认域名**免 ICP 备案**，
+ *     这是选它的主要原因（自己买服务器备案要 7–20 天）。
+ *
+ *     换完还要去小程序后台「开发管理 → 开发设置 → 服务器域名」，
+ *     把它加进 `request` 与 `uploadFile` 合法域名（见 docs/06 §六）。
+ *
+ * 留成这个显眼的占位符是**故意的**：没换的话体验版/正式版连不上，
+ * 一眼就能看出是漏了这一步，而不是去猜某个「看起来像域名」的值对不对。
+ */
+const PROD_BASE_URL = 'https://REPLACE-WITH-YOUR-CLOUD-RUN-DOMAIN';
+
+/**
+ * 当前小程序版本。基础库 2.2.2+ 提供，**同步接口**，模块加载时即可用。
+ *
+ * 兜底退回 `develop`：与「按版本切换」改造之前的行为一致（那时恒为本地地址），
+ * 所以取不到版本信息时不会比原来更差。
+ */
+function readEnvVersion(): 'develop' | 'trial' | 'release' {
+  try {
+    return wx.getAccountInfoSync().miniProgram.envVersion;
+  } catch {
+    return 'develop';
+  }
+}
+
+/**
+ * 后端地址。
+ *
+ * ⚠️ 显式标 `: string` 是必须的：不标的话 TS 会把它推断成两个字面量的联合类型，
+ *    页面里做 `BASE_URL !== ''` 之类的判断会被判成「恒真/恒假」而报 TS2367。
+ *    （`MP_ACCOUNT_QR` 下面有同样的处理。）
+ */
+export const BASE_URL: string = readEnvVersion() === 'develop' ? DEV_BASE_URL : PROD_BASE_URL;
 
 /** 全局接口前缀，与 docs/02 的 Base URL 一致（注意不是 /api/v1）。 */
 export const API_PREFIX = '/api';
