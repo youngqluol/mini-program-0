@@ -1,0 +1,78 @@
+/* P22 · 隐私政策
+ *
+ * 这一页是一份要**被读完**的说明，版面上只服务一件事：好读。
+ * 所以：不用 emoji（条款里塞图标会打断阅读）、行高放到 1.8、
+ * 每一条单独成行（挤成一整段没人会看）。
+ */
+
+/* ---------- 标题 ---------- */
+
+.pp-head {
+  padding: 8px 4px 16px;
+}
+
+.pp-head__title {
+  font-size: var(--fs-h1);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.pp-head__meta {
+  margin-top: 6px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+}
+
+/* ---------- 总起句 ---------- */
+
+.pp-lead {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--brand-soft-2);
+  font-size: var(--fs-body);
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+
+/* ---------- 条款 ---------- */
+
+.pp-sec + .pp-sec {
+  margin-top: 12px;
+}
+
+.pp-sec__title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.pp-sec__line {
+  margin-top: 8px;
+  padding-left: 12px;
+  font-size: var(--fs-body);
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+
+/* 每条前面一个小圆点 —— 用伪元素而不是「• 」文本：
+   文本里的点会跟着换行一起被复制走，伪元素不会。 */
+.pp-sec__line::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 8px;
+  margin-bottom: 3px;
+  border-radius: 50%;
+  background: var(--brand-1);
+}
+
+/* ---------- 页脚 ---------- */
+
+.pp-foot {
+  margin-top: 24px;
+  font-size: var(--fs-cap);
+  color: var(--ink-3);
+  text-align: center;
+}

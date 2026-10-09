@@ -38,6 +38,13 @@ const OPTIONAL_KEYS = [
   'COS_REGION',
   'COS_SECRET_ID',
   'COS_SECRET_KEY',
+  // ⚠️ **这一条不是「优雅降级」，是「核心功能静默死掉」**，必须单独警惕：
+  //    没配它 → `InternalSecretGuard` 一律拒绝（这是对的，不能留后门）→
+  //    云托管 Cron 打进来的 tick 全 403 → **提醒永远不会发出去**（站内兜底也不会写，
+  //    因为写入发生在 dispatch 里），而服务照常启动、接口照常 200。
+  //    它原本不在这两个清单里，于是漏配时**连一行 warn 都没有** ——
+  //    放进来至少能出现在启动日志里（docs/06 §5.15 要求逐条对）。
+  'INTERNAL_CRON_SECRET',
 ] as const;
 
 export interface ValidatedEnv {

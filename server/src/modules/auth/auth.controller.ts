@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { AccountService } from './account.service';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ReportSubscribeQuotaDto } from './dto/report-subscribe-quota.dto';
@@ -21,10 +22,14 @@ import type {
  *   PATCH /api/auth/profile            更新个人资料
  *   POST  /api/auth/subscribe-quota    上报订阅授权结果
  *   GET   /api/auth/subscribe-quota    查询订阅额度
+ *   DELETE /api/auth/account           注销账号（合规必需，docs/02 §2.6）
  */
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly account: AccountService,
+  ) {}
 
   /**
    * 微信登录（M1-B5）。
@@ -73,5 +78,21 @@ export class AuthController {
     @CurrentUser('userId') userId: bigint,
   ): Promise<SubscribeQuotaResponse> {
     return this.auth.getSubscribeQuota(userId);
+  }
+
+  /**
+   * 注销账号（docs/02 §2.6）。
+   *
+   * 用 `DELETE /auth/account` 而不是 `POST /auth/logout` 那种写法：
+   * 注销**不可逆**，方法名要让人一眼看出这一点。
+   *
+   * 幂等（重复调用不报错），理由见 `AccountService.deleteAccount`。
+   * 只认 token 里的 `userId` —— **不接受客户端指定要注销谁**：
+   * 这是一个「自己删自己」的接口，任何入参都可能变成越权入口。
+   */
+  @Delete('account')
+  async deleteAccount(@CurrentUser('userId') userId: bigint): Promise<{ ok: true }> {
+    await this.account.deleteAccount(userId);
+    return { ok: true };
   }
 }

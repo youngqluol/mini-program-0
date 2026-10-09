@@ -1,9 +1,16 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.8
+**版本：** v0.2.9
 **协议：** HTTPS + REST + JSON
 **Base URL：** `https://<云托管服务名>.ap-shanghai.run.tcloudbase.com/api`
 **鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
+
+**v0.2.9 变更（M5 上线前置）：** 新增 **§2.6 注销账号** `DELETE /auth/account`（提审硬性要求，`docs/06` §4.6）——
+① 口径定为「**认人的抹掉，家里的事留下但不再署名**」，附完整处理表；
+② 明确 **`notification_logs` 是全库唯一的物理删除**，并说明为什么它不算破例；
+③ 记下两处容易漏的实现要点：`thing_reminders` 必须显式取消（`userIdOfMember` 不看成员状态）、
+`JwtGuard` 新增账号状态检查（否则旧 token 能用满 7 天）；
+④ 接口总数 53 → **54**。
 
 **v0.2.8 变更：** 留个念（M4）落地后把 §七 / §八 按实现重写 ——
 ① **§7.2 的游标由「`createdAt` 时间戳」改为「上一页最后一条的 `id`」**：
@@ -318,6 +325,66 @@ GET /api/auth/subscribe-quota
 > 也就无从调 `requestSubscribeMessage`，列出来只会让前端显示一堆没用的项。
 >
 > `needReauthorize` 在**全部见底**时为 `true`，前端据此展示「再开一次微信提醒，就能多叮几次」的轻提示。
+
+### 2.6 注销账号
+
+```http
+DELETE /api/auth/account
+```
+
+**请求：** 无 body。**不接受任何入参** —— 这是一个「自己删自己」的接口，
+只认 token 里的 `userId`。任何形式的「指定要注销谁」都是越权入口。
+
+**响应：**
+
+```json
+{ "code": 0, "message": "ok", "data": { "ok": true } }
+```
+
+**为什么是 `DELETE` 而不是 `POST /auth/logout`：** 注销**不可逆**，
+方法名要让人一眼看出来。`logout` 在前端已经占了另一个意思
+（`userStore.logout()`，只清本地缓存），两者混用会让人以为注销也是「退出登录」。
+
+#### 处理口径 —— 「认人的抹掉，家里的事留下但不再署名」
+
+| 数据 | 处理 | 为什么 |
+| --- | --- | --- |
+| `users` | 匿名化 + `status=0` + **openid 换成墓碑值** | 个人数据必须清除；openid 是登录锚点，留着等于「注销后还能登回这个号」 |
+| `family_members` | **保留行**，`status=0` + `role_name` → `已注销的家人` | 它是全家历史的「作者指针」，删了历史就成了孤儿 |
+| `thing_reminders`（发给他的、未发出的） | `status=3`（已取消）+ `next_remind_at=null` | **否则注销之后还会继续叮他**，见下方 ⚠️ |
+| `notification_logs`（发给他的） | **物理删除** | 全库唯一的物理删除例外，见下 |
+| `family_things` / `family_memories` / `meal_records` / `menu_items` / `family_invites` | 原样不动 | 家庭共享内容，「删了但历史要留着」 |
+| `families`（他是创建者的） | 交接给**最早加入**的其他成员；没有别人则 `status=0` 解散 | V0.1 没有「转让创建者」，但不能因此拒绝注销 |
+
+**⚠️ 最容易漏的一条：`thing_reminders` 必须显式取消。**
+`ThingService.userIdOfMember()` 只按 `family_members.id` 反查 `user_id`，
+**不看成员状态** —— 光把成员置为「已退出」，调度器到点照样会把提醒发出去。
+这一步不做，用户注销完还会收到「家人的叮一下」，是实打实的 bug。
+
+**⚠️ 唯一的物理删除：`notification_logs`。**
+全库纪律是「不做物理 DELETE」（AGENTS.md §4.4），但那张表**整个都是
+「发给这个人的消息」**——标题、正文、送达状态全是个人数据，没有一丝家庭历史
+（家庭历史是 `family_things` / `family_memories`，一行没动）。
+留着它与 PRD §32「30 天内清除其个人数据」直接冲突。**这是有意为之，不是漏改。**
+
+**幂等与 token 失效：**
+
+- 服务层幂等（用户不存在 / 已禁用时直接返回）—— 挡的是**并发**，不是重试。
+- **重试走不到服务层**：第二次带同一个 token 打进来时，
+  `JwtGuard` 的账号状态检查会先返回 `40100`。这是刻意的：
+  JWT 无状态，没有这一查，注销就退化成「前端清了一下本地缓存」，
+  旧 token 还能用满 7 天。
+- 客户端收场（`miniprogram/services/request.ts`）：`40100` → 静默重登 →
+  同一个微信登进来是一个**全新的空账号**（openid 命中不了墓碑值）→
+  重放这次注销 → 删掉那个空账号 → 前端 `logout()` + `reLaunch` 回登录页。
+
+**墓碑值：** `deleted:<userId>`。用冒号是刻意的 ——
+微信 openid 的字符集是 `[A-Za-z0-9_-]`（28 位），**冒号不可能出现**，
+所以该值在数学上不会和任何真实 openid 撞车，不需要任何去重逻辑。
+
+**错误码：** 无专用码。未登录 → `40100`；`status=0` 的账号访问任何接口 → `40100`（不是 `40301`，理由见客户端收场那段）。
+
+> 实现见 `server/src/modules/auth/account.service.ts`（文件头有完整口径表与推演）。
 
 ---
 
@@ -1847,6 +1914,7 @@ POST /api/v1/wechat/mp-callback    # 接收用户消息 → 完成绑定
 | Auth | PATCH | `/auth/profile` | 更新资料 |
 | Auth | POST | `/auth/subscribe-quota` | 上报订阅授权 |
 | Auth | GET | `/auth/subscribe-quota` | 查询订阅额度 |
+| Auth | DELETE | `/auth/account` | **注销账号**（不可逆、幂等，§2.6） |
 | Family | POST | `/families` | 创建家庭 |
 | Family | GET | `/families` | 我的家庭列表 |
 | Family | GET | `/families/{id}` | 家庭详情 |
@@ -1899,7 +1967,9 @@ POST /api/v1/wechat/mp-callback    # 接收用户消息 → 完成绑定
 | Wechat | GET | `/wechat/mp-callback` | 测试号回调校验 |
 | Wechat | POST | `/wechat/mp-callback` | 接收测试号消息，完成绑定 |
 
-**合计 53 个接口**，覆盖 V0.1 全部功能。
+**合计 54 个接口**，覆盖 V0.1 全部功能。
+
+> **v0.2.9 新增 1 个**：`DELETE /auth/account`（注销账号，提审硬性要求）。
 
 > **v0.2.1 新增 5 个**：`/notify/mp-bind/*`（3 个）+ `/internal/notify/bind-mp-openid` + `/wechat/mp-callback`（2 个方法）。
 > 全部服务于 wxpush 推送通道，详见 `docs/08-wxpush推送集成方案.md`。

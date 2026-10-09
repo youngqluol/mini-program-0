@@ -107,7 +107,7 @@ mini-program-0/
 ├── miniprogram/              小程序端
 ├── server/                   后端（NestJS + Prisma）
 ├── wxpush/                   推送 Worker（Cloudflare Workers，V0.1 验证期）
-├── tools/                    check-ts.mjs / check-links.mjs / test-wxpush.mjs
+├── tools/                    check-*.mjs 静态校验 / smoke-m*.mjs 端到端冒烟 / test-*.mjs
 ├── prototypes/prototype.html 可视化原型（浏览器直接打开）
 ├── ui/风格参考/               视觉风格参考图
 ├── docker-compose.yml        本地 MySQL + Redis
@@ -176,6 +176,15 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 **全库不做物理 DELETE，一律状态位逻辑删除**（`status` / `enabled` / `deleted_at`）。
 「删了但历史要留着」是本项目的常态（例如菜单可删，但「9 月 26 日晚餐吃了番茄炒蛋」必须永久保留）。
 
+> ⚠️ **唯一的例外：`notification_logs`。**
+> 注销账号时，这个用户的收件箱行是**物理删除**的
+> （`server/src/modules/auth/account.service.ts` 的 `clearInbox()`）。
+> 理由：那张表**整张都是「发给这个人的消息」**（标题 / 正文 / 送达状态），
+> 没有一丝「全家的历史」在里面 —— 留它就等于「注销了但收件箱还在」，
+> 与 PRD §32「30 天内清除其个人数据」直接冲突。
+> **这是有意为之，不要当成漏改去「修正」它。** 新增物理删除前先想清楚：
+> 这一行是「个人数据」还是「家庭历史」？后者一律不许删。
+
 ### 4.5 密钥
 
 **禁止硬编码任何密钥 / host / appid。** 全部走环境变量：
@@ -226,7 +235,7 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
   > ⚠️ 早期版本的暖橙令牌（`#FF8A4C` / `#FFF7F0`）**已废弃**，现用「柔光粉彩」（主色 `#FF9DB4 → #FFB59B`、背景 `#FDF6F7`）。
 - Tab 结构是 **4 个**：家里 / 吃啥呢 / 留个念 / 我的。
   「叮一下」「派活」是**动作**，不是 Tab，作为首页悬浮入口。
-- 页面编号 P01–P21 与 `docs/03-页面原型与交互流程.md` 一一对应。
+- 页面编号 P01–P22 与 `docs/03-页面原型与交互流程.md` 一一对应。
 
 ### 6.1 文案纪律（重要）
 
@@ -309,6 +318,13 @@ node tools/check-ts.mjs                   # TS 语法校验（无需装 typescri
 node tools/check-links.mjs                # Markdown 内部链接校验（文档移动后必跑）
 node tools/check-docker.mjs               # Docker 构建上下文（改了 Dockerfile / .dockerignore 必跑）
 pnpm run check                            # 以上全部 + 小程序端自查 + 展示模型断言 + 上传链路自检
+
+# 端到端冒烟（打**真实库**，需要先起后端；每个脚本自建/自清夹具，可重复跑）
+pnpm run smoke:m1                         # 认证 + 家庭域（83 项）
+pnpm run smoke:m2                         # 小事 / 提醒 / 通知（215 项）
+pnpm run smoke:m3                         # 吃啥呢（180 项）
+pnpm run smoke:m4                         # 留个念（76 项）
+pnpm run smoke:m5                         # 注销账号（42 项）
 
 # 推送
 cd wxpush && wrangler login && wrangler deploy

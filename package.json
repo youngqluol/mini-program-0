@@ -24,6 +24,7 @@
     "smoke:m2": "node tools/smoke-m2-things.mjs",
     "smoke:m3": "node tools/smoke-m3-menu.mjs",
     "smoke:m4": "node tools/smoke-m4-memory.mjs",
+    "smoke:m5": "node tools/smoke-m5-account.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d",

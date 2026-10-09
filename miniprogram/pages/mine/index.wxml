@@ -60,6 +60,16 @@
       <text class="cell__label">关于「家有小事」</text>
       <text class="cell__arrow">›</text>
     </view>
+    <view class="cell" bindtap="onPrivacy">
+      <text class="cell__emoji">🔒</text>
+      <text class="cell__label">隐私政策</text>
+      <text class="cell__arrow">›</text>
+    </view>
+    <view class="cell" bindtap="onDeleteAccount">
+      <text class="cell__emoji">🚪</text>
+      <text class="cell__label">注销账号</text>
+      <text class="cell__arrow">›</text>
+    </view>
   </view>
 
   <!-- 退出家庭：创建者没有这个按钮，换成一行说明（判据在 utils/mine-view.ts） -->

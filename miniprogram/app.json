@@ -8,6 +8,7 @@
     "pages/memory/detail",
     "pages/mine/index",
     "pages/mine/wechat-notify",
+    "pages/mine/privacy",
     "pages/login/index",
     "pages/family/create",
     "pages/family/join",

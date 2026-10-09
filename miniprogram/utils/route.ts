@@ -58,3 +58,16 @@ export function goHome(): void {
 export function goCreateFamily(): void {
   wx.redirectTo({ url: CREATE_FAMILY_PAGE });
 }
+
+/**
+ * 回登录页，**并清空页面栈**（注销账号后调用）。
+ *
+ * 和 `guardEntry()` 里的 `redirectTo` 不同，这里必须用 `reLaunch`：
+ * 注销之后整个 App 没有一处是「还能看的」—— 留着页面栈意味着用户按返回
+ * 还能翻回「我的」、翻回首页，那些页面会拿一个死 token 去请求（401 → 静默重登
+ * → 变成空账号 → 又被丢到引导页），看起来像 App 坏了。
+ * `reLaunch` 把栈清空，从登录页重新开始。
+ */
+export function goLogin(): void {
+  wx.reLaunch({ url: LOGIN_PAGE });
+}
