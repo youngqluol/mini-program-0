@@ -96,7 +96,7 @@ export class AuthService {
    * 上报订阅授权结果。
    *
    * ⚠️ 只接受**我们自己的**模板 ID。否则任何人都能拿任意字符串
-   *    往 Redis 里灌 key，额度池就变成了一个无上限的键值垃圾场。
+   *    往额度表里灌行，额度池就变成了一个无上限的垃圾场。
    */
   async reportSubscribeQuota(
     userId: bigint,

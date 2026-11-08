@@ -30,7 +30,7 @@ async function bootstrap(): Promise<void> {
     credentials: false,
   });
 
-  // 收到 SIGTERM 时先跑 onModuleDestroy（关 DB 连接、放 Redis 连接）
+  // 收到 SIGTERM 时先跑 onModuleDestroy（关闭数据库连接等）
   app.enableShutdownHooks();
 
   // 云托管要求监听 0.0.0.0

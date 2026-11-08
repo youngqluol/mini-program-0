@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RedisService } from '../../redis/redis.service';
-import { RedisKeys, RedisTtl } from '../../redis/redis.keys';
+import { PrismaService } from '../../prisma/prisma.service';
 import { SUB_TEMPLATE_KINDS, SUB_TEMPLATE_SPECS, SubTemplateKind } from './subscribe.templates';
 import type { SubscribeQuota, SubscribeQuotaResponse } from '@shared/dto/auth';
 
@@ -17,18 +16,20 @@ import type { SubscribeQuota, SubscribeQuotaResponse } from '@shared/dto/auth';
  *   下发失败但额度确实在（网络抖动 / 47003）                  → `refund()` +1，别白扣
  *   微信说 43101（用户拒收 / 根本没额度）                     → `reset()` 归零，说明本地账错了
  *
- * ⚠️ Redis 是**加速层**不是真相来源。额度读不到时按 0 处理（少发一条订阅消息），
- *    但**绝不能让主流程报错** —— 订阅消息只是辅助通道。
+ * v0.2.3：不再使用 Redis，额度持久化在 MySQL `subscribe_quotas` 表。
+ *   原子性由单条 UPDATE 保证（`remaining > 0` 是 WHERE 条件），
+ *   并发下不会把 1 条额度用成 2 条。
  *
- * 一次性订阅的额度微信侧长期有效，但本地仍设 24h TTL：避免长期不用的
- * 僵尸计数无限累积，也让「额度」这个概念对用户是可解释的。
+ * 过期行不物理删除（全库不做物理 DELETE），按 0 处理；
+ * 行数上限 = 用户数 × 已配置模板数，不会无限增长。
+ *
+ * ⚠️ 订阅消息只是**辅助通道**，额度读写失败绝不能阻塞主流程 ——
+ *    调用方 `NotifyService.trySubscribe` 已用 try/catch 包住。
  */
 @Injectable()
 export class SubscribeQuotaService {
-  private readonly logger = new Logger(SubscribeQuotaService.name);
-
   constructor(
-    private readonly redis: RedisService,
+    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
 
@@ -68,11 +69,14 @@ export class SubscribeQuotaService {
   // 额度读写
   // -------------------------------------------------------------
 
-  /** 剩余额度；读不到按 0 算（宁可少发，不可假成功） */
+  /** 剩余额度；过期或读不到按 0 算（宁可少发，不可假成功） */
   async remaining(userId: bigint, templateId: string): Promise<number> {
-    const raw = await this.redis.get(RedisKeys.subscribeQuota(userId, templateId));
-    const n = Number(raw ?? 0);
-    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+    const row = await this.prisma.subscribeQuota.findUnique({
+      where: { userId_templateId: { userId, templateId } },
+      select: { remaining: true, expiresAt: true },
+    });
+    if (!row || row.expiresAt.getTime() <= Date.now()) return 0;
+    return row.remaining > 0 ? Math.trunc(row.remaining) : 0;
   }
 
   /** 是否还有额度 —— 下发前的前置快筛 */
@@ -85,51 +89,58 @@ export class SubscribeQuotaService {
    *
    * `count` 做上下限钳制：微信一次 `requestSubscribeMessage` 单个模板
    * 最多 +1，前端传大数说明有 bug，别让它把额度池撑爆。
+   *
+   * 过期行重新入账时重置为本次授权数；未过期则累加。
    */
   async grant(userId: bigint, templateId: string, count = 1): Promise<number> {
     const n = Math.min(Math.max(Math.trunc(count) || 1, 1), 10);
-    const key = RedisKeys.subscribeQuota(userId, templateId);
 
-    const left = await this.redis.incrBy(key, n);
-    await this.redis.expire(key, RedisTtl.SUBSCRIBE_QUOTA);
+    await this.prisma.$executeRaw`
+      INSERT INTO subscribe_quotas (user_id, template_id, remaining, expires_at)
+      VALUES (${userId}, ${templateId}, ${n}, DATE_ADD(NOW(), INTERVAL 24 HOUR))
+      ON DUPLICATE KEY UPDATE
+        remaining = IF(expires_at <= NOW(), VALUES(remaining), remaining + VALUES(remaining)),
+        expires_at = IF(expires_at <= NOW(), VALUES(expires_at), expires_at)
+    `;
 
-    // Redis 不可用时 incrBy 返回 null —— 不报错，返回 0 让前端提示「稍后重试」
-    return left ?? 0;
+    return this.remaining(userId, templateId);
   }
 
   /**
    * 下发前扣减额度，返回是否扣减成功。
    *
-   * ⚠️ **必须原子**：用 `INCRBY -1` 而不是「先 GET 再 SET」，
-   *    否则两个并发请求会同时通过检查、把 1 条额度用成 2 条。
-   *    扣成负数说明本地账不准（并发或脏数据），立刻归零并拒绝本次发送。
-   *
-   * Redis 不可用时**放行**：微信侧会用 43101 兜住，代价只是多一次无效请求，
-   * 比「Redis 一抖订阅消息就全哑」要好。
+   * 单条 UPDATE 保证原子性：`remaining > 0 AND expires_at > NOW()`
+   * 是 WHERE 条件，并发请求里只有一个能把 1 扣成 0。
    */
   async consume(userId: bigint, templateId: string): Promise<boolean> {
-    const key = RedisKeys.subscribeQuota(userId, templateId);
-    const left = await this.redis.incrBy(key, -1);
-
-    if (left === null) return true; // Redis 不可用 → 放行
-    if (left >= 0) return true;
-
-    // 扣成负数 → 本地计数错了，归零（不用 refund，避免留下无 TTL 的 0 值 key）
-    this.logger.warn(`订阅额度扣成负数，已归零 user=${userId} template=${maskId(templateId)}`);
-    await this.redis.del(key);
-    return false;
+    const affected = await this.prisma.$executeRaw`
+      UPDATE subscribe_quotas
+      SET remaining = remaining - 1
+      WHERE user_id = ${userId}
+        AND template_id = ${templateId}
+        AND remaining > 0
+        AND expires_at > NOW()
+    `;
+    return affected > 0;
   }
 
   /** 下发失败时退还额度 —— 网络抖动、47003 这类「不是用户问题」的失败 */
   async refund(userId: bigint, templateId: string): Promise<void> {
-    const key = RedisKeys.subscribeQuota(userId, templateId);
-    await this.redis.incrBy(key, 1);
-    await this.redis.expire(key, RedisTtl.SUBSCRIBE_QUOTA);
+    await this.prisma.$executeRaw`
+      INSERT INTO subscribe_quotas (user_id, template_id, remaining, expires_at)
+      VALUES (${userId}, ${templateId}, 1, DATE_ADD(NOW(), INTERVAL 24 HOUR))
+      ON DUPLICATE KEY UPDATE
+        remaining = IF(expires_at <= NOW(), 1, remaining + 1),
+        expires_at = IF(expires_at <= NOW(), VALUES(expires_at), expires_at)
+    `;
   }
 
   /** 归零 —— 微信返回 43101 时调用，说明用户其实没有额度 */
   async reset(userId: bigint, templateId: string): Promise<void> {
-    await this.redis.del(RedisKeys.subscribeQuota(userId, templateId));
+    await this.prisma.subscribeQuota.updateMany({
+      where: { userId, templateId },
+      data: { remaining: 0, expiresAt: new Date() },
+    });
   }
 
   // -------------------------------------------------------------
@@ -164,10 +175,4 @@ export class SubscribeQuotaService {
       needReauthorize: quotas.length > 0 && quotas.every((q) => q.remaining <= 0),
     };
   }
-}
-
-/** 日志里不要打完整模板 ID */
-function maskId(id: string): string {
-  if (!id || id.length <= 8) return '***';
-  return `${id.slice(0, 4)}***${id.slice(-4)}`;
 }

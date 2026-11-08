@@ -1,7 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
 import { MP_TEMPLATE_SPECS, MpTemplateKind } from '../notify/notify.templates';
 import {
   SUB_TEMPLATE_KINDS,
@@ -24,7 +23,6 @@ import { formatDateTime } from '../../common/serialize/beijing-time';
 export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
     private readonly config: ConfigService,
   ) {}
 
@@ -37,12 +35,11 @@ export class HealthController {
    */
   @Get()
   async check() {
-    const [db, redis] = await Promise.all([this.prisma.ping(), this.redis.ping()]);
+    const db = await this.prisma.ping();
 
     return {
       status: db ? 'ok' : 'degraded',
       db,
-      redis,
       // 秒，取整避免小数噪音
       uptime: Math.floor(process.uptime()),
       nodeVersion: process.version,

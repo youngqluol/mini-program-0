@@ -1,10 +1,14 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.9
-**协议：** HTTPS + REST + JSON
-**Base URL：** `https://<云托管服务名>.ap-shanghai.run.tcloudbase.com/api`
+**版本：** v0.2.11
+**v0.2.11 变更（2026-11-07）：补充调用方式。** 体验版/正式版经 `wx.cloud.callContainer`（`config.env` + `X-WX-SERVICE`），路径仍为 `/api`；开发版仍为 `http://localhost:3000/api`。
+**协议：** HTTPS + REST + JSON（体验版/正式版经 `wx.cloud.callContainer`，路径仍为 `/api`）
+**Base URL：** 路径统一 `/api`；开发版 `http://localhost:3000/api`，体验/正式版由 `callContainer` 的 `config.env` + `X-WX-SERVICE` 路由
 **鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
 
+**v0.2.10 变更（2026-10-24）：去掉 Redis 相关契约。** 绑定码存 `users.mp_bind_code`
+两列、订阅额度存 `subscribe_quotas` 表、调度器 `locked` 改指 MySQL `GET_LOCK`；
+`/api/health` 不再返回 `redis` 字段。
 **v0.2.9 变更（M5 上线前置）：** 新增 **§2.6 注销账号** `DELETE /auth/account`（提审硬性要求，`docs/06` §4.6）——
 ① 口径定为「**认人的抹掉，家里的事留下但不再署名**」，附完整处理表；
 ② 明确 **`notification_logs` 是全库唯一的物理删除**，并说明为什么它不算破例；
@@ -63,7 +67,7 @@
 并澄清「重复提醒」与「重复小事」是两件事。
 
 **v0.2.3 变更：** §2.4 / §2.5 补订阅额度的**实现口径** —— 服务端只接受已知模板 ID
-（防任意字符串灌 Redis）、`count` 上限 10 且服务端再钳一次、`quotas` 只列已配置模板的种类。
+（防任意字符串灌额度表）、`count` 上限 10 且服务端再钳一次、`quotas` 只列已配置模板的种类。
 
 **v0.2.2 勘误：** §3.10 的 `sharePath` 由 `pages/join-family/index?code=` 改为
 `pages/family/join?code=`（与 docs/03 的页面路径表一致）。
@@ -289,12 +293,12 @@ POST /api/auth/subscribe-quota
 > 不是微信后台的模板标题 —— 后台标题带「待办事项」这类禁用词（AGENTS.md §6），
 > 不能出现在用户界面。映射表见 `subscribe.templates.ts` 的 `displayName`。
 >
-> 后端用 Redis 计数。前端在拿到授权后调用，用于后续展示额度提示。
+> 后端用 MySQL `subscribe_quotas` 表计数（v0.2.3 起不再用 Redis）。前端在拿到授权后调用，用于后续展示额度提示。
 >
 > ⚠️ **服务端只接受「已知的」模板 ID** —— 即 `WX_TEMPLATE_TASK` / `WX_TEMPLATE_NUDGE` /
 > `WX_TEMPLATE_DONE` 三个环境变量里的值。传别的报 `40001`
 > （「模板 ID 不认识，可能是小程序版本太旧了」）。不校验的话，任何人都能拿任意字符串
-> 往 Redis 里灌 key，额度池就变成了无上限的键值垃圾场。
+> 往额度表里灌行，额度池就变成了无上限的垃圾场。
 >
 > `count` 上限 10，服务端还会再钳一次（微信一次授权单个模板最多 +1）。
 >
@@ -1740,7 +1744,7 @@ POST /api/notify/mp-bind/code
 | 长度 | 6 位纯数字（用户要在微信里手打，不用字母） |
 | 有效期 | 10 分钟 |
 | 冷却 | 同一用户 30 秒内不能重复生成（防止连点造成多码并存） |
-| 存储 | Redis `mpbind:code:{code}` → userId，TTL 10 分钟 |
+| 存储 | `users.mp_bind_code` + `mp_bind_code_expires_at`（10 分钟有效，重新生成会让旧码失效） |
 
 **前端行为：** 拿到 `bindCode` 后展示二维码 + 码，**每 3 秒轮询一次 9.4**，最多 20 次。
 
@@ -1750,7 +1754,7 @@ POST /api/notify/mp-bind/code
 DELETE /api/notify/mp-bind
 ```
 
-清空 `users.mp_openid` 与 `users.mp_bound_at`，并删除 Redis 中的绑定码。
+清空 `users.mp_openid`、`users.mp_bound_at` 与绑定码两列（`mp_bind_code` / `mp_bind_code_expires_at`）。
 
 > **注意：** 关闭后该用户的所有通知自动降级为「站内消息」，**产品依然完整可用**。
 > 这个开关不是「关掉功能」，而是「换一种收消息的方式」。
@@ -1797,7 +1801,7 @@ X-Internal-Secret: <INTERNAL_CRON_SECRET>
 | `noQuota` | 订阅消息额度用完 → 已降级站内 |
 | `failed` | 所有通道都失败 |
 | `skipped` | **正常跳过**（小事已完成 / 已取消、接收人已退出家庭）—— 不是失败，必须与 `failed` 分开统计 |
-| `locked` | `true` = 没抢到 Redis 锁（另一个实例在跑），本轮什么都没做 |
+| `locked` | `true` = 没抢到 MySQL `GET_LOCK`（另一个实例在跑），本轮什么都没做 |
 | `durationMs` | 本轮耗时 |
 
 恒等式：`scanned = sent + notBound + noQuota + failed + skipped`（`locked=true` 时全部为 0）。
@@ -1894,7 +1898,7 @@ POST /api/v1/wechat/mp-callback    # 接收用户消息 → 完成绑定
 | 配置位置 | 测试号后台 → 「接口配置信息」→ URL + Token |
 | Token 环境变量 | `MP_CALLBACK_TOKEN` |
 | 消息模式 | **明文模式**（安全模式需 AES 解密，V0.1 不做） |
-| 处理逻辑 | 用户发来的纯数字消息视为绑定码 → 查 Redis → 写 `users.mp_openid` → 回文本消息 |
+| 处理逻辑 | 用户发来的纯数字消息视为绑定码 → 查 `users.mp_bind_code` → 写 `users.mp_openid` → 回文本消息 |
 | 响应格式 | XML（`text` 类型） |
 
 **绑定成功回复：**「绑定成功 ✅ 以后家里有事，会在这里提醒你～」

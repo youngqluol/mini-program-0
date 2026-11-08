@@ -63,6 +63,10 @@ model User {
   mpOpenid    String?   @unique(map: "uk_mp_openid") @map("mp_openid") @db.VarChar(64)
   /// 公众号提醒绑定时间
   mpBoundAt   DateTime? @map("mp_bound_at") @db.DateTime(0)
+  /// 公众号提醒绑定码（6位数字，10分钟有效；NULL=无待用码）
+  mpBindCode  String?   @unique(map: "uk_mp_bind_code") @map("mp_bind_code") @db.Char(6)
+  /// 绑定码过期时间
+  mpBindCodeExpiresAt DateTime? @map("mp_bind_code_expires_at") @db.DateTime(0)
   nickname    String?   @db.VarChar(50)
   avatarUrl   String?   @map("avatar_url") @db.VarChar(500)
   /// 1 正常 / 0 禁用
@@ -341,4 +345,20 @@ model NotificationLog {
   @@index([status], map: "idx_status")
   @@index([thingId], map: "idx_thing_id")
   @@map("notification_logs")
+}
+
+/// 小程序订阅消息额度池（v0.2.3 起替代 Redis 计数）。
+/// 过期行不物理删除，按 remaining=0 处理；行数上限 = 用户数 × 模板数。
+model SubscribeQuota {
+  userId     BigInt   @map("user_id") @db.UnsignedBigInt
+  templateId String   @map("template_id") @db.VarChar(128)
+  /// 剩余额度（1次授权=1条）
+  remaining  Int      @default(0)
+  /// 额度有效期（授权后24小时）
+  expiresAt  DateTime @map("expires_at") @db.DateTime(0)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+
+  @@id([userId, templateId])
+  @@index([expiresAt], map: "idx_expires_at")
+  @@map("subscribe_quotas")
 }

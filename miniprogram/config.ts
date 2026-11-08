@@ -26,20 +26,31 @@
 const DEV_BASE_URL = 'http://localhost:3000';
 
 /**
- * 后端地址：体验版 + 正式版。
+ * 云托管默认域名 —— **仅用于调试/兜底，不能加到小程序后台的服务器域名**。
  *
- * ⚠️⚠️ **部署到云托管之后，把这里换成服务地址** —— 形如
- *     `https://xxxx-xxxx.ap-shanghai.run.tcloudbase.com`，
- *     在云托管控制台「服务 → 访问方式」里取。云托管默认域名**免 ICP 备案**，
- *     这是选它的主要原因（自己买服务器备案要 7–20 天）。
+ * 微信明确：云托管默认域名只能用于接口测试，小程序后台无法把它配成
+ * `request` / `uploadFile` 合法域名（会提示「云托管域名仅用作测试使用」）。
  *
- *     换完还要去小程序后台「开发管理 → 开发设置 → 服务器域名」，
- *     把它加进 `request` 与 `uploadFile` 合法域名（见 docs/06 §六）。
- *
- * 留成这个显眼的占位符是**故意的**：没换的话体验版/正式版连不上，
- * 一眼就能看出是漏了这一步，而不是去猜某个「看起来像域名」的值对不对。
+ * 所以体验版 / 正式版的 JSON 请求**不走这个地址**，而是走
+ * `wx.cloud.callContainer`（见下方 CLOUD_RUN_ENV_ID / CLOUD_RUN_SERVICE）。
+ * 以后绑定自定义域名时，再把这里替换成自定义域名。
  */
-const PROD_BASE_URL = 'https://REPLACE-WITH-YOUR-CLOUD-RUN-DOMAIN';
+const PROD_BASE_URL =
+  'https://family-things-api-324934-12-1502093511.sh.run.tcloudbase.com';
+
+/**
+ * 云托管环境 ID。
+ *
+ * 位置：云托管控制台 → 环境管理 → 选择环境 → 环境 ID。
+ * ⚠️ 不是默认域名里那串，形如 `prod-xxxxxxxx`。
+ */
+export const CLOUD_RUN_ENV_ID: string = 'prod-d6gpyyf3z8f39506c';
+
+/**
+ * 云托管服务名 —— `callContainer` 的 `X-WX-SERVICE` 请求头。
+ * 与服务管理里创建的服务名称一致。
+ */
+export const CLOUD_RUN_SERVICE: string = 'family-things-api';
 
 /**
  * 当前小程序版本。基础库 2.2.2+ 提供，**同步接口**，模块加载时即可用。
@@ -55,14 +66,32 @@ function readEnvVersion(): 'develop' | 'trial' | 'release' {
   }
 }
 
+/** 当前版本（模块加载时求值一次） */
+export const ENV_VERSION = readEnvVersion();
+
+/**
+ * 是否走云托管专用调用通道。
+ *
+ * - develop：开发者工具 / 真机预览 → 本机后端（`wx.request`）
+ * - trial / release：体验版 / 正式版 → 云托管环境（`wx.cloud.callContainer`）
+ *
+ * ⚠️ `callContainer` 要求基础库 **2.23.0+**，且小程序需被云托管环境授权。
+ *    请求体上限 100KiB，**不能传图片/文件**（图片走对象存储直传）。
+ */
+export const USE_CLOUD_CONTAINER: boolean = ENV_VERSION !== 'develop';
+
 /**
  * 后端地址。
  *
  * ⚠️ 显式标 `: string` 是必须的：不标的话 TS 会把它推断成两个字面量的联合类型，
  *    页面里做 `BASE_URL !== ''` 之类的判断会被判成「恒真/恒假」而报 TS2367。
  *    （`MP_ACCOUNT_QR` 下面有同样的处理。）
+ *
+ * trial/release 的 JSON 请求不使用它（走 callContainer）；它只服务于：
+ *   - develop 的本地 `wx.request`
+ *   - 将来图片上传改走自定义域名 / COS 直传时的兜底
  */
-export const BASE_URL: string = readEnvVersion() === 'develop' ? DEV_BASE_URL : PROD_BASE_URL;
+export const BASE_URL: string = ENV_VERSION === 'develop' ? DEV_BASE_URL : PROD_BASE_URL;
 
 /** 全局接口前缀，与 docs/02 的 Base URL 一致（注意不是 /api/v1）。 */
 export const API_PREFIX = '/api';

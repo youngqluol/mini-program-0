@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotifyStatus, ReminderStatus } from '@shared/enums';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
-import { RedisKeys, RedisTtl } from '../../redis/redis.keys';
+import { DbLockService } from '../../prisma/db-lock.service';
 import { ReminderService } from '../thing/reminder.service';
 
 /**
@@ -16,7 +15,7 @@ import { ReminderService } from '../thing/reminder.service';
  * 那里与用户点「叮一下」共用同一套代码，所以两条路径的文案与状态一定一致。
  *
  * ⚠️ 两个接口都必须**幂等**：Cron 可能重试、云托管可能多实例，
- *    重复执行不能造成重复推送。靠的是 Redis 锁 + 状态位双重保护。
+ *    重复执行不能造成重复推送。靠的是 MySQL `GET_LOCK` + 状态位双重保护。
  */
 
 /** 一次 tick 最多处理多少条 —— 微信接口有频率限制，宁可多跑几轮 */
@@ -67,7 +66,7 @@ export class SchedulerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
+    private readonly dbLock: DbLockService,
     private readonly reminders: ReminderService,
   ) {}
 
@@ -79,7 +78,7 @@ export class SchedulerService {
    * 扫描到点的提醒并下发。
    *
    * 三道防重：
-   *   ① Redis 锁（M2-B21）—— 多实例并发时只有一个能进
+   *   ① MySQL `GET_LOCK`（M2-B21）—— 多实例并发时只有一个能进
    *   ② `fireDueReminder` 里的状态检查 —— 谁先谁算，不抢
    *   ③ 发完把 `next_remind_at` 推走 —— 同一条不会被下一轮再捞
    */
@@ -96,18 +95,7 @@ export class SchedulerService {
       durationMs: 0,
     };
 
-    const lockKey = RedisKeys.cronReminderLock();
-    // ⚠️ 单位陷阱：`RedisTtl.CRON_LOCK` 是**秒**，`acquireLock` 收**毫秒**
-    const token = await this.redis.acquireLock(lockKey, RedisTtl.CRON_LOCK * 1000);
-    if (token == null) {
-      // 另一个实例正在跑 —— 正常现象，不是错误，所以只记 info 不记 warn
-      result.locked = true;
-      result.durationMs = Date.now() - startedAt;
-      this.logger.log('调度心跳：没抢到锁，本次跳过（另一个实例在跑）');
-      return result;
-    }
-
-    try {
+    const lock = await this.dbLock.withLock('cron:lock:reminder', async () => {
       const due = await this.prisma.thingReminder.findMany({
         where: {
           status: ReminderStatus.PENDING,
@@ -142,9 +130,14 @@ export class SchedulerService {
             result.failed++;
         }
       }
-    } finally {
-      // 必须放在 finally：中途抛异常也要释放，否则锁要等 TTL 自然过期
-      await this.redis.releaseLock(lockKey, token);
+    });
+
+    if (!lock.locked) {
+      // 另一个实例正在跑 —— 正常现象，不是错误，所以只记 info 不记 warn
+      result.locked = true;
+      result.durationMs = Date.now() - startedAt;
+      this.logger.log('调度心跳：没抢到锁，本次跳过（另一个实例在跑）');
+      return result;
     }
 
     result.durationMs = Date.now() - startedAt;
@@ -187,16 +180,7 @@ export class SchedulerService {
       durationMs: 0,
     };
 
-    const lockKey = RedisKeys.cronCompensateLock();
-    const token = await this.redis.acquireLock(lockKey, RedisTtl.CRON_LOCK * 1000);
-    if (token == null) {
-      result.locked = true;
-      result.durationMs = Date.now() - startedAt;
-      this.logger.log('补偿任务：没抢到锁，本次跳过（另一个实例在跑）');
-      return result;
-    }
-
-    try {
+    const lock = await this.dbLock.withLock('cron:lock:compensate', async () => {
       result.ghostsClosed = await this.closeGhostLogs();
 
       const since = new Date(Date.now() - COMPENSATE_WINDOW_HOURS * 3600_000);
@@ -225,8 +209,13 @@ export class SchedulerService {
             result.failed++;
         }
       }
-    } finally {
-      await this.redis.releaseLock(lockKey, token);
+    });
+
+    if (!lock.locked) {
+      result.locked = true;
+      result.durationMs = Date.now() - startedAt;
+      this.logger.log('补偿任务：没抢到锁，本次跳过（另一个实例在跑）');
+      return result;
     }
 
     result.durationMs = Date.now() - startedAt;

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Logger,
   Post,
   Query,
@@ -69,6 +70,9 @@ export class MpCallbackController {
    *       其余消息一律忽略（回一句引导语）。
    */
   @Post('mp-callback')
+  // ⚠️ Nest 的 POST 默认返回 201；微信服务器只把 200 视为「已收到」，
+  //    非 200 会触发重试，所以这里必须显式改成 200。
+  @HttpCode(200)
   @Header('Content-Type', 'application/xml; charset=utf-8')
   async onMessage(@Req() req: Request, @Res() res: Response): Promise<void> {
     const { signature, timestamp, nonce } = req.query as Record<string, string>;

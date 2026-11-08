@@ -278,7 +278,7 @@ async function main() {
   const health = await api('GET', '/api/health');
   expectCode('GET /api/health 返回 ok', health, 0);
   check('数据库连通 db=true', health.body?.data?.db === true);
-  check('Redis 连通 redis=true', health.body?.data?.redis === true);
+  check('健康检查已不包含 redis 字段', health.body?.data?.redis === undefined);
 
   // ---------- 1. 夹具 ----------
   phase('1. 准备测试夹具');

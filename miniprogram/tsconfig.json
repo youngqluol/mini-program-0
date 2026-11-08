@@ -6,6 +6,7 @@
     "lib": ["ES2020"],
     "strict": true,
     "noImplicitAny": true,
+    "allowJs": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "esModuleInterop": true,
@@ -17,6 +18,9 @@
     "paths": {
       "@shared": ["../packages/shared/src/index"],
       "@shared/*": ["../packages/shared/src/*"],
+      "@tencent-ai/workbuddy-cloud-sdk/miniprogram": [
+        "./node_modules/@tencent-ai/workbuddy-cloud-sdk/lib/miniprogram"
+      ],
       "@/*": ["./*"]
     },
     "types": ["miniprogram-api-typings"]

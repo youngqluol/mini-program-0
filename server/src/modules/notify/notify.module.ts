@@ -15,12 +15,12 @@ import { WechatModule } from '../wechat/wechat.module';
  * 装的东西：
  *   - `WxpushClient`            通道一：公众号模板消息（主力，走 Cloudflare Worker）
  *   - `SubscribeMessageAdapter` 通道二：小程序订阅消息（辅助，实现 SubscribeMessagePort）
- *   - `SubscribeQuotaService`   通道二的额度池（Redis 记账）
+ *   - `SubscribeQuotaService`   通道二的额度池（MySQL `subscribe_quotas` 记账）
  *   - `NotifyService`           通道选择 + 降级 + 写 notification_logs
  *   - `NotificationService`     消息中心读侧（列表 / 未读数 / 全部已读）
  *
  * 依赖：
- *   - `PrismaService` / `RedisService`：全局模块，无需 import
+ *   - `PrismaService`：全局模块，无需 import
  *   - `WechatModule`：借用 `WechatService` 的 HTTP 能力（code2Session / access_token /
  *     订阅消息下发）与 `MpBindService`（绑定接口用）
  *

@@ -10,7 +10,7 @@ import { SchedulerService } from './scheduler.service';
  *   - `ThingModule` —— 借 `ReminderService` 的 `fireDueReminder`（下发到点提醒）
  *     与 `retryReminderNotification`（补偿重发）。
  *     「怎么发」在那边，「什么时候发」在这里。
- *   - `RedisService` / `PrismaService` —— 全局模块，无需 import
+ *   - `PrismaService` / `DbLockService` —— 全局模块，无需 import
  *
  * 为什么单独一个模块而不是塞进 thing：调度是**入口**（云托管 Cron 打进来的），
  * 与「用户操作」是两条完全不同的触发路径。放在一起会让 thing 模块

@@ -1,6 +1,12 @@
 # MySQL 数据库设计
 
-> **版本：v0.2.2** ｜ 最后更新：2026-10-06
+> **版本：v0.2.3** ｜ 最后更新：2026-10-24
+>
+> **v0.2.3 相对 v0.2.2 的变化：**
+> 1. `users` 新增 `mp_bind_code` / `mp_bind_code_expires_at`（公众号绑定码，替代 Redis）
+> 2. 新增 `subscribe_quotas` 表（订阅消息额度池，替代 Redis 计数）
+> 3. 项目不再依赖 Redis：定时任务锁用 MySQL `GET_LOCK`，access_token 用进程内缓存
+> 4. 全文表数由 11 张改为 **12 张**
 >
 > **本文档的定位：** 解释每张表**为什么**这样设计。
 > **可执行 DDL 在 [`db/schema.sql`](../db/schema.sql)**——那是唯一真相。本文与它冲突时，以 schema.sql 为准。
@@ -67,6 +73,8 @@ CREATE TABLE users (
 
     mp_openid VARCHAR(64) DEFAULT NULL COMMENT '公众号openid（推送用，与小程序openid不同值）',
     mp_bound_at DATETIME DEFAULT NULL COMMENT '公众号提醒绑定时间',
+    mp_bind_code CHAR(6) DEFAULT NULL COMMENT '公众号绑定码（6位数字，10分钟有效）',
+    mp_bind_code_expires_at DATETIME DEFAULT NULL COMMENT '绑定码过期时间',
 
     nickname VARCHAR(50) DEFAULT NULL COMMENT '用户昵称',
     avatar_url VARCHAR(500) DEFAULT NULL COMMENT '头像地址',
@@ -79,6 +87,7 @@ CREATE TABLE users (
     PRIMARY KEY (id),
     UNIQUE KEY uk_openid (openid),
     UNIQUE KEY uk_mp_openid (mp_openid),
+    UNIQUE KEY uk_mp_bind_code (mp_bind_code),
     KEY idx_unionid (unionid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 ```
@@ -742,7 +751,33 @@ error_message
 
 ---
 
-# 十四、最终 11 张核心表
+### 附：subscribe_quotas 订阅消息额度表（v0.2.3 新增）
+
+`users.mp_bind_code` 承担原来的「绑定码临时存储」；订阅消息额度则单独一张表：
+
+```sql
+CREATE TABLE subscribe_quotas (
+    user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    template_id VARCHAR(128) NOT NULL COMMENT '订阅消息模板ID',
+    remaining INT NOT NULL DEFAULT 0 COMMENT '剩余额度（1次授权=1条）',
+    expires_at DATETIME NOT NULL COMMENT '额度有效期（授权后24小时）',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, template_id),
+    KEY idx_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='小程序订阅消息额度池';
+```
+
+为什么不用 Redis：
+
+- 额度需要**原子扣减**，单条 `UPDATE ... WHERE remaining > 0` 就够了；
+- 家庭规模下数据量极小（用户数 × 3 个模板），MySQL 完全扛得住；
+- 少一个中间件、少一套 VPC/资源互联配置，也少一份月度成本；
+- 过期行**不物理删除**（全库不做物理 DELETE），按 `remaining=0` 处理；
+  行数上限是「用户数 × 模板数」，不会无限增长。
+
+---
+
+# 十四、最终 12 张核心表
 
 ```text
 用户与家庭
@@ -774,6 +809,7 @@ memory_attachments
 通知
 
 notification_logs
+subscribe_quotas  ← v0.2.3 新增（订阅消息额度池）
 ```
 
 这套结构已经可以支撑第一版完整产品。
@@ -912,9 +948,9 @@ completed_by_member_id
                   ↓
                 NestJS
                   │
-        ┌─────────┼─────────┐
-        ↓         ↓         ↓
-      MySQL     Redis     COS/云存储
+        ┌─────────┴─────────┐
+        ↓                   ↓
+      MySQL             COS/云存储
         │
         │
         ↓
@@ -934,18 +970,20 @@ completed_by_member_id
 
 保存业务数据。
 
-### Redis
+### 为什么不用 Redis（v0.2.3）
 
-主要用于：
+原设计把「订阅额度 / 定时任务锁 / 公众号绑定码 / access_token 缓存」放在 Redis。
+V0.1 的家庭规模很小，这些都能由已有的 MySQL + 进程内缓存承担：
 
 ```text
-登录状态
-验证码/临时数据
-定时任务锁
-幂等控制
-公众号绑定码（mpbind:code:* / mpbind:user:*）
-缓存
+定时任务锁        → MySQL GET_LOCK（连接级，事务内 GET/RELEASE）
+订阅额度           → subscribe_quotas 表（原子 UPDATE 扣减）
+公众号绑定码       → users.mp_bind_code 两列（10 分钟有效）
+access_token      → 进程内缓存（单实例足够；多实例各自缓存，40001 时重试）
 ```
+
+好处：云托管只需 MySQL，不需要买腾讯云 Redis、不需要配 VPC 资源互联，
+少一个中间件、少一份成本。**家庭规模下没有性能问题。**
 
 ### COS / 云存储
 

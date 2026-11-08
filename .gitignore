@@ -44,6 +44,11 @@ Thumbs.db
 # ---------- 微信开发者工具本地配置 ----------
 miniprogram/project.private.config.json
 
+# ---------- 小程序上传脚本的本地产物 ----------
+# mini.sh 把 miniprogram-ci 装到这里（不写进 package.json、不污染仓库依赖）
+.ci-tools/
+preview-qrcode.jpg
+
 # ---------- 临时文件 ----------
 *.tmp
 *.bak

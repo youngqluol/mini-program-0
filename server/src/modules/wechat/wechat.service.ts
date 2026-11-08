@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RedisService } from '../../redis/redis.service';
 import { BusinessException } from '../../common/errors/business.exception';
 
 /**
@@ -109,10 +108,6 @@ export const IMG_SEC_CHECK_MAX_BYTES = 1024 * 1024;
  */
 const IMG_SEC_CHECK_TIMEOUT_MS = 5000;
 
-/** access_token 在 Redis 里的 key */
-const ACCESS_TOKEN_KEY = 'wechat:mp:access_token';
-/** 微信 access_token 有效期 7200 秒，提前 5 分钟过期避免边界失败 */
-const ACCESS_TOKEN_TTL = 7200 - 300;
 /** 普通微信接口超时 */
 const WX_TIMEOUT_MS = 8000;
 /**
@@ -128,13 +123,15 @@ const SEC_CHECK_TIMEOUT_MS = 3000;
 export class WechatService {
   private readonly logger = new Logger(WechatService.name);
 
-  /** 进程内的二级缓存，避免每次下发消息都打一次 Redis */
+  /**
+   * 进程内 access_token 缓存。
+   *
+   * v0.2.3 起不再用 Redis：单实例下完全够用；多实例时各自缓存，
+   * 微信通常返回同一个有效 token，偶发 40001 由调用方 invalidate + 重试兜住。
+   */
   private tokenCache: { value: string; expiresAt: number } | null = null;
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly redis: RedisService,
-  ) {}
+  constructor(private readonly config: ConfigService) {}
 
   // -------------------------------------------------------------
   // 登录凭证
@@ -183,22 +180,11 @@ export class WechatService {
    *
    * ⚠️ 微信对 access_token 的获取有频率限制（2000 次/天），
    *    且**新 token 会让旧 token 失效**。所以必须缓存、不能每次现取。
-   *    三级缓存：进程内 → Redis → 微信接口。
+   *    缓存层级：进程内 → 微信接口（v0.2.3 起不再经过 Redis）。
    */
   async getAccessToken(force = false): Promise<string> {
     if (!force && this.tokenCache && this.tokenCache.expiresAt > Date.now()) {
       return this.tokenCache.value;
-    }
-
-    if (!force) {
-      const cached = await this.redis.get(ACCESS_TOKEN_KEY);
-      if (cached) {
-        this.tokenCache = {
-          value: cached,
-          expiresAt: Date.now() + ACCESS_TOKEN_TTL * 1000,
-        };
-        return cached;
-      }
     }
 
     const appid = this.requireConfig('WX_APPID');
@@ -223,7 +209,6 @@ export class WechatService {
       value: data.access_token,
       expiresAt: Date.now() + ttl * 1000,
     };
-    await this.redis.set(ACCESS_TOKEN_KEY, data.access_token, ttl);
 
     return data.access_token;
   }

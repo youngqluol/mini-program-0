@@ -18,15 +18,25 @@
  */
 
 import type { ApiResponse } from '@shared/dto/common';
-import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT, UPLOAD_TIMEOUT } from '../config';
+import {
+  API_PREFIX,
+  BASE_URL,
+  REQUEST_TIMEOUT,
+  UPLOAD_TIMEOUT,
+  USE_CLOUD_CONTAINER,
+} from '../config';
 import { ErrorCode, NETWORK_ERROR_MESSAGE, RELOGIN_CODES } from '../constants/error-code';
 import { storage } from '../utils/storage';
+import { callContainer } from './cloud-container';
+import type { CloudContainerFailure } from './cloud-container';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** 带业务错误码的异常。页面可以 `if ((e as ApiError).code === ErrorCode.CONFLICT)` 分支处理。 */
 export interface ApiError extends Error {
   code: number;
+  /** 原始网络错误（只用于排查，不展示给用户） */
+  detail?: string;
 }
 
 export interface RequestOptions {
@@ -84,11 +94,12 @@ function ensureRelogin(): Promise<boolean> {
 // 底层发送
 // =============================================================
 
-function createApiError(code: number, message: string): ApiError {
+function createApiError(code: number, message: string, detail?: string): ApiError {
   // 刻意不用 `class X extends Error`：经过 Babel 降级后 `instanceof` 会失效，
   // 这里只挂一个 code 字段，形状简单且稳定。
   const err = new Error(message) as ApiError;
   err.code = code;
+  if (detail) err.detail = detail;
   return err;
 }
 
@@ -134,6 +145,73 @@ function send<T>(
 }
 
 // =============================================================
+// 云托管专用通道（wx.cloud.callContainer）
+// =============================================================
+
+/** GET 参数序列化。项目里的 GET 参数都是扁平标量，不需要处理嵌套对象。 */
+function toQuery(data?: Record<string, unknown>): string {
+  if (!data) return '';
+  const parts: string[] = [];
+  for (const key of Object.keys(data)) {
+    const value = data[key];
+    if (value === undefined || value === null) continue;
+    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
+}
+
+/**
+ * 通过云托管内部网关发送请求。
+ *
+ * 与 `wx.request` 的差异：
+ *   - 不需要服务器合法域名（这正是选它的原因）
+ *   - 请求体 ≤ 100KiB，不能传文件
+ *   - 返回结构与 `wx.request` 类似，但 `data` 可能是字符串，需要自己解析
+ */
+function sendByContainer<T>(
+  path: string,
+  method: HttpMethod,
+  data: Record<string, unknown> | undefined,
+  withAuth: boolean,
+): Promise<ApiResponse<T>> {
+  const header: Record<string, string> = { 'content-type': 'application/json' };
+  const token = storage.getToken();
+  if (withAuth && token) header.Authorization = `Bearer ${token}`;
+
+  const isGet = method === 'GET';
+
+  return callContainer<ApiResponse<T> | string>({
+    path: isGet ? `${path}${toQuery(data)}` : path,
+    method,
+    header,
+    data: isGet ? undefined : data,
+  }).then(
+    (res) => {
+      let body: ApiResponse<T> | undefined;
+      if (typeof res.data === 'string') {
+        try {
+          body = JSON.parse(res.data) as ApiResponse<T>;
+        } catch {
+          body = undefined;
+        }
+      } else {
+        body = res.data as ApiResponse<T> | undefined;
+      }
+
+      if (!body || typeof body.code !== 'number') {
+        // 走到了非本项目的响应（网关错误页 / 授权失败），归一成服务端异常
+        throw createApiError(ErrorCode.INTERNAL_ERROR, '出了点小问题，再试一次');
+      }
+      return body;
+    },
+    (err: CloudContainerFailure) => {
+      const raw = err?.errMsg ?? '';
+      throw createApiError(ErrorCode.INTERNAL_ERROR, networkMessage(raw), raw);
+    },
+  );
+}
+
+// =============================================================
 // 对外入口
 // =============================================================
 
@@ -144,11 +222,14 @@ export function request<T>(options: RequestOptions): Promise<T> {
 async function doRequest<T>(options: RequestOptions, retried: boolean): Promise<T> {
   const method = options.method ?? 'GET';
   const withAuth = options.auth !== false;
-  const url = /^https?:\/\//.test(options.url)
-    ? options.url
-    : `${BASE_URL}${API_PREFIX}${options.url}`;
+  const isAbsolute = /^https?:\/\//.test(options.url);
+  const path = `${API_PREFIX}${options.url}`;
+  const url = isAbsolute ? options.url : `${BASE_URL}${path}`;
 
-  const body = await send<T>(url, method, options.data, withAuth);
+  const body =
+    USE_CLOUD_CONTAINER && !isAbsolute
+      ? await sendByContainer<T>(path, method, options.data, withAuth)
+      : await send<T>(url, method, options.data, withAuth);
 
   if (body.code === ErrorCode.OK) {
     return body.data as T;
@@ -211,6 +292,17 @@ export function upload<T>(
   formData?: Record<string, string>,
   onProgress?: (percent: number) => void,
 ): Promise<T> {
+  // callContainer 的请求体上限只有 100KiB，传不了图片。
+  // 体验版/正式版暂时关闭上传；等 COS 预签名直传接入后放开。
+  if (USE_CLOUD_CONTAINER) {
+    return Promise.reject(
+      createApiError(
+        ErrorCode.INTERNAL_ERROR,
+        '图片上传暂未开通，先用文字记录吧',
+        'callContainer 不支持 multipart 文件上传',
+      ),
+    );
+  }
   return doUpload<T>(url, filePath, formData, onProgress, false);
 }
 

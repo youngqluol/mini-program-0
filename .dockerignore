@@ -46,6 +46,8 @@
 # ---------- 与后端镜像无关的目录 ----------
 # 小程序、原型、视觉参考、推送 Worker、文档、建表脚本、自检工具
 # 都不参与后端镜像构建。排除掉能显著缩小上下文（.git 本身就有 4.4MB）。
+# `.workbuddy` 是 agent 的过程记忆（工作日志 / 项目笔记），与镜像无关 ——
+# 它同时约束 `tools/pack-deploy.mjs` 产出的云托管代码包，别让它混进去。
 miniprogram
 prototypes
 ui
@@ -53,6 +55,7 @@ wxpush
 docs
 db
 tools
+.workbuddy
 .workbuddy-ai
 .vscode
 

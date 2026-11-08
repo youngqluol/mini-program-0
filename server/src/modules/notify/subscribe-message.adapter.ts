@@ -60,7 +60,7 @@ export class SubscribeMessageAdapter implements SubscribeMessagePort {
     }
 
     // 端口契约要求「实现方不抛异常」，所以整段兜住：
-    // 查库挂了、Redis 挂了、微信挂了，都只是「这条没推成」，绝不影响用户操作。
+    // 查库挂了、微信挂了，都只是「这条没推成」，绝不影响用户操作。
     try {
       // ① 取接收人的**小程序** openid
       const user = await this.prisma.user.findUnique({

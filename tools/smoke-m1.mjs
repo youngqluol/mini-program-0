@@ -235,7 +235,7 @@ async function main() {
   const health = await api('GET', '/api/health');
   expectCode('GET /api/health 返回 ok', health, 0);
   check('数据库连通 db=true', health.body?.data?.db === true, JSON.stringify(health.body?.data));
-  check('Redis 连通 redis=true', health.body?.data?.redis === true);
+  check('健康检查已不包含 redis 字段', health.body?.data?.redis === undefined);
 
   // ---------- 1. 夹具 ----------
   phase('1. 准备测试夹具');
@@ -555,7 +555,7 @@ async function main() {
   );
 
   // ---------- 12. 订阅额度 ----------
-  phase('12. 订阅消息额度（Redis 通道）');
+  phase('12. 订阅消息额度（MySQL 额度表）');
   const quota0 = await api('GET', '/api/auth/subscribe-quota', { token: t1 });
   expectCode('GET /auth/subscribe-quota', quota0, 0);
   check(

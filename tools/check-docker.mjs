@@ -3,10 +3,15 @@
  * Docker 构建上下文自检
  * =============================================================
  *
- * 背景（踩过的坑）：`server/Dockerfile` 的 COPY 源里有 `package.json`、
+ * 背景（踩过的坑）：Dockerfile 的 COPY 源里有 `package.json`、
  * `pnpm-workspace.yaml`、`packages/shared` —— 说明**构建上下文是仓库根**。
  * 而 Docker 只读**上下文根**的 `.dockerignore`：规则曾经写在
  * `server/.dockerignore` 里，**从未生效过**，而且不报任何错。
+ *
+ * 2026-10-09：Dockerfile 从 `server/` 挪到了**仓库根**。
+ *   微信云托管建服务时**只扫代码包根目录的 Dockerfile**，放在 server/ 下
+ *   会直接报「本项目下没有 Dockerfile」。挪位置不需要改任何 COPY 源 ——
+ *   那些路径本来就相对上下文根书写。
  *
  * 不生效的后果不是「多拷几个文件」这么轻：
  *   本机是 Windows，`server/node_modules` 里是 **Windows 版 Prisma query
@@ -29,7 +34,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DOCKERFILE = 'server/Dockerfile';
+const DOCKERFILE = 'Dockerfile';
 const IGNORE_FILE = '.dockerignore';
 
 /** 必须存在的忽略规则 —— 少一条就意味着上面那个「Windows 盖 Linux」的坑会重开 */

@@ -1,11 +1,12 @@
 -- =============================================================
--- 《家有小事》数据库建表脚本  v0.2.2
+-- 《家有小事》数据库建表脚本  v0.2.3
 -- 目标数据库：MySQL 8.0（微信云托管 MySQL 实例）
 -- 字符集：utf8mb4 / utf8mb4_unicode_ci
 -- 说明：在 v0.1 设计基础上补齐缺失字段、索引与初始化数据，
 --       并统一删除策略为「状态位逻辑删除，不做物理删除」。
 --       v0.2.1 新增 users.mp_openid（公众号推送绑定）。
 --       v0.2.2 明确时区约定（见下）。
+--       v0.2.3 去掉 Redis：users 增加绑定码两列，新增 subscribe_quotas 表。
 --
 -- ⚠️ 时区约定（改之前先读 docs/01 §4.3）：
 --   本库的 DATETIME **存 UTC**，不存北京时间。
@@ -25,6 +26,18 @@
 -- =============================================================
 
 SET NAMES utf8mb4;
+
+-- ⚠️ 本脚本只建表，不建库，也**不强制库名**。
+--    · 本地 Docker：`MYSQL_DATABASE=family_things` 已自动选中该库。
+--    · 云托管：库名以控制台为准（可能是 `miniProgram` 等），执行前先：
+--          USE <你的实际库名>;
+--      或用 `mysql ... <你的库名> < schema.sql`。
+--    · 若库还不存在，先用管理员账号：
+--          CREATE DATABASE <你的库名> DEFAULT CHARACTER SET utf8mb4
+--            DEFAULT COLLATE utf8mb4_unicode_ci;
+--    只建表不选库时，表会落到实例默认库，应用连 DATABASE_URL 指定的库会报
+--    P1003「Database ... does not exist」，容器启动即退出。
+
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- -------------------------------------------------------------
@@ -39,6 +52,8 @@ CREATE TABLE IF NOT EXISTS `users` (
     `unionid`       VARCHAR(64)     DEFAULT NULL            COMMENT '微信 unionid（同一开放平台下唯一）',
     `mp_openid`     VARCHAR(64)     DEFAULT NULL            COMMENT '公众号 openid（wxpush 推送用，与小程序 openid 不同值）',
     `mp_bound_at`   DATETIME        DEFAULT NULL            COMMENT '公众号提醒绑定时间',
+    `mp_bind_code`  CHAR(6)         DEFAULT NULL            COMMENT '公众号提醒绑定码（6位数字，10分钟有效；NULL=无待用码）',
+    `mp_bind_code_expires_at` DATETIME DEFAULT NULL         COMMENT '绑定码过期时间',
     `nickname`      VARCHAR(50)     DEFAULT NULL            COMMENT '用户昵称',
     `avatar_url`    VARCHAR(500)    DEFAULT NULL            COMMENT '头像地址',
     `status`        TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1正常 0禁用',
@@ -48,6 +63,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_openid` (`openid`),
     UNIQUE KEY `uk_mp_openid` (`mp_openid`),
+    UNIQUE KEY `uk_mp_bind_code` (`mp_bind_code`),
     KEY `idx_unionid` (`unionid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
@@ -291,6 +307,21 @@ CREATE TABLE IF NOT EXISTS `notification_logs` (
     KEY `idx_status` (`status`),
     KEY `idx_thing_id` (`thing_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='通知记录表';
+
+
+-- 12. subscribe_quotas 订阅消息额度池
+-- v0.2.3：原 Redis 计数改为 MySQL 持久化（项目不再依赖 Redis）。
+-- 过期行**不物理删除**（全库不做物理 DELETE），按 remaining=0 处理；
+-- 行数上限 = 用户数 × 已配置模板数，不会无限增长。
+CREATE TABLE IF NOT EXISTS `subscribe_quotas` (
+    `user_id`     BIGINT UNSIGNED NOT NULL                COMMENT '用户ID',
+    `template_id` VARCHAR(128)    NOT NULL                COMMENT '订阅消息模板ID',
+    `remaining`   INT             NOT NULL DEFAULT 0      COMMENT '剩余额度（1次授权=1条）',
+    `expires_at`  DATETIME        NOT NULL                COMMENT '额度有效期（授权后24小时）',
+    `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`user_id`, `template_id`),
+    KEY `idx_expires_at` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='小程序订阅消息额度池（替代 Redis 计数）';
 
 
 SET FOREIGN_KEY_CHECKS = 1;

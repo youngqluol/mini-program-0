@@ -64,7 +64,8 @@ V0.1 阶段的任何新想法，**写进 `docs/未来需求池.md`，不要写�
 ```
 
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
-当前进度：**M0 准备就绪**（文档已完成，账号资质与推送通道假设待验证）。
+当前进度：**M1–M4 已完成，M5 代码侧收口**；2026-10-22 决定 V0.1
+先发**体验版给家人用**（不公开上架，wxpush 保留）。
 
 ---
 
@@ -74,8 +75,7 @@ V0.1 阶段的任何新想法，**写进 `docs/未来需求池.md`，不要写�
 | --- | --- |
 | 小程序端 | 原生微信小程序 + TypeScript |
 | 后端 | **NestJS 11**（Node **22 LTS**）+ **Prisma 6** |
-| 数据库 | 微信云托管 **MySQL 8.0**（11 张表） |
-| 缓存 | 腾讯云 **Redis**（内网调用） |
+| 数据库 | 微信云托管 **MySQL 8.0**（12 张表） |
 | 存储 | 云开发云存储 / COS |
 | 部署 | 微信云托管（容器，自定义 Dockerfile） |
 | 推送 | **四通道降级**：公众号模板消息（wxpush）→ 小程序订阅消息 → 站内消息 → 首页 |
@@ -101,7 +101,7 @@ mini-program-0/
 │   ├── MySQL 数据库设计.md
 │   └── 01 ~ 08               架构 / API / 页面 / 工程规范 / 开发计划 / 上线准备 / 视觉 / wxpush
 ├── db/
-│   └── schema.sql            11 张表的可执行 DDL（数据库唯一真相）
+│   └── schema.sql            12 张表的可执行 DDL（数据库唯一真相）
 ├── packages/
 │   └── shared/               前后端共享枚举与类型（enums.ts 是枚举唯一来源）
 ├── miniprogram/              小程序端
@@ -110,7 +110,7 @@ mini-program-0/
 ├── tools/                    check-*.mjs 静态校验 / smoke-m*.mjs 端到端冒烟 / test-*.mjs
 ├── prototypes/prototype.html 可视化原型（浏览器直接打开）
 ├── ui/风格参考/               视觉风格参考图
-├── docker-compose.yml        本地 MySQL + Redis
+├── docker-compose.yml        本地 MySQL
 └── pnpm-workspace.yaml
 ```
 
@@ -230,6 +230,7 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 ## 6. 小程序端约定
 
 - **页面里禁止直接调 `wx.request`**，只能走 `services/request.ts`。这是硬性规范，否则错误处理会散落各处。
+- **体验版 / 正式版的接口走 `services/request.ts` → `wx.cloud.callContainer`**（云托管内部网关，不需要服务器合法域名）；开发版走 `wx.request` + 本地地址。页面层无感知。
 - **页面里禁止做数据权限过滤**（见铁律 0.4）。
 - 全局样式变量唯一来源是 `docs/07-视觉设计规范.md` §11.1。
   > ⚠️ 早期版本的暖橙令牌（`#FF8A4C` / `#FFF7F0`）**已废弃**，现用「柔光粉彩」（主色 `#FF9DB4 → #FFB59B`、背景 `#FDF6F7`）。
@@ -300,7 +301,7 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 # 依赖
 pnpm install
 
-# 本地数据库（MySQL 8.0 + Redis 7，首次自动执行 db/schema.sql）
+# 本地数据库（MySQL 8.0，首次自动执行 db/schema.sql；v0.2.3 起不再需要 Redis）
 pnpm run db:up        # 起库
 pnpm run db:down      # 停库（保留数据）
 pnpm run db:reset     # 停库并清空（改了 schema.sql 后必须用它重建）
@@ -329,6 +330,10 @@ pnpm run smoke:m5                         # 注销账号（42 项）
 # 推送
 cd wxpush && wrangler login && wrangler deploy
 node tools/test-wxpush.mjs                # 推送连通性测试
+
+# 上线（云托管「手动上传代码包」）
+pnpm run pack:deploy                      # 产出 ≤2 MiB 的代码包（仓库原样 4.8 MB，超限）
+node tools/gen-prod-env.mjs               # 生成生产环境变量清单（轮换密钥，输出到仓库外）
 ```
 
 > ⚠️ MySQL 的 initdb 脚本**只在数据卷首次创建时执行**。改了 `db/schema.sql` 必须 `db:reset`。
@@ -347,7 +352,7 @@ node tools/test-wxpush.mjs                # 推送连通性测试
 | 推送通道逻辑变化 | `docs/08-wxpush推送集成方案.md`（必要时同步 `docs/01` §5） |
 | 视觉令牌、组件样式变化 | `docs/07-视觉设计规范.md` |
 | 环境变量增删 | `server/.env.example` / `wxpush/.env.example` + `docs/04` §7 |
-| 部署配置变化（`server/Dockerfile` / `.dockerignore` / 云托管参数） | `docs/04` §九 + `docs/06` §五（`.dockerignore` **必须在仓库根**，见 §九） |
+| 部署配置变化（`Dockerfile` / `.dockerignore` / 云托管参数） | `docs/04` §九 + `docs/06` §五（两者**都必须在仓库根**：`.dockerignore` 见 §九；`Dockerfile` 也必须在根 —— 云托管只扫代码包根目录，放 `server/` 下会报「本项目下没有 Dockerfile」） |
 | 新增或推翻产品决策 | `docs/产品需求文档.md`（并在变更记录里写明原因） |
 | 冒出超出 V0.1 的想法 | `docs/未来需求池.md`（**不要写进代码**） |
 
@@ -410,5 +415,5 @@ chore(db): 初始化 11 张核心表
 - [ ] 是否写了 `console.log` 或 `any`？
 - [ ] 是否调用了 `wx.request`（小程序端）/ 绕过 `notify.service.ts`（后端）？
 - [ ] 用户可见文案里是否出现了禁用词（绑定 / 授权 / 公众号 / openid / 订阅 / 模板消息 / 测试号）？
-- [ ] 改了 `server/Dockerfile` 或 `.dockerignore` 是否跑过 `node tools/check-docker.mjs`？
+- [ ] 改了仓库根 `Dockerfile` 或 `.dockerignore` 是否跑过 `node tools/check-docker.mjs`？
 - [ ] **第 10 节的文档同步是否都做了？**

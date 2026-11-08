@@ -6,7 +6,6 @@ import { ValidationPipe } from '@nestjs/common';
 
 import { validateEnv } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
-import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FamiliesModule } from './modules/families/families.module';
@@ -59,9 +58,8 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
       }),
     }),
 
-    // 基础设施（都是 @Global）
+    // 基础设施（@Global；v0.2.3 起不再依赖 Redis）
     PrismaModule,
-    RedisModule,
 
     // 业务模块
     HealthModule,

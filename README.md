@@ -48,8 +48,7 @@
 | --- | --- |
 | 小程序端 | 原生微信小程序 + TypeScript |
 | 后端 | NestJS（Node 22 LTS）+ Prisma |
-| 数据库 | 微信云托管 MySQL 8.0（11 张表） |
-| 缓存 | 腾讯云 Redis（内网调用） |
+| 数据库 | 微信云托管 MySQL 8.0（12 张表） |
 | 存储 | 云开发云存储 / COS |
 | 部署 | 微信云托管（容器，自定义 Dockerfile） |
 | 推送 | 四通道降级：公众号模板消息（wxpush）→ 小程序订阅消息 → 站内消息 → 首页 |
@@ -71,7 +70,7 @@
 │   ├── MySQL 数据库设计.md
 │   └── 01 ~ 08              架构 / API / 页面 / 工程规范 / 开发计划 / 上线准备 / 视觉 / wxpush
 ├── db/
-│   └── schema.sql            11 张表的可执行 DDL
+│   └── schema.sql            12 张表的可执行 DDL
 ├── packages/
 │   └── shared/               前后端共享的枚举与类型
 ├── miniprogram/              小程序端
@@ -82,7 +81,7 @@
 ├── tools/                    测试与校验脚本
 ├── ui/风格参考/               视觉风格参考图
 ├── AGENTS.md                 AI 编码代理工作守则
-├── docker-compose.yml        本地 MySQL + Redis
+├── docker-compose.yml        本地 MySQL
 └── pnpm-workspace.yaml
 ```
 

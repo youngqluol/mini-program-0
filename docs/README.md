@@ -14,8 +14,8 @@
 | 文档 | 内容 | 状态 |
 | --- | --- | --- |
 | [产品需求文档](产品需求文档.md) | 产品定位、理念、四大模块、MVP 边界、版本路线 | **v0.2.5** ✅ |
-| [核心数据模型与业务流程](核心数据模型与业务流程.md) | 领域模型、小事/提醒关系、权限设计、业务闭环 | **v0.2.2** ✅ |
-| [MySQL 数据库设计](MySQL 数据库设计.md) | 11 张核心表的字段与关系设计 | **v0.2.2** ✅ |
+| [核心数据模型与业务流程](核心数据模型与业务流程.md) | 领域模型、小事/提醒关系、权限设计、业务闭环 | **v0.2.3** ✅ |
+| [MySQL 数据库设计](MySQL 数据库设计.md) | 12 张核心表的字段与关系设计 | **v0.2.3** ✅ |
 | [未来需求池](未来需求池.md) | 开发中冒出的想法，一律记这里，不进 V0.1 | — |
 
 ### 开发文档
@@ -35,23 +35,30 @@
 
 | 篇 | 版本 | 篇 | 版本 |
 | --- | --- | --- | --- |
-| 产品需求文档 | **v0.2.5** | 05 开发计划 | **v0.2.24** |
-| 01 技术架构 | **v0.2.4** | 06 环境准备 | **v0.2.4** |
-| 02 API 设计 | **v0.2.8** | 07 视觉规范 | v1.0 |
-| 03 页面原型 | **v0.2.9** | 08 推送集成 | **v1.0.3** |
-| 04 工程规范 | **v0.2.21** | 核心数据模型 / MySQL 设计 | **v0.2.2** |
+| 产品需求文档 | **v0.2.5** | 05 开发计划 | **v0.2.29** |
+| 01 技术架构 | **v0.2.6** | 06 环境准备 | **v0.2.13** |
+| 02 API 设计 | **v0.2.11** | 07 视觉规范 | v1.0 |
+| 03 页面原型 | **v0.2.9** | 08 推送集成 | **v1.0.4** |
+| 04 工程规范 | **v0.2.26** | 核心数据模型 / MySQL 设计 | **v0.2.3** |
 
 ### 配套资源
 
 | 文件 | 内容 |
 | --- | --- |
 | [AGENTS.md](../AGENTS.md) | **AI 编码代理工作守则**：铁律、技术约定、文档同步规则、不要做的事 |
-| [db/schema.sql](../db/schema.sql) | 11 张表的可执行建表 DDL（系统菜谱已改为代码常量，不再入库） |
+| [db/schema.sql](../db/schema.sql) | 12 张表的可执行建表 DDL（系统菜谱已改为代码常量，不再入库） |
 | [packages/shared/](../packages/shared/) | 前后端共享的枚举与类型（`enums.ts` 是枚举唯一来源） |
 | [prototypes/prototype.html](../prototypes/prototype.html) | 10 屏核心页面的可视化原型 + 色彩系统 + 组件库（浏览器直接打开） |
 | [wxpush/](../wxpush/) | 推送 Worker 代码 + 部署配置（Cloudflare Workers）；基于上游 MIT 项目改造，见 `wxpush/LICENSE`。`wxpush/assets/miniprogram-code.png` 是**中转页用的小程序码**源图（待上传 COS） |
-| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`check-docker.mjs`（Docker 构建上下文：COPY 源有没有被 `.dockerignore` 误伤）、`test-view.mjs`（**展示模型行为断言**，256 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`smoke-m5-account.mjs`（M5 注销账号冒烟，42 项）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
+| [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`check-docker.mjs`（Docker 构建上下文：COPY 源有没有被 `.dockerignore` 误伤）、`test-view.mjs`（**展示模型行为断言**，256 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`smoke-m5-account.mjs`（M5 注销账号冒烟，42 项）、`pack-deploy.mjs`（**云托管代码包打包器**：以 `.dockerignore` 为准裁出 ≤2 MiB 的上传包）、`gen-prod-env.mjs`（**生成生产环境变量清单**：轮换密钥、输出到仓库外）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
+
+**2026-11-07 云托管调用方式：** 云托管默认域名不能配成小程序合法域名；体验版/正式版改走 `wx.cloud.callContainer`（环境 ID `prod-d6gpyyf3z8f39506c` + 服务名 `family-things-api`），不需要服务器域名；图片上传暂不开放（需 COS 直传）。
+
+**v0.2.3 去掉 Redis（2026-10-24）：** 项目不再依赖 Redis。定时任务锁改用 MySQL `GET_LOCK`；
+订阅额度存 `subscribe_quotas` 表；公众号绑定码存 `users.mp_bind_code` 两列；
+access_token 用进程内缓存。云托管只需 MySQL，`docker-compose.yml` 只起 MySQL，
+生产环境变量不再有 `REDIS_URL`，`/api/health` 也不再返回 `redis` 字段。
 
 ---
 
@@ -180,6 +187,27 @@
 | 新增 `miniprogram/constants/memory.ts`（**第 4 份镜像**）+ `utils/memory-view.ts` | 展示模型断言 **195 → 256 项** |
 | ⚠️ **踩到并修掉一个「开发者工具和 `tsc` 都不报」的坑** | P18 一开始 `import { MEMORY_CONTENT_MAX } from '@shared/dto/memory'` —— 小程序端不能引 shared 的**运行时值**（不解析 tsconfig 的 `paths`），只有真机跑到那一行才 `module not found`。除改成镜像外，还给 `check-ts.mjs` 加了静态防线（**反向验证过**：故意改回去，脚本立刻报出文件与行号） |
 
+**M5 上线 · 部署路线定案：手动上传代码包（2026-10-09）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| **路线选定：云托管「手动上传代码包」** | 云托管的代码来源有五条路（GitHub / GitLab / Gitee / 手动上传代码包 / 拉取镜像）。选代码包 —— 发版节奏自己控，不用把仓库授权给第三方，也避开「远端仓库落后于本地、云端拉到的其实是旧代码」这类**看不出来**的事故 |
+| ⚠️ **原文档完全没覆盖的实情：代码包上限 2 MiB** | 而本仓库排除依赖后约 **4.8 MB**，**原样打包一定传不上去**。`docs/06` §5.A 原本只讲「Dockerfile 路径 / 构建上下文」，没讲代码来源怎么选、更没提上限 |
+| **新增 `pnpm run pack:deploy`**（`tools/pack-deploy.mjs`） | 零依赖的 ZIP 打包器。**关键设计：包内容 = 仓库减去 `.dockerignore` 的忽略项**，不另写「打哪些目录」的清单 —— 清单会漂移（以后加忽略规则、Dockerfile 多 COPY 一个目录，手写清单不会跟着变，而构建失败时你人在控制台，排查链路比本地长得多）。让 `.dockerignore` 当唯一事实来源，**本地 Docker 构建与云端代码包走同一套规则** |
+| 脚本自带两条断言 | ① Dockerfile 每个 COPY 源都在包内（少一个这份包必挂）；② 压缩后 ≤ 2 MiB，超了**直接报错退出**，不让你到控制台才被拒。实测产出 **118 文件 / 0.31 MiB** |
+| `.dockerignore` 补一条 `.workbuddy` | agent 的过程记忆（工作日志 / 项目笔记），与镜像无关。它同时约束这份代码包 —— 别混进去 |
+| **新增 `node tools/gen-prod-env.mjs`** | 生产环境变量**不再手抄**：从 `server/.env` 取值，**轮换 `JWT_SECRET` / `INTERNAL_CRON_SECRET`**（生产不复用开发值），`DATABASE_URL` 换成内网占位，`COS_*` 留空，输出到**仓库外**的 `../jyss-deploy-artifacts/`
+（同时产出 `.txt` 与 `.json` 两份，后者可直接粘进控制台的 JSON 批量编辑）。`.env` 里若有键没被清单覆盖，脚本**报错退出** —— 防「以后加了键、生产悄悄漏配」。实测 28 个变量 |
+
+**M5 上线 · 云服务开通与小程序发布接入（2026-10-09）：**
+
+| 变更 | 说明 |
+| --- | --- |
+| 开通 WorkBuddy 云服务 | 应用 `wbapp_29t2N2qOE3jkfzbdShpAD6`，`appType=miniprogram`。四个模块（数据库 / 登录 / 存储 / 大模型）共用一个环境 |
+| ⚠️ **云服务不替代自建 NestJS 后端** | 业务链路（叮一下 / 派个活 / 吃啥呢 / 留个念）仍然只走 `services/request.ts` → `config.ts` 的 `BASE_URL`。云服务是**第二条独立通道**，两者**并存不是迁移** —— 别把「开通云服务」当成「业务接口通了」 |
+| 新增 `miniprogram/utils/cloud.ts` | `initCloud()`（幂等、失败不抛，不影响启动）/ `getCloud()` / `isCloudReady()`。`endpoint` 用**固定网关** `mp-api.app.workbuddy.host` —— 小程序端不是应用自己的域名，微信白名单只认这个 host；真机报 `url not in domain list` 是白名单问题，**不要去改这两个值** |
+| `miniprogram/tsconfig.json` 加 `paths` 映射 | `moduleResolution: "Node"` 读不了 SDK 的 `exports` 字段，只能把 `@tencent-ai/workbuddy-cloud-sdk/miniprogram` 映射到 `lib/miniprogram`。改 `moduleResolution` 会牵动全项目，不值得 |
+
 **M5 上线 · 注销账号（2026-10-09）：**
 
 | 变更 | 说明 |
@@ -254,7 +282,7 @@
 
 | 变更 | 说明 |
 | --- | --- |
-| 新增 `scheduler` 模块（tick / Redis 锁 / 补偿） | 职责切干净：`scheduler` 只管「什么时候发、发哪些、别重复发」；「一条提醒怎么发、发完状态怎么变」全在 `ReminderService.fireDueReminder`，与用户点「叮一下」共用 `reminderCtx()`，所以两条路径的文案一定一致 |
+| 新增 `scheduler` 模块（tick / MySQL `GET_LOCK` / 补偿） | 职责切干净：`scheduler` 只管「什么时候发、发哪些、别重复发」；「一条提醒怎么发、发完状态怎么变」全在 `ReminderService.fireDueReminder`，与用户点「叮一下」共用 `reminderCtx()`，所以两条路径的文案一定一致 |
 | **`skipped` 与 `failed` 必须分开** | 「小事已完成 / 接收人已退出」是**正常跳过**。混在一起，失败率告警会被正常跳过污染，等于没有告警。docs/02 §10.1 补了 `skipped` / `locked` 两个字段 |
 | **修正 docs/02 §10.2**：补偿扫的是 `FAILED` 而不是 `PENDING` | 提醒 FAILED 后 `next_remind_at` 被置 null（产品侧「不自动重试」），**tick 永远不会再碰它** —— 这才是真正的永久丢失。PENDING 残留只是「幽灵记录」，收尾成 FAILED 即可 |
 | 补偿的两条硬约束 | ① **复用同一条日志**（`reuseLogId`）—— `notification_logs` 就是消息中心的数据源，新建会让用户看到两条重复通知；② **换 `client_msg_id`**（加 `-r1` 后缀）—— 它是**微信侧**的 24 小时去重键，原样重发会被微信直接拦掉 |
@@ -389,7 +417,7 @@
 | --- | --- |
 | **docs/05 §2.3 的「测试号模板凭证」表把 3 个订阅消息模板 ID 标成了 `MP_TEMPLATE_*`** —— 两组 ID 场景相同、标题相同，肉眼分不出来，是「贴错槽位 → 47003」这类问题的直接来源 | 拆成两张表（小程序订阅消息 / 公众号测试号），各带模板编号；并补「两组 ID 绝对不能互换，判别方法是看字段名」的警告。同步修 docs/01 §5.3、docs/08 §9.4、docs/06 §3.2、`.env`、`.env.example` |
 | 「订阅消息模板需要 1–3 个工作日审核」——**这条是错的** | 订阅消息模板是在**公共模板库**里挑现成的，选完即用，**没有审核环节**。已修 docs/06 §十、docs/05 §2.3、docs/README |
-| docs/01 §5.2 写 Redis key 是 `subquota:{userId}:{templateId}`，代码里是 `subscribe:quota:{userId}:{templateId}` | 已统一为代码里的命名 |
+| docs/01 §5.2 写 Redis key 是 `subquota:{userId}:{templateId}`，代码里是 `subscribe:quota:{userId}:{templateId}` | 已统一为代码里的命名（v0.2.3 起 Redis 已移除，该项仅作历史记录） |
 | docs/README 的推送验证命令写了不存在的环境变量 `WXPUSH_OPENID` / `WXPUSH_TEMPLATE_ID` | 改为 `tools/test-wxpush.mjs` 实际读的 `RECEIVER`，并补上通道二的 `tools/probe-subscribe.mjs` |
 | `docs/03` / `docs/05` 的验收清单把「订阅模板」列为待办 | 标 ✅ 并补当前进度表 |
 | **用户可见 toast 里出现了禁用词「授权」**（`DELIVERY_TOAST[NO_QUOTA]` = 「微信限制需要补一次授权才能推给他」），违反 AGENTS.md §6 | 改为「已记下，{称谓}再开一次微信提醒就能收到」；PRD §6.5.6、docs/01 §5.2/§5.4、docs/02 §2.5/§5.3、docs/03 P08/P21、docs/05 M2-F14 一并统一 |
@@ -407,7 +435,7 @@
         ↓
 微信云托管（NestJS + Prisma，Node 22 LTS）
         ↓
-云托管 MySQL 8.0 + Redis（内网）
+云托管 MySQL 8.0（v0.2.3 起不再需要 Redis）
         ↓
 云开发云存储（图片）
         ↓
@@ -437,13 +465,19 @@ M4 留个念     ✅ 后端 M4-1~M4-7 + 小程序端 M4-8~M4-12 全部完成
    ↓
 M5 上线       ⏳ 代码侧前置已收口（M5-5 隐私弹窗 ✅ / 部署手册 ✅ /
               .dockerignore 部署缺陷已修 ✅）
-              接下来是控制台操作：云托管部署 → 建库 → 配域名 → 定时任务 → 提审 → 发布
+              2026-10-22 决定：**V0.1 不公开上架，发体验版给家人用**
+              接下来是控制台操作：云托管部署 → 建库 → 配域名 → 定时任务 → 体验版
+              （保留 wxpush；提审 / 隐私指引 / 截图合规等公开上架事项暂缓）
 ```
 
 ---
 
 ## 四、现在最该做的事
 
+> **2026-10-22 路线决定：V0.1 先不上架，发布体验版给家人用。**
+> 所以部署、域名、定时任务、真机验收照做；提审 / 后台隐私指引 / 截图合规暂缓，
+> wxpush 保留。公开上架时再回到 `docs/06` 第九章方案 B。
+>
 > 对应 `docs/05` 的 **M5（上线）** 阶段。**M1 ~ M4 的代码全部写完了** ——
 > 后端 M1 15 项 + M2 B1–B26 + M3 M3-1~M3-8 + M4 M4-1~M4-7；
 > 小程序端 **P04–P12 + P20 + P21 + P22 + P02 + P17 + P03 + P18 + P19** 全部完成，
@@ -460,19 +494,27 @@ M5 上线       ⏳ 代码侧前置已收口（M5-5 隐私弹窗 ✅ / 部署手
 >
 > ```text
 > ① 开通云托管 → 建环境（建议 test / prod 两个）
-> ② 建 MySQL（utf8mb4 / 时区 +00:00）+ Redis，记下**内网**地址
+> ② 建 MySQL（utf8mb4 / 时区 +00:00），记下**内网**地址（v0.2.3 起不需要 Redis）
 > ③ 执行 db/schema.sql
-> ④ 建服务，填 §5.B 的环境变量清单（**可直接粘贴**）
-> ⑤ 首次部署 —— 目标是「接口能起来」，不是「功能全通」
-> ⑥ **看启动日志**，把「未配置的环境变量」warn 逐条对完
-> ⑦ 配 **2 个**定时任务（`tick` 每分钟 + `compensate` 每天凌晨 3 点），并确认 `tick` 真的在触发
+> ④ 建服务，填环境变量 —— 先 `node tools/gen-prod-env.mjs` 生成清单再粘贴
+> ⑤ `pnpm run pack:deploy` 产包 → 控制台上传代码包
+> ⑥ 首次部署 —— 目标是「接口能起来」，不是「功能全通」
+> ⑦ **看启动日志**，把「未配置的环境变量」warn 逐条对完
+> ⑧ 配 **2 个**定时任务（`tick` 每分钟 + `compensate` 每天凌晨 3 点），并确认 `tick` 真的在触发
 > ```
 >
-> ⚠️ **两个填错就构建失败的地方**（`docs/06` §5.A）：
-> `Dockerfile 路径 = server/Dockerfile`、`构建上下文 = 仓库根`。
+> ⚠️ **两个填错就构建失败的地方**（`docs/06` §5.A / §5.A.2）：
+> `Dockerfile 文件 = Dockerfile`（**仓库根，控制台默认值**）、`目标目录 = 留空（根）`
+> （**不能填 `server`**）。2026-10-09 已把 Dockerfile 从 `server/` 挪到根 ——
+> 云托管只扫代码包根目录，留子在目录里会报「本项目下没有 Dockerfile」。
 >
-> 💡 **部署不需要本地 Docker** —— 云托管是**云端构建**，本地只需把代码推上去；
-> Docker 只服务于「本地跑 MySQL + Redis」。
+> ⚠️ **代码包必须先裁再传** —— 云托管「手动上传代码包」上限 **2 MiB**，
+> 而本仓库原样约 **4.8 MB**，直接传一定被拒。`pnpm run pack:deploy` 会以
+> `.dockerignore` 为准裁出包（实测 **118 文件 / 0.31 MiB**），并核对
+> Dockerfile 的每个 COPY 源都在包内。
+>
+> 💡 **部署不需要本地 Docker** —— 云托管是**云端构建**，本地只需产出代码包；
+> Docker 只服务于「本地跑 MySQL」。
 >
 > ### 对象存储凭证：按你的意思，等云部署完再补
 >
@@ -504,6 +546,8 @@ M5 上线       ⏳ 代码侧前置已收口（M5-5 隐私弹窗 ✅ / 部署手
 >   并加了 `check-docker` 防线（反向验证过）
 > - ✅ **`BASE_URL` 按版本自动切换** —— 部署后只改一个常量，不用动逻辑
 > - ✅ **`docs/06` §五 收口** + 可直接粘贴的生产环境变量清单
+> - ✅ **`pnpm run pack:deploy` 部署代码包** —— 云托管上传包上限 2 MiB、仓库原样 4.8 MB，
+>   以 `.dockerignore` 为准裁出 **0.31 MiB** 的包并核对 COPY 源；路线与踩坑记在 `docs/06` §5.A.2
 > - ✅ 公众号二维码已放进 `miniprogram/assets/mp-account-qr.jpg`（微信后台原图，未转码）
 > - ✅ M3 全部（180 项冒烟 + P02 / P17 + 195 项展示模型断言）
 > - ✅ M4 全部（76 项冒烟 + P03 / P18 / P19 + P10 入口 + 首页预览 + 256 项展示模型断言）

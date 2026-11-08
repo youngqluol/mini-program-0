@@ -1,6 +1,8 @@
 # 08 · wxpush 推送集成方案
 
-**版本：** v1.0.3
+**版本：** v1.0.4
+**v1.0.4 变更（2026-10-24）：去掉 Redis。** 绑定码改存 `users.mp_bind_code` 两列；
+订阅额度改存 MySQL `subscribe_quotas`。绑定链路、回调和额度记账的存储说明已同步。
 **v1.0.3 变更：** §8 Step 6 补「本项目的小程序码已经生成好并入库」——
 源图 `wxpush/assets/miniprogram-code.png`，只剩「上传 COS → 填 URL」两步；
 并加一条**别拿错图**的警告（仓库里另有一张 `miniprogram/assets/mp-account-qr.jpg`
@@ -108,7 +110,7 @@ V0.1 一共有四条送达路径，wxpush 是**主力**：
 Worker 没有数据库，绑定结果必须回写后端。既然后端已经有公网域名（云托管），让测试号的「接口配置信息」**直接指向后端**更简单：
 
 - Worker 只做**单向发消息**，职责单一
-- 绑定逻辑在后端，能直接读写 MySQL / Redis
+- 绑定逻辑在后端，能直接读写 MySQL（绑定码存 `users.mp_bind_code`，v0.2.3 起不再用 Redis）
 - 少一跳网络，少一处故障点
 
 ---
@@ -195,8 +197,8 @@ Worker 没有数据库，绑定结果必须回写后端。既然后端已经有�
 用户进入「我的 → 微信提醒」页
         │
         ▼
-后端生成 6 位绑定码，存 Redis
-   key: mpbind:{code}  →  userId   TTL: 10 分钟
+后端生成 6 位绑定码，存 users 表
+   users.mp_bind_code / mp_bind_code_expires_at   TTL: 10 分钟
         │
         ▼
 页面展示：① 测试号二维码   ② 绑定码「 7 3 5 2 4 1 」
@@ -214,9 +216,9 @@ POST /api/v1/wechat/mp-callback   (XML 报文)
         ▼
 后端处理：
    ① 解析 XML，取 openid 与绑定码
-   ② 查 Redis mpbind:735241 → 拿到 userId
+   ② 查 users.mp_bind_code = '735241' 且未过期 → 拿到 userId
    ③ 写 users.mp_openid = openid, users.mp_bound_at = now()
-   ④ 删 Redis key
+   ④ 清空绑定码两列（mp_bind_code / mp_bind_code_expires_at）
    ⑤ 回一条文本消息：「绑定成功，以后家里有事会在这里提醒你 ✅」
         │
         ▼
@@ -454,7 +456,7 @@ server/src/modules/notify/          # 通道一 + 通道二 + 降级，全部收
 ├── notify.templates.ts             # 通道一文案与字段组装（产品文案唯一定义处）
 ├── wxpush.client.ts                # 调用 Worker 的 HTTP 客户端
 ├── subscribe.templates.ts          # 通道二模板定义与字段组装（thing 截断 / time 格式化）
-├── subscribe-quota.service.ts      # 通道二额度池（Redis 记账）
+├── subscribe-quota.service.ts      # 通道二额度池（MySQL subscribe_quotas）
 ├── subscribe-message.port.ts       # 通道二端口契约（notify 只依赖它，不依赖微信）
 └── subscribe-message.adapter.ts    # 通道二真实实现（扣额度 → 下发 → 失败退还）
 
@@ -509,7 +511,7 @@ async send(thing: FamilyThing, receiver: FamilyMember) {
 | 组件 | 只做 | 不做 |
 | --- | --- | --- |
 | `wxpush.client.ts` | 拼参数、发 HTTP、解析返回 | 不做通道选择、不写数据库 |
-| `notify.templates.ts` | 组装**两条通道**的模板数据与站内文案 | 不发 HTTP、不碰 Redis |
+| `notify.templates.ts` | 组装**两条通道**的模板数据与站内文案 | 不发 HTTP、不碰数据库 |
 | `notify.service.ts` | 通道选择、降级、写日志 | 不直接发 HTTP、不管额度细节 |
 | `subscribe-message.adapter.ts` | 扣额度、调微信、按 errcode 退还/归零 | 不组装文案、不做通道选择 |
 | `subscribe-quota.service.ts` | 额度读写（`grant` / `consume` / `refund` / `reset`） | 不知道「这条通知是什么」 |
@@ -792,13 +794,13 @@ data: {
 | 时机 | 操作 | 触发方 |
 | --- | --- | --- |
 | 用户授权成功 | `grant()` **+1** | 前端 `POST /api/auth/subscribe-quota` |
-| 下发成功 | `consume()` **-1** | 服务端下发前**原子**扣减（`INCRBY -1`） |
+| 下发成功 | `consume()` **-1** | 服务端下发前**原子**扣减（单条 `UPDATE ... WHERE remaining > 0`） |
 | 下发失败（网络 / 47003） | `refund()` **+1** | 服务端自动退还，不白扣 |
 | 微信返回 `43101` | `reset()` **归零** | 本地账错了，以微信为准 |
 
-Redis key：`subscribe:quota:{userId}:{templateId}`，TTL 24h。
-**Redis 挂了按「没额度」处理**（少发一条辅助推送），但 `consume` 在 Redis 不可用时**放行** ——
-宁可多一次无效请求，也不要「Redis 一抖订阅消息全哑」。
+存储：MySQL `subscribe_quotas` 表，主键 `(user_id, template_id)`，`expires_at` 24 小时。
+过期行不物理删除，按 0 处理。**额度表读写失败只影响辅助通道** ——
+`NotifyService.trySubscribe` 会 catch 后降级到站内消息，不影响主流程。
 
 **怎么实探**
 
@@ -846,7 +848,7 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 | `API_TOKEN` 泄露 | 别人可发消息 | 立即 `wrangler secret put API_TOKEN` 轮换 |
 | 用户取关 | `43004` | `status=5`，站内消息兜底 |
 | 模板被改字段 | `47003` | 后端同步模板常量 |
-| Redis 丢失 | 绑定码失效 | 重新生成绑定码即可（TTL 只有 10 分钟） |
+| 绑定码过期 / 被新码替换 | 绑定失败 | 重新生成绑定码即可（TTL 只有 10 分钟） |
 
 **核心原则：wxpush 的任何故障都不能影响主流程。** 发消息是异步的，失败只写日志，不阻塞用户操作，不弹错误给发起人以外的任何人。
 
@@ -871,7 +873,7 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 - [ ] 用户**已取关**时派活 → 应返回 `43004`，降级成功
 - [ ] 绑定码**过期**后发送 → 应提示「绑定码已过期，请重新获取」
 - [ ] 绑定码**错误** → 不泄露任何信息，只回「绑定码不对哦，重新获取一下」
-- [ ] **重复发送**同一绑定码 → `client_msg_id` 或 Redis 删除后应拒绝
+- [ ] **重复发送**同一绑定码 → 绑定成功后码已清空，第二次应拒绝
 
 ### 13.3 M0 阶段必须回答的两个问题
 

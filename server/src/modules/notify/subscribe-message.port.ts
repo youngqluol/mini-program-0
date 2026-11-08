@@ -3,7 +3,7 @@
  *
  * 为什么要有这层接口：`notify` 模块负责**通道选择与降级**，
  * 但它不该知道「订阅消息怎么发」。真实实现是 `SubscribeMessageAdapter`
- * （调微信 `subscribe/send` + 管理 Redis 额度池），notify.service 只依赖这个契约。
+ * （调微信 `subscribe/send` + 管理 MySQL 额度池），notify.service 只依赖这个契约。
  *
  * 好处：notify 模块可以脱离微信单独测试；订阅消息通道没接通时，
  * 换成「永远返回 false」的实现即可，主流程自动降级到站内消息。
