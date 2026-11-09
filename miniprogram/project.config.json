@@ -3,7 +3,7 @@
   "projectname": "家有小事",
   "description": "面向家庭成员的轻量事务协作小程序",
   "compileType": "miniprogram",
-  "miniprogramRoot": "./",
+  "miniprogramRoot": "",
   "setting": {
     "urlCheck": false,
     "es6": true,
@@ -44,5 +44,6 @@
   "packOptions": {
     "ignore": [],
     "include": []
-  }
+  },
+  "libVersion": "3.18.0"
 }
