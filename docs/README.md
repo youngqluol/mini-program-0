@@ -36,7 +36,7 @@
 | 篇 | 版本 | 篇 | 版本 |
 | --- | --- | --- | --- |
 | 产品需求文档 | **v0.2.5** | 05 开发计划 | **v0.2.30** |
-| 01 技术架构 | **v0.2.6** | 06 环境准备 | **v0.2.14** |
+| 01 技术架构 | **v0.2.6** | 06 环境准备 | **v0.2.15** |
 | 02 API 设计 | **v0.2.11** | 07 视觉规范 | v1.0 |
 | 03 页面原型 | **v0.2.9** | 08 推送集成 | **v1.0.4** |
 | 04 工程规范 | **v0.2.26** | 核心数据模型 / MySQL 设计 | **v0.2.3** |
@@ -52,6 +52,8 @@
 | [wxpush/](../wxpush/) | 推送 Worker 代码 + 部署配置（Cloudflare Workers）；基于上游 MIT 项目改造，见 `wxpush/LICENSE`。`wxpush/assets/miniprogram-code.png` 是**中转页用的小程序码**源图（待上传 COS） |
 | [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`check-docker.mjs`（Docker 构建上下文：COPY 源有没有被 `.dockerignore` 误伤）、`test-view.mjs`（**展示模型行为断言**，256 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`smoke-m5-account.mjs`（M5 注销账号冒烟，42 项）、`pack-deploy.mjs`（**云托管代码包打包器**：以 `.dockerignore` 为准裁出 ≤2 MiB 的上传包）、`gen-prod-env.mjs`（**生成生产环境变量清单**：轮换密钥、输出到仓库外）、`test-wxpush.mjs`（通道一连通性）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
+
+**2026-11-09 体验版卡在登录：** 点「微信一键登录」报「网络打了个盹，再试一次」—— 实测是**后端 50001**（`/api/health` 200 + `db:true`，说明小程序→云托管那条链路是好的），断在**云托管容器出公网调 `api.weixin.qq.com`**。当天即定位：云托管「**开放接口服务**」开着，它在容器内旁挂自签证书接管这一跳，本项目走 HTTPS 直连所以握手失败 —— **关掉该开关即可，代码不用改**（同时确认小程序后台 IP 白名单为空）。定位口径和四种日志原因见 `06` §5.F；同日起 `wechat.service.ts` 的失败日志会带上 undici 的 `cause`（之前只有 `fetch failed`，等于没打）。
 
 **2026-11-07 云托管调用方式：** 云托管默认域名不能配成小程序合法域名；体验版/正式版改走 `wx.cloud.callContainer`（环境 ID `prod-d6gpyyf3z8f39506c` + 服务名 `family-things-api`），不需要服务器域名；图片上传暂不开放（需 COS 直传）。
 

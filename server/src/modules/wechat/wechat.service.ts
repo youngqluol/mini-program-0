@@ -464,7 +464,9 @@ export class WechatService {
     try {
       res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      // 只打 `e.message` 会把 undici 的真实原因丢掉（连接层失败一律是 "fetch failed"），
+      // 而 DNS / TCP / TLS 三种失败的修法完全不同 —— 必须把 cause 带出来。
+      const msg = describeFetchFailure(e);
       this.logger.error(`微信接口 ${op} 网络异常: ${msg}`);
       throw BusinessException.wechatFailed('网络打了个盹，再试一次');
     }
@@ -477,6 +479,26 @@ export class WechatService {
       throw BusinessException.wechatFailed('微信接口返回异常');
     }
   }
+}
+
+/**
+ * 把 fetch 失败展开成一句能定性的日志。
+ *
+ * `fetch()` 的失败分两类，形态不一样（实测）：
+ *   · **超时** → `TimeoutError: The operation was aborted due to timeout`，没有 `cause`；
+ *   · **连接没建立** → `TypeError: fetch failed`，原因全在 `cause` 的 `code` + `message` 里
+ *     （DNS：`ENOTFOUND getaddrinfo ...`；TCP：`ETIMEDOUT connect ...`；
+ *     证书：`DEPTH_ZERO_SELF_SIGNED_CERT self-signed certificate`）。
+ *
+ * 只打 `e.message` 时后三类在日志里长得一模一样，而它们在云托管上的
+ * 处理手段完全不同，所以这里把 `cause` 摊平。（`syscall` / `hostname` 不打：
+ * 实测它们总是已经出现在 `cause.message` 里了。）
+ */
+function describeFetchFailure(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+  const detail = cause ? [cause.code, cause.message].filter(Boolean).join(' ') : '';
+  return detail ? `${e.name}: ${e.message} <- ${detail}` : `${e.name}: ${e.message}`;
 }
 
 /** 日志里不要打完整 openid */
