@@ -3,18 +3,22 @@
 # =============================================================
 # ⚠️⚠️ **这个文件必须在仓库根，不能放在 server/ 下。**
 #
-#   为什么：`server/Dockerfile` 里的 COPY 源包含 `package.json`、
+#   为什么：仓库根 `Dockerfile` 里的 COPY 源包含 `package.json`、
 #   `pnpm-workspace.yaml`、`packages/shared` —— 说明**构建上下文是仓库根**。
 #   而 Docker 只读取**上下文根**的 .dockerignore，Dockerfile 所在目录下的
 #   同名文件**从不生效**（曾把规则误放在 server/.dockerignore，等于没写）。
 #
-#   云托管部署时对应设置：
-#     · Dockerfile 路径 = server/Dockerfile
-#     · 构建上下文     = 仓库根
+#   云托管部署时对应设置（「手动上传代码包」和「绑定 GitHub 仓库」**用同一套**）：
+#     · Dockerfile 路径 = Dockerfile（仓库根，控制台默认值）
+#     · 目标目录 / 构建上下文 = 留空（根）
+#   ⚠️ Dockerfile 2026-10-09 已从 server/ 挪到仓库根 —— 云托管只扫代码包根目录
+#      找它，放 server/ 下会直接报「本项目下没有 Dockerfile」（见 docs/06 §5.A）。
+#      目标目录绝不能填 `server`，否则第一步 COPY 就找不到 package.json。
 #
 # ⚠️ 最要命的一条是 `**/node_modules`：
-#   本机是 Windows，`server/node_modules` 里装的是 **Windows 版 Prisma
-#   query engine**。Dockerfile 在容器里 `pnpm install` 装好 Linux 版之后，
+#   宿主机那份 `server/node_modules` 里装的是**宿主机平台**的 Prisma query
+#   engine（Windows 上是 .exe，macOS 上是 darwin 二进制，都不是容器里的 Linux 版）。
+#   Dockerfile 在容器里 `pnpm install` 装好 Linux 版之后，
 #   紧接着的 `COPY server ./server` 会把宿主机那份**原样覆盖回去** →
 #   运行时 Prisma 报「找不到当前平台的 query engine」，起不来。
 #   同时镜像还会白白多背 45MB+。
