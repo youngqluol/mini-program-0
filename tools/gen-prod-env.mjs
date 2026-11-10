@@ -115,8 +115,11 @@ const SPEC = [
     ],
   },
   {
-    group: '对象存储（等云部署完再补，可先留空）',
+    group: '对象存储（体验版走前端直传云托管存储，只有 STORAGE_CLOUD_PREFIX 是生产要的）',
     items: [
+      // 真机传一张图，把 fileID 去掉文件名那一段抄进来（见 server/.env.example 第 8 节）
+      { key: 'STORAGE_CLOUD_PREFIX', kind: 'empty' },
+      // 下面四个只服务于开发版的 `POST /upload/image`，生产可以留空
       { key: 'COS_BUCKET', kind: 'empty' },
       { key: 'COS_REGION', kind: 'empty' },
       { key: 'COS_SECRET_ID', kind: 'empty' },
@@ -240,7 +243,7 @@ console.log(`   变量数      ${covered.size}`);
 console.log(`   轮换密钥    ${regenCount} 个${keepSecrets ? '（--keep-secrets，未轮换）' : ''}`);
 if (pending.length > 0) {
   console.log(`\n   ⚠️ 还需你手工填的：${pending.join(' / ')}`);
-  console.log('      DATABASE_URL 填云托管控制台的内网地址；COS_* 等云部署完再补。');
+  console.log('      DATABASE_URL 填云托管控制台的内网地址；对象存储那一组等真机传一张图再补。');
 }
 if (blank.length > 0) {
   console.log(`\n   ⚠️ 这些在 ${SRC} 里是空的，上线前要补：${blank.join(' / ')}`);

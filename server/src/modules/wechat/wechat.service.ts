@@ -91,7 +91,7 @@ const SEC_CHECK_ERRCODE_RISKY = 87014;
 /**
  * `imgSecCheck` 的图片大小上限：**1MB**（微信文档写死的接口限制）。
  *
- * ⚠️ 这比产品允许的 5MB（`UPLOAD_MAX_IMAGE_BYTES`）**小得多**。
+ * ⚠️ 这比产品允许的 5MB（`UPLOAD_LIMITS.MAX_IMAGE_BYTES`）**小得多**。
  * 超限的图**不是「判为安全」，而是「检测不了」** —— 走 fail-open 放行，
  * 由 `ContentSecurityService` 记一条 warn。
  *

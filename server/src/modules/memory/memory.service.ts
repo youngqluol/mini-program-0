@@ -408,28 +408,39 @@ export class MemoryService {
   }
 
   /**
-   * 图片地址必须来自**我们自己的桶**。
+   * 图片地址必须来自**我们自己的存储**。
    *
    * 为什么值得判：`fileUrl` 是前端原样传上来的字符串。不判的话，
    * 任何人都能把任意外部 URL（追踪像素、别人的图、写错的地址）塞进留念 ——
    * 而小程序端加载外域图片会被 `downloadFile` 合法域名拦掉，
    * 表现为「图片加载不出来」，排查时完全看不出是数据的问题。
    *
-   * ⚠️ **未配置对象存储时跳过检查**（记一条 warn）：那时上传接口本身就用不了，
-   *    根本不会有正常来源的地址，拦了只会让本地开发彻底没法验 M4。
+   * 两条上传通道，两种前缀，**认中任何一个即可**：
+   *
+   * ```text
+   * 开发版（后端 `/upload/image`）  → `https://<桶>.cos.<地域>.myqcloud.com/...`
+   * 体验版/正式版（前端直传云存储）  → `cloud://<环境标识>.<桶标识>/...`
+   * ```
+   *
+   * ⚠️ **两个前缀都没配置时跳过检查**（记一条 warn）：那时两条上传通道本身
+   *    就都用不了，根本不会有正常来源的地址，拦了只会让本地开发彻底没法验 M4。
    *    这与「内容安全判不了就放行」是同一类取舍 —— 但只在这一个前提下成立。
    */
   private assertAttachmentsOwnedByUs(attachments: MemoryAttachmentInput[]): void {
     if (attachments.length === 0) return;
 
     const baseUrl = this.storage.publicBaseUrl();
-    if (!baseUrl) {
+    const cloudPrefix = this.storage.publicFileIdPrefix();
+    if (!baseUrl && !cloudPrefix) {
       this.logger.warn('对象存储未配置，跳过留念图片的地址来源校验');
       return;
     }
 
     for (const a of attachments) {
-      if (!a.fileUrl.startsWith(`${baseUrl}/`)) {
+      const ours =
+        (baseUrl !== null && a.fileUrl.startsWith(`${baseUrl}/`)) ||
+        (cloudPrefix !== null && a.fileUrl.startsWith(`${cloudPrefix}/`));
+      if (!ours) {
         this.logger.warn(`留念图片地址不在本桶内：${a.fileUrl}`);
         throw BusinessException.invalidParam('图片地址不对，重新上传一下');
       }

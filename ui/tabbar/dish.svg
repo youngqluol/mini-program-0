@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="81" height="81" viewBox="0 0 81 81">
+  <!-- 吃啥呢：碗 + 一双筷子 -->
+  <path fill="#9B9B9B" d="M15 42 L66 42 A3 3 0 0 1 66 48 L63.5 48 C62 61 52 69.5 40.5 69.5 C29 69.5 19 61 17.5 48 L15 48 A3 3 0 0 1 15 42 Z"/>
+  <path stroke="#9B9B9B" stroke-width="4.6" stroke-linecap="round" fill="none" d="M50 12.5 L32.5 38.5 M61.5 16.5 L45 39"/>
+</svg>

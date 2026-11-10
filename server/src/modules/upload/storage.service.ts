@@ -71,6 +71,25 @@ export class StorageService {
   }
 
   /**
+   * 小程序端**直传云托管对象存储**时文件地址的前缀（`STORAGE_CLOUD_PREFIX`）。
+   *
+   * 体验版/正式版的图片不经过后端（`callContainer` 请求体只有 100KiB，
+   * 且云托管托管桶的服务端读写依赖「开放接口服务」，那个开关会让登录挂掉 ——
+   * 完整推导见 docs/02 §8.2 与 docs/06 §5.F），由 `wx.cloud.uploadFile`
+   * 直接写进云托管自带的对象存储，拿回一个 `cloud://` fileID 原样入库。
+   *
+   * 于是后端唯一的抓手就是**写入时核对前缀**：这个 fileID 得是我们自己
+   * 环境的桶，否则任何人都能把外域图片地址塞进留念（见 `MemoryService`）。
+   *
+   * 值怎么来：真机传一张图，把返回的 fileID 去掉最后一段文件名之后的部分抄进来，
+   * 形如 `cloud://<环境标识>.<桶标识>`。**未配置返回 `null`。**
+   */
+  publicFileIdPrefix(): string | null {
+    const raw = this.config.get<string>('STORAGE_CLOUD_PREFIX')?.trim() ?? '';
+    return raw ? raw.replace(/\/+$/, '') : null;
+  }
+
+  /**
    * 写一张图片进桶，返回可公开访问的 URL。
    *
    * @param key  对象 key，形如 `memories/2026/10/xxx.jpg`（见 `object-key.ts`）

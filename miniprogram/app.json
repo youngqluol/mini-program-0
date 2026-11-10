@@ -38,19 +38,27 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "家里"
+        "text": "家里",
+        "iconPath": "assets/tabbar/home-off.png",
+        "selectedIconPath": "assets/tabbar/home-on.png"
       },
       {
         "pagePath": "pages/menu/index",
-        "text": "吃啥呢"
+        "text": "吃啥呢",
+        "iconPath": "assets/tabbar/dish-off.png",
+        "selectedIconPath": "assets/tabbar/dish-on.png"
       },
       {
         "pagePath": "pages/memory/index",
-        "text": "留个念"
+        "text": "留个念",
+        "iconPath": "assets/tabbar/book-off.png",
+        "selectedIconPath": "assets/tabbar/book-on.png"
       },
       {
         "pagePath": "pages/mine/index",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "assets/tabbar/me-off.png",
+        "selectedIconPath": "assets/tabbar/me-on.png"
       }
     ]
   },

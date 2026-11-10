@@ -73,7 +73,7 @@
 阶段：个人开发者 MVP → 家庭真实使用 → 持续迭代。
 当前进度：**已放出体验版，进入持续迭代期**。2026-11-09 云托管部署完成，
 2026-11-10 体验版家人已能正常登录。M1–M4 完成，M5 只剩 `docs/06` 里几条 ⚠️/⬜
-（定时任务是否真在触发、基础库最低版本、COS 凭证与图片上传）。
+（定时任务是否真在触发、基础库最低版本、**云托管对象存储的读权限**）。
 
 发布口径的两条硬事实，动手前先看：
 
@@ -90,7 +90,7 @@
 | 小程序端 | 原生微信小程序 + TypeScript |
 | 后端 | **NestJS 11**（Node **22 LTS**）+ **Prisma 6** |
 | 数据库 | 微信云托管 **MySQL 8.0**（12 张表） |
-| 存储 | 云开发云存储 / COS |
+| 存储 | 图片：**小程序端直传微信云托管对象存储**（`wx.cloud.uploadFile`，免密钥）；开发版仍走后端代传腾讯云 COS |
 | 部署 | 微信云托管（容器，自定义 Dockerfile） |
 | 推送 | **四通道降级**：公众号模板消息（wxpush）→ 小程序订阅消息 → 站内消息 → 首页 |
 
@@ -124,6 +124,7 @@ mini-program-0/
 ├── tools/                    check-*.mjs 静态校验 / smoke-m*.mjs 端到端冒烟 / test-*.mjs
 ├── prototypes/prototype.html 可视化原型（浏览器直接打开）
 ├── ui/风格参考/               视觉风格参考图
+├── ui/tabbar/                 底部 Tab 图标的 SVG 设计源（PNG 是产物，别手改）
 ├── docker-compose.yml        本地 MySQL
 └── pnpm-workspace.yaml
 ```
@@ -245,11 +246,23 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 
 - **页面里禁止直接调 `wx.request`**，只能走 `services/request.ts`。这是硬性规范，否则错误处理会散落各处。
 - **体验版 / 正式版的接口走 `services/request.ts` → `wx.cloud.callContainer`**（云托管内部网关，不需要服务器合法域名）；开发版走 `wx.request` + 本地地址。页面层无感知。
+- **图片上传同理：唯一入口是 `services/request.ts` 的 `uploadImage()`**，它内部分两条通道 ——
+  体验版/正式版 `wx.cloud.uploadFile` 直传云托管对象存储（`services/cloud-storage.ts`），
+  开发版 `wx.request` + multipart 走后端 `POST /upload/image`。**页面层依旧无感知**，
+  禁止页面直接调 `wx.cloud.uploadFile`。
+  > ⚠️ 直传通道上**后端看不到图片字节**：文件头嗅探、`imgSecCheck`、尺寸解析都不执行。
+  > 因此 5MB 上限必须在小程序端拦（`constants/upload.ts`），
+  > 服务端只剩 `STORAGE_CLOUD_PREFIX` 前缀白名单这一道防线。完整口径见 `docs/01` §六、`docs/02` §8.2。
 - **页面里禁止做数据权限过滤**（见铁律 0.4）。
+- **提交等待期间还能不能改这份内容，决定要不要锁整页**：还能改（如 P18 发布记录）就整页遮罩 + 输入区 `disabled`；
+  改不出别的（如 P04 登录、只锁一个开关的页）就只锁按钮。判据与规格见 `docs/03` §5.2、`docs/07` §6.11。
+  ⚠️ 这类遮罩**不用 `wx.showLoading`** —— 它是系统白卡片，而且**不拦点击**。
 - 全局样式变量唯一来源是 `docs/07-视觉设计规范.md` §11.1。
   > ⚠️ 早期版本的暖橙令牌（`#FF8A4C` / `#FFF7F0`）**已废弃**，现用「柔光粉彩」（主色 `#FF9DB4 → #FFB59B`、背景 `#FDF6F7`）。
 - Tab 结构是 **4 个**：家里 / 吃啥呢 / 留个念 / 我的。
   「叮一下」「派活」是**动作**，不是 Tab，作为首页悬浮入口。
+  每个 Tab 都有图标（`assets/tabbar/` 8 张 81×81 PNG）—— **PNG 是产物，设计源是 `ui/tabbar/*.svg`**，
+  改形状要改 SVG 再跑 `node tools/gen-tab-icons.mjs`，不要手改图（见 `docs/07` §6.10）。
 - 页面编号 P01–P22 与 `docs/03-页面原型与交互流程.md` 一一对应。
 
 ### 6.1 文案纪律（重要）
@@ -345,8 +358,8 @@ pnpm run smoke:m5                         # 注销账号（42 项）
 cd wxpush && wrangler login && wrangler deploy
 node tools/test-wxpush.mjs                # 推送连通性测试
 
-# 上线（云托管「手动上传代码包」）
-pnpm run pack:deploy                      # 产出 ≤2 MiB 的代码包（仓库原样 4.8 MB，超限）
+# 上线（当前路线：云托管「绑定 GitHub 仓库」，见 §1；下面两条仍是日常要用的）
+pnpm run pack:deploy                      # 备用：手动上传代码包，产出 ≤2 MiB（仓库原样 4.8 MB，超限）
 node tools/gen-prod-env.mjs               # 生成生产环境变量清单（轮换密钥，输出到仓库外）
 ```
 

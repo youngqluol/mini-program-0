@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="81" height="81" viewBox="0 0 81 81">
+  <!-- 我的：头 + 肩 -->
+  <circle fill="#9B9B9B" cx="40.5" cy="23" r="11.5"/>
+  <path fill="#9B9B9B" d="M16 70 C16 51 26.5 41 40.5 41 C54.5 41 65 51 65 70 A2 2 0 0 1 63 72 L18 72 A2 2 0 0 1 16 70 Z"/>
+</svg>

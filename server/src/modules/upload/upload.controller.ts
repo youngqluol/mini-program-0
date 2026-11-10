@@ -1,7 +1,7 @@
 import { Body, Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { UPLOAD_MAX_IMAGE_BYTES } from '@shared';
+import { UPLOAD_LIMITS } from '@shared';
 import type { UploadImageResponse } from '@shared';
 import { UploadImageDto } from './dto/upload.dto';
 import { UploadService } from './upload.service';
@@ -12,6 +12,13 @@ import type { UploadedImageFile } from './upload.service';
  *
  * 实际路径（全局前缀 `/api`）：
  *   POST /api/upload/image   上传一张图片（multipart/form-data）
+ *
+ * ⚠️ **这条通道现在只服务于开发版。** 体验版/正式版的业务请求走
+ *    `wx.cloud.callContainer`，请求体上限 100KiB，multipart 图片进不来；
+ *    那两版改由小程序端 `wx.cloud.uploadFile` **直传云托管自带对象存储**
+ *    （`miniprogram/services/cloud-storage.ts`），字节不经过后端。
+ *    所以这里保留了「嗅探文件头 → 内容安全 → 写 COS」全套 ——
+ *    本机开发时它仍然一样不少地执行。
  *
  * 鉴权：**只有全局 `JwtGuard`（要登录），不挂 `FamilyMemberGuard`**。
  * 为什么不需要家庭上下文：这一步只是「把一张图存进桶里换回一个 URL」，
@@ -44,7 +51,7 @@ export class UploadController {
     FileInterceptor('file', {
       storage: memoryStorage(),
       limits: {
-        fileSize: UPLOAD_MAX_IMAGE_BYTES,
+        fileSize: UPLOAD_LIMITS.MAX_IMAGE_BYTES,
         files: 1,
         // 表单里只有 scene 一个非文件字段；给一点余量但不放开
         fields: 4,

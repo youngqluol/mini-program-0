@@ -1,6 +1,7 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.11
+**版本：** v0.2.12
+**v0.2.12 变更（2026-11-10）：图片上传拆成两条通道。** 新增 §8.2 —— 体验版/正式版由小程序端 `wx.cloud.uploadFile` **直传云托管对象存储**（免密钥、不受 `callContainer` 100KiB 限制），`POST /upload/image` 从此**只服务开发版**。附件的来源校验从「HTTP 桶前缀」扩成「HTTP 桶前缀 **或** `cloud://` 前缀（`STORAGE_CLOUD_PREFIX`）」。
 **v0.2.11 变更（2026-11-07）：补充调用方式。** 体验版/正式版经 `wx.cloud.callContainer`（`config.env` + `X-WX-SERVICE`），路径仍为 `/api`；开发版仍为 `http://localhost:3000/api`。
 **协议：** HTTPS + REST + JSON（体验版/正式版经 `wx.cloud.callContainer`，路径仍为 `/api`）
 **Base URL：** 路径统一 `/api`；开发版 `http://localhost:3000/api`，体验/正式版由 `callContainer` 的 `config.env` + `X-WX-SERVICE` 路由
@@ -1513,7 +1514,11 @@ DELETE /api/memories/{id}
 
 ## 八、上传 `/upload`
 
-### 8.1 上传图片
+### 8.1 上传图片（仅开发版）
+
+> ⚠️ **体验版 / 正式版不走这个接口** —— `callContainer` 的请求体上限只有 100KiB，
+> multipart 图片进不来。那两版改走 §8.2 的小程序端直传。
+> 本接口在开发版里照常执行「嗅探 → 内容安全 → 写 COS」全套。
 
 ```http
 POST /api/upload/image
@@ -1595,6 +1600,50 @@ WebP 的三种子格式）。它们进 `memory_attachments` 供九宫格按比�
 > 走 fail-open 放行并记 warn（与文本检测同一套策略，见
 > `ContentSecurityService`）。实际影响有限：P18 选图用
 > `sizeType: ['compressed']`，压缩后通常 100–500KB。
+> ⚠️ 这条限制只对**开发版**成立 —— 体验版/正式版走 §8.2，压根不调这个接口。
+
+### 8.2 体验版 / 正式版：小程序端直传云托管对象存储
+
+**这一条没有接口** —— 图片字节不经过后端，所以也没有请求与响应可写。
+
+```text
+wx.chooseMedia（sizeType: ['compressed']，前端先拦 5MB）
+        ↓
+wx.cloud.uploadFile({ cloudPath, filePath, config: { env: CLOUD_RUN_ENV_ID } })
+        ↓
+返回 fileID：cloud://<环境标识>.<桶标识>/memories/2026/11/<32 位随机十六进制>.jpg
+        ↓
+随 §7.1「发布留念」一起提交（attachments[].fileUrl = 这个 fileID）
+```
+
+| 项 | 口径 |
+| --- | --- |
+| 代码位置 | `miniprogram/services/cloud-storage.ts`（唯一入口是 `services/request.ts` 的 `uploadImage()`，页面层不感知两条通道的差别） |
+| 目录前缀 | `avatars/` / `memories/` / `menus/` + 年/月（北京时间），**与后端 `object-key.ts` 同形状** |
+| 文件名 | 32 位随机十六进制，**不用时间戳也不用原名**（理由同 `object-key.ts`：可猜的地址等于泄露） |
+| 密钥 | **一个都不需要**。云托管环境的对象存储在开通环境时自动开通，`wx.cloud` 这条通道已经授权好了 |
+| 返回值 | `UploadImageResult` —— 只有 `fileUrl` 必填；`fileType` 由扩展名回推、`width`/`height` 由本机 `wx.getImageInfo` 读（读不出给 `null`，不编造）、`fileSize` **拿不到就留空** |
+
+**服务端唯一的抓手是写入时的地址来源校验**（`MemoryService.assertAttachmentsOwnedByUs`）：
+附件的 `fileUrl` 必须命中两个前缀之一 ——
+
+```text
+https://<桶>.cos.<地域>.myqcloud.com/   ← COS_* 配了才生效（开发版）
+cloud://<环境标识>.<桶标识>/            ← STORAGE_CLOUD_PREFIX 配了才生效（体验版/正式版）
+```
+
+两个都没配时**跳过检查并记 warn**（与「内容安全判不了就放行」同一类取舍：
+那时两条上传通道本身就用不了，正常来源的地址根本不存在）。
+
+> ⚠️ **控制台需要动一次的手**（`docs/06` §5.12）：云托管 → 对象存储 → 存储权限
+> 要设成**所有用户可读、仅创建者可读写**。默认值若是「仅创建者可读写」，
+> 家人打开留个念会**看不到别人传的图** —— 图能传上去、发得出去，只是显示不出来，
+> 排查时很容易误判成代码问题。
+
+> 🔴 **代价（已知缺口，不是漏改）**：这条通道上后端看不到字节，
+> ①§8.1 的文件头嗅探、②图片内容安全 `imgSecCheck` **均不执行**。
+> 文本检测（`msgSecCheck`）不受影响，它仍在 §7.1 写入前执行。
+> 补偿与后续方案见 `docs/未来需求池.md`「直传通道的图片内容安全」。
 
 ## 九、通知模块 `/notifications` 与 `/notify`
 

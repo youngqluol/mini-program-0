@@ -12,6 +12,7 @@
       placeholder="今天想说点什么…"
       placeholder-class="editor__ph"
       auto-height
+      disabled="{{publishing}}"
       show-confirm-bar="{{false}}"
       bindinput="onInput"
     />
@@ -76,5 +77,18 @@
     <view class="btn-primary acts__ok {{canPublish && !publishing ? '' : 'acts__ok--off'}}" bindtap="onPublish">
       {{publishing ? '发布中…' : '发布'}}
     </view>
+  </view>
+
+  <!-- 发布中：整页锁住，不只是按钮变灰。
+       等待可能有好几秒，只锁按钮的话用户还能继续打字、加图、改可见范围，
+       而发出去的是**按下发布那一刻**的内容 —— 看到的和发出去的不是一份。
+       遮罩吃掉所有点击（catchtap），输入区另外挂 disabled。 -->
+  <view wx:if="{{publishing}}" class="busy" catchtap="onBusyTap">
+    <view class="busy__dots">
+      <view class="busy__dot"></view>
+      <view class="busy__dot"></view>
+      <view class="busy__dot"></view>
+    </view>
+    <view class="busy__text">正在记下，稍等一下…</view>
   </view>
 </view>

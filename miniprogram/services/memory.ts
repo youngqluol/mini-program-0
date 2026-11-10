@@ -18,8 +18,8 @@ import type {
   MemoryItem,
   MemoryVisibilityValue,
 } from '@shared/dto/memory';
-import type { UploadImageResponse, UploadSceneValue } from '@shared/dto/upload';
-import { del, get, patch, post, upload } from './request';
+import type { UploadImageResult, UploadSceneValue } from '@shared/dto/upload';
+import { del, get, patch, post, uploadImage as uploadImageViaRequest } from './request';
 
 /** 发布一条记录（P18）。正文与图片**至少给一样**，后端会判 */
 export function create(data: {
@@ -70,10 +70,14 @@ export function remove(id: number): Promise<{ id: number }> {
 // ---------------------------------------------------------------
 
 /**
- * 上传一张图片，拿回可访问的 URL。
+ * 上传一张图片，拿回可访问的地址。
+ *
+ * 两条通道（由 `services/request.ts` 选，页面层无感知）：
+ *   开发版            → `POST /upload/image`，地址形如 `https://<桶>.cos...`
+ *   体验版/正式版      → `wx.cloud.uploadFile` 直传云托管对象存储，地址是 `cloud://` fileID
  *
  * ⚠️ `scene` 必填：它决定对象存储里的目录前缀（`memories/` / `avatars/` / `menus/`）。
- *    不传的话后端会回 40001，而不是猜一个。
+ *    开发版漏传后端会回 40001，而不是猜一个。
  *
  * @param filePath `wx.chooseMedia` 给的 `tempFilePath`
  * @param onProgress 进度回调（0–100），用来在缩略图上画进度
@@ -82,6 +86,6 @@ export function uploadImage(
   filePath: string,
   scene: UploadSceneValue,
   onProgress?: (percent: number) => void,
-): Promise<UploadImageResponse> {
-  return upload<UploadImageResponse>('/upload/image', filePath, { scene }, onProgress);
+): Promise<UploadImageResult> {
+  return uploadImageViaRequest(filePath, scene, onProgress);
 }

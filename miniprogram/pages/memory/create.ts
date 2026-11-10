@@ -3,15 +3,16 @@
  *
  * 页面只做一件事：**把一段话和几张图变成一条记录**。
  *
- * 五条刻意的判断：
+ * 六条刻意的判断：
  *
  * 1. **选图就上传，不等「发布」。** 用户选完图到按下发布之间可能过很久，
  *    那时才上传会让「发布」按钮转很久；而且失败要等到最后才知道。
  *    代价是「选了又删」会浪费一次上传 —— 家庭场景下这点浪费换体验值得。
  *
- * 2. **`sizeType: ['compressed']`。** 这不是省流量，是**为了过内容安全检测**：
- *    微信的图片检测接口（`img_sec_check`）有 **1MB 上限**，原图动辄 3–5MB
- *    根本检不了，只能 fail-open 放行。压缩后通常 100–500KB，落在限制内。
+ * 2. **`sizeType: ['compressed']`。** 压缩过的图通常 100–500KB，上传快、
+ *    省家人流量；开发版那条通道上还顺带满足了微信图片检测接口的 **1MB 上限**
+ *    （`img_sec_check` 检不了原图）。⚠️ 体验版/正式版走**前端直传云托管对象存储**，
+ *    字节不经过后端，内容安全那一步**不参与** —— 代价与补偿见 docs/02 §8.2。
  *
  * 3. **上传失败的图留在九宫格里，点一下重试**，不是悄悄消失。
  *    悄悄消失会让用户以为「选上了」，发布后才发现少一张。
@@ -22,9 +23,13 @@
  * 5. **「完成纪念」的关联靠 URL 参数带过来**（`thingId` + `thingTitle`），
  *    不为它多发一次请求 —— P10 详情页手里本来就有这两个值。
  *    文案预填由 `prefillContent()` 给，**可改**：它只是省一次打字。
+ *
+ * 6. **单张 5MB 在这里拦。** 直传通道上后端根本看不到字节，
+ *    multer 那道 `limits.fileSize` 不会执行 —— 前端不拦就是没有上限。
  */
 
 import { MEMORY_LIMITS } from '../../constants/memory';
+import { UPLOAD_LIMITS } from '../../constants/upload';
 import type { MemoryAttachmentInput, MemoryVisibilityValue } from '@shared/dto/memory';
 import * as memoryApi from '../../services/memory';
 import * as userStore from '../../stores/user';
@@ -48,8 +53,15 @@ interface DraftPhoto {
   path: string;
   /** 0–100；上传中才有意义 */
   progress: number;
-  /** 上传成功后的可访问 URL；空串表示还没传上去 */
+  /**
+   * 上传成功后的可访问地址；空串表示还没传上去。
+   * 体验版/正式版是云托管对象存储的 `cloud://` fileID，开发版是 `https://` 桶地址
+   */
   url: string;
+  /** 下面三项只在传成功后有值 —— 存进 `memory_attachments` 供九宫格按比例占位 */
+  fileType: string;
+  width: number | null;
+  height: number | null;
   /** 传失败了 —— 缩略图上盖一层「重试」 */
   failed: boolean;
 }
@@ -140,17 +152,30 @@ Page({
     wx.chooseMedia({
       count: remaining,
       mediaType: ['image'],
-      // ⚠️ 必须压缩：微信的图片内容安全接口有 1MB 上限（见文件头 ②）
+      // 压缩是为了省家人流量和等待时间：原图动辄 3–5MB
+      //（开发版那条通道上还顺带满足了内容安全的 1MB 上限，见文件头 ②）
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
       success: (res) => {
-        const added: DraftPhoto[] = res.tempFiles.map((f) => ({
-          key: `p${++photoSeq}`,
-          path: f.tempFilePath,
-          progress: 0,
-          url: '',
-          failed: false,
-        }));
+        // 直传通道上后端看不到字节，这道拦截是唯一的上限执行点（见文件头 6）
+        const tooBig = res.tempFiles.filter((f) => f.size > UPLOAD_LIMITS.MAX_IMAGE_BYTES);
+        if (tooBig.length > 0) {
+          toast(`有 ${tooBig.length} 张超过 5MB，换小一点的吧`);
+        }
+
+        const added: DraftPhoto[] = res.tempFiles
+          .filter((f) => f.size <= UPLOAD_LIMITS.MAX_IMAGE_BYTES)
+          .map((f) => ({
+            key: `p${++photoSeq}`,
+            path: f.tempFilePath,
+            progress: 0,
+            url: '',
+            fileType: '',
+            width: null,
+            height: null,
+            failed: false,
+          }));
+        if (added.length === 0) return;
         this.setData({ photos: this.data.photos.concat(added) });
         this.refreshCanPublish();
         added.forEach((p) => void this.uploadOne(p.key));
@@ -182,7 +207,13 @@ Page({
 
       const i = this.data.photos.findIndex((p) => p.key === key);
       if (i < 0) return; // 已经删了
-      this.setData({ [`photos[${i}].url`]: res.fileUrl, [`photos[${i}].progress`]: 100 });
+      this.setData({
+        [`photos[${i}].url`]: res.fileUrl,
+        [`photos[${i}].fileType`]: res.fileType ?? '',
+        [`photos[${i}].width`]: res.width ?? null,
+        [`photos[${i}].height`]: res.height ?? null,
+        [`photos[${i}].progress`]: 100,
+      });
     } catch (e) {
       const i = this.data.photos.findIndex((p) => p.key === key);
       if (i >= 0) this.setData({ [`photos[${i}].failed`]: true });
@@ -243,7 +274,12 @@ Page({
     // 但用户明确点了发布，就按他看到的成功部分发。
     const attachments: MemoryAttachmentInput[] = photos
       .filter((p) => !!p.url)
-      .map((p) => ({ fileUrl: p.url }));
+      .map((p) => ({
+        fileUrl: p.url,
+        fileType: p.fileType || null,
+        width: p.width,
+        height: p.height,
+      }));
 
     this.setData({ publishing: true });
     try {
@@ -266,4 +302,10 @@ Page({
   onCancel() {
     wx.navigateBack();
   },
+
+  /**
+   * 发布中遮罩的 `catchtap` 目标。**空实现** —— 它存在的唯一意义是让遮罩
+   * 吃掉这一页所有的点击（没有方法名时微信会在控制台报一条 warning）。
+   */
+  onBusyTap() {},
 });

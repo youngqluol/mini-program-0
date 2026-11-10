@@ -28,7 +28,9 @@ import {
 import { ErrorCode, NETWORK_ERROR_MESSAGE, RELOGIN_CODES } from '../constants/error-code';
 import { storage } from '../utils/storage';
 import { callContainer } from './cloud-container';
+import { uploadImageToCloudStorage } from './cloud-storage';
 import type { CloudContainerFailure } from './cloud-container';
+import type { UploadImageResult, UploadSceneValue } from '@shared/dto/upload';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -265,14 +267,22 @@ export function del<T>(url: string, data?: Record<string, unknown>): Promise<T> 
 // 文件上传（M4-4）
 // =============================================================
 
+/** 后端上传端点。**只有开发版走它**；体验版/正式版由 `cloud-storage.ts` 直传云托管对象存储 */
+const UPLOAD_IMAGE_PATH = '/upload/image';
+
 /**
- * 上传一个本地文件（`multipart/form-data`）。
+ * 上传一张图片。两条通道，页面层无感知：
  *
- * ⚠️ **必须放在这里，而不是页面里直接 `wx.uploadFile`** ——
- *    理由与「页面禁止直接 `wx.request`」完全一样：拼 URL、带 token、
+ * ```text
+ * 开发版           → wx.uploadFile  multipart 打本机后端 /upload/image
+ * 体验版/正式版     → wx.cloud.uploadFile 直传云托管对象存储（免密钥、不受 100KiB 限制）
+ * ```
+ *
+ * ⚠️ **必须走这里，而不是页面里直接 `wx.uploadFile` / `wx.cloud.uploadFile`** ——
+ *    理由与「页面禁止直接 `wx.request`」完全一样：拼地址、带 token、
  *    拆响应体、401 静默重登、错误归一，这五件事只写一遍。
  *
- * 三个与 `wx.request` 不同的坑：
+ * 后端那条通道上三个与 `wx.request` 不同的坑：
  *
  * ① **`res.data` 是字符串，不是对象。** `wx.uploadFile` 不做 JSON 解析
  *    （因为响应可能真的是二进制），必须自己 `JSON.parse`。
@@ -281,29 +291,17 @@ export function del<T>(url: string, data?: Record<string, unknown>): Promise<T> 
  *    （与后端「HTTP 一律 200、业务结果看 code」的约定正好合上）。
  * ③ **超时给到 60s**（`UPLOAD_TIMEOUT`）。图片可能有好几 MB。
  *
- * @param url      相对路径，如 `/upload/image`
  * @param filePath 本地临时文件路径（`wx.chooseMedia` 给的 `tempFilePath`）
- * @param formData 附带的普通表单字段（字符串值）
+ * @param scene    决定存进桶里的目录前缀（`memories/` / `avatars/` / `menus/`）
  * @param onProgress 进度回调（0–100）。用来在 P18 的缩略图上画进度条
  */
-export function upload<T>(
-  url: string,
+export function uploadImage(
   filePath: string,
-  formData?: Record<string, string>,
+  scene: UploadSceneValue,
   onProgress?: (percent: number) => void,
-): Promise<T> {
-  // callContainer 的请求体上限只有 100KiB，传不了图片。
-  // 体验版/正式版暂时关闭上传；等 COS 预签名直传接入后放开。
-  if (USE_CLOUD_CONTAINER) {
-    return Promise.reject(
-      createApiError(
-        ErrorCode.INTERNAL_ERROR,
-        '图片上传暂未开通，先用文字记录吧',
-        'callContainer 不支持 multipart 文件上传',
-      ),
-    );
-  }
-  return doUpload<T>(url, filePath, formData, onProgress, false);
+): Promise<UploadImageResult> {
+  if (USE_CLOUD_CONTAINER) return uploadImageToCloudStorage(filePath, scene, onProgress);
+  return doUploadImage(filePath, scene, onProgress, false);
 }
 
 function sendUpload<T>(
@@ -350,22 +348,21 @@ function sendUpload<T>(
   });
 }
 
-async function doUpload<T>(
-  url: string,
+async function doUploadImage(
   filePath: string,
-  formData: Record<string, string> | undefined,
+  scene: UploadSceneValue,
   onProgress: ((percent: number) => void) | undefined,
   retried: boolean,
-): Promise<T> {
-  const full = `${BASE_URL}${API_PREFIX}${url}`;
-  const body = await sendUpload<T>(full, filePath, formData, onProgress);
+): Promise<UploadImageResult> {
+  const full = `${BASE_URL}${API_PREFIX}${UPLOAD_IMAGE_PATH}`;
+  const body = await sendUpload<UploadImageResult>(full, filePath, { scene }, onProgress);
 
-  if (body.code === ErrorCode.OK) return body.data as T;
+  if (body.code === ErrorCode.OK) return body.data as UploadImageResult;
 
   // 与 `doRequest` 同一条：登录态失效就静默重登一次再原样重放
   if (!retried && RELOGIN_CODES.indexOf(body.code) >= 0) {
     const ok = await ensureRelogin();
-    if (ok) return doUpload<T>(url, filePath, formData, onProgress, true);
+    if (ok) return doUploadImage(filePath, scene, onProgress, true);
   }
 
   throw createApiError(body.code, body.message || '图片没传上去，再试一次');

@@ -81,6 +81,17 @@ const PAIRS = [
     sourcePattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*(\d+)\s*,/gm,
     mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*(\d+)\s*,/gm,
   },
+  {
+    // 上传大小上限。**值是表达式**（`5 * 1024 * 1024`），所以模式取到逗号/换行前的整段，
+    // 两边必须逐字一样 —— 写成一串裸数字人眼就读不出「5MB」了。
+    name: 'UPLOAD_LIMITS',
+    source: 'packages/shared/src/dto/upload.ts',
+    mirror: 'miniprogram/constants/upload.ts',
+    sourceBlock: 'export const UPLOAD_LIMITS = {',
+    mirrorBlock: 'export const UPLOAD_LIMITS = {',
+    sourcePattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*([^,\n]+)/gm,
+    mirrorPattern: /^\s*([A-Z][A-Z0-9_]*)\s*:\s*([^,\n]+)/gm,
+  },
 ];
 
 function read(rel) {

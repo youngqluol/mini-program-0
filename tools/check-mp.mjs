@@ -16,7 +16,8 @@
  *   ① app.json 可解析，pages 数组非空
  *   ② pages 里每个页面的 .ts / .wxml / .json 都存在（.wxss 建议存在）
  *   ③ pages/ 下每个 .ts 都在 app.json 注册了（防止「写了页面忘了注册」）
- *   ④ tabBar 的每个 pagePath 都在 pages 里
+ *   ④ tabBar 的每个 pagePath 都在 pages 里；8 个图标（`iconPath` / `selectedIconPath`）
+ *      都填了、文件都在、单张 ≤ 40KB
  *   ⑤ 每个页面 .json 是合法 JSON
  *   ⑥ wxml 里 `bind*=` / `catch*=` 绑定的方法名，在对应 .ts 里确实存在
  *   ⑦ 页面 .ts 里有 `Page(` 调用
@@ -169,6 +170,33 @@ for (const item of tabList) {
   }
   if (!registered.has(item.pagePath)) {
     fail(`tabBar 的 pagePath「${item.pagePath}」不在 app.json 的 pages 里`);
+  }
+}
+
+// ④.1 tabBar 的图标
+//
+// 图标缺失时小程序**不报错也不白屏** —— 只是那一栏退回成纯文字，
+// 所以「图被删了 / 路径写错了 / 忘了填」只能靠这里发现。
+// 8 张图由 `node tools/gen-tab-icons.mjs` 从 `ui/tabbar/*.svg` 生成。
+const TAB_ICON_MAX_BYTES = 40 * 1024; // 微信文档里 tabBar 图标的上限，超了打包直接失败
+for (const item of tabList) {
+  for (const key of ['iconPath', 'selectedIconPath']) {
+    const rel = item[key];
+    const label = `tabBar「${item.text || item.pagePath}」的 ${key}`;
+    if (!rel) {
+      fail(`${label} 没填 —— 该 Tab 只有文字`);
+      continue;
+    }
+    if (!exists(rel)) {
+      fail(
+        `${label} 指向的文件不存在：miniprogram/${rel}（跑 node tools/gen-tab-icons.mjs 重新生成）`,
+      );
+      continue;
+    }
+    const bytes = statSync(join(MP, rel)).size;
+    if (bytes > TAB_ICON_MAX_BYTES) {
+      fail(`${label} 有 ${(bytes / 1024).toFixed(1)} KB，超过微信的 40KB 上限（打包会失败）`);
+    }
   }
 }
 
