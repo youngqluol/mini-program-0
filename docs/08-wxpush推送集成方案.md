@@ -1,46 +1,60 @@
 # 08 · wxpush 推送集成方案
 
 **版本：** v1.1.0
-**v1.1.0 变更（2026-11-12）：通道① 改为后端直连微信 API，Cloudflare Worker 已拆除。**
-§十五 第 8 行那条「`*.workers.dev` 在大陆被 DNS 污染」的风险**已落地成真**：家人绑定完成后
-（`mp_openid` 有值了），云托管的运行日志里通道① 全部是 `errcode=undefined errmsg=fetch failed`
-—— 微信的 errcode 一个都没有，说明请求**根本没出容器**，第二次墙证实。
-既然 Worker 无论如何都要找一个大陆可达的入口，索性砍掉这一跳：
-后端自己拿 `access_token` 调 `cgi-bin/message/template/send`，中转页 `/skin` 也搬回后端渲染。
-**业务层（`notify.service.ts`）一行没改**，换掉的只有 `wxpush.client.ts` 那一个调用方。
-
-> ⚠️ **本文档里凡标 🕰「历史」的章节描述的是已删除的 Worker 方案**，留着是为了说明「为什么不用它」。
-> 现行实现看 §三 架构图、§九 后端对接、§9.4 环境变量。
-> `wxpush/` 目录与线上 Worker 仍在仓库/Cloudflare 控制台里，清理动作见 §十四。
-
-**v1.0.7 变更（2026-11-11）：实测确认 `*.workers.dev` 在大陆被 DNS 污染**，记入 §十五 第 8 行 + Step 4 + §十二 故障表。
-本机 `dig` 把 `pusher.youngqluol.workers.dev` 解析到 `108.160.165.141`（Dropbox 地址，每次查询都换一个），无代理 `curl` 超时；
-同机 `api.weixin.qq.com`（404 = 通）/ `www.cloudflare.com`（200）正常 —— **被封的是那个共享后缀，不是 Cloudflare**。
-而云托管环境在**上海**，所以通道① 有**两道墙**：① `users.mp_openid` 全员为空（现在卡在这里，日志停在 `status=5`，压根没发）
-→ 见 `docs/06` §3.1；② 绑定之后容器那次 `fetch` 可能出不到 Worker（**尚未证实**，症状是 `fetch failed` 且没有微信 errcode）。
-**（→ ② 已在 2026-11-11 晚上的绑定日志里证实，处置见上面的 v1.1.0。）**
-
-**v1.0.6 变更（2026-11-11）：§5.3 那条手工绑定的 curl 有一个会 400 的错。** `userId` 必须是**字符串**（`ManualBindDto` 上是 `@IsString()`，为了躲开 JS 大整数精度），原来示例写的是数字 `3`。已在示例下方标注。
-
-**v1.0.5 勘误（2026-11-11）：两处接口路径的前缀是错的。** 全局前缀是 `/api`
-（`main.ts` 的 `setGlobalPrefix('api')`），不是 `/api/v1`：
-§4 绑定链路图里的 `POST /api/wechat/mp-callback`、§9 Step 8 测试号后台要填的 URL 都已改正，
-§5.3 那条手工绑定的 curl 顺带修了段序（真实路径是 `/api/notify/internal/bind-mp-openid`）。
-**这一条不是文字问题**：照着旧文档填，微信侧永远 404 → `mp_openid` 永远为空 →
-通道① 一条都发不出去，而站内消息照收 —— 现象正好是「小程序里能收到，微信里收不到」。
-**v1.0.4 变更（2026-10-24）：去掉 Redis。** 绑定码改存 `users.mp_bind_code` 两列；
-订阅额度改存 MySQL `subscribe_quotas`。绑定链路、回调和额度记账的存储说明已同步。
-**v1.0.3 变更：** §8 Step 6 补「本项目的小程序码已经生成好并入库」——
-源图 `wxpush/assets/miniprogram-code.png`，只剩「上传 COS → 填 URL」两步；
-并加一条**别拿错图**的警告（仓库里另有一张 `miniprogram/assets/mp-account-qr.jpg`
-是**公众号二维码**，填进 `MP_QRCODE_URL` 会让兜底路失效）。`wxpush/.env.example` §③ 同步。
-**v1.0.2 变更：** 新增 §10.7「通道二：小程序订阅消息模板」—— 三个模板的真实字段名、两条硬约束
-（`thing` ≤ 20 字 / `time` 格式）、额度池记账表、实探脚本；§9.1 文件清单补齐通道二的全部文件；
-§9.4 补 `WX_TEMPLATE_*` 并加「两组模板 ID 不能互换」的警告；§10.6 自检入口改为已实现。
-**v1.0.1 勘误：** §10.4 时间格式化的口径描述（原文「全链路 TZ=Asia/Shanghai，不转 UTC」→ 改为「存储 UTC + 本地 getter 即北京时间」）。
 **适用阶段：** V0.1 验证期（自己家人使用）
-**对应 PRD：** 6.5.7「增强通道：wxpush 公众号模板消息」
+**对应 PRD：** 6.5.7「增强通道：公众号模板消息」
 **代码位置：** `server/src/modules/notify/`（通道①：`mp-account.client.ts` + `landing.controller.ts`）
+**怎么读：** 现行实现看 §三 架构图、§九 后端对接、§9.4 环境变量、§十 模板与字段；
+排查问题看 §十二 故障表与 §十五 风险表。文件名里的 wxpush 是**历史标签**，不代表链路上还有 Worker。
+
+> ⚠️ 本文档凡标 🕰「历史」的章节，描述的是**已删除的 Worker 方案**，留着是为了说明「为什么不用它」。
+
+---
+
+## 变更记录
+
+### v1.1.0 · 2026-11-12 · 通道① 改为后端直连微信 API，Cloudflare Worker 已拆除
+
+- **触发**：§十五 第 8 行那条「`*.workers.dev` 在大陆被 DNS 污染」的风险**已落地成真** ——
+  家人绑定完成后（`mp_openid` 有值了），云托管运行日志里通道① 全是
+  `errcode=undefined errmsg=fetch failed`，**微信的 errcode 一个都没有**，
+  说明请求根本没出容器，第二道墙证实。
+- **处置**：既然 Worker 无论如何都要找一个大陆可达的入口，**索性砍掉这一跳** ——
+  后端自己拿 `access_token` 调 `cgi-bin/message/template/send`，中转页 `/skin` 也搬回后端渲染。
+- **影响面**：**业务层（`notify.service.ts`）一行没改**，换掉的只有 `wxpush.client.ts` 那一个调用方。
+- 仓库侧：Worker 源码与部署配置已删除，`wxpush/` 只剩一张小程序码（清理清单见 §十四）。
+
+### v1.0.7 · 2026-11-11 · 实测确认 `*.workers.dev` 在大陆被 DNS 污染
+
+- 记入 §十五 第 8 行 + Step 4 + §十二 故障表。
+- **证据**：本机 `dig` 把 `pusher.youngqluol.workers.dev` 解析到 `108.160.165.141`
+  （Dropbox 地址，每次查询换一个），无代理 `curl` 超时；同机 `api.weixin.qq.com`（404 = 通）/
+  `www.cloudflare.com`（200）正常 —— **被封的是那个共享后缀，不是 Cloudflare**。
+- 当时判定通道① 有**两道墙**：① `users.mp_openid` 全员为空（卡在 `status=5`，压根没发）→ `docs/06` §3.1；
+  ② 绑定之后容器那次 `fetch` 出不到 Worker（症状是 `fetch failed` 且没有微信 errcode）。
+  **② 已于当晚证实，处置见上面的 v1.1.0。**
+
+### v1.0.6 · 2026-11-11 · §5.3 那条手工绑定的 curl 会 400
+
+- `userId` 必须是**字符串**（`ManualBindDto` 上是 `@IsString()`，为了躲开 JS 大整数精度），
+  原示例写的是数字 `3`，已在示例下方标注。
+
+### v1.0.5 · 2026-11-11 · 勘误 · 两处接口路径的前缀是错的
+
+- 全局前缀是 `/api`（`main.ts` 的 `setGlobalPrefix('api')`），**不是 `/api/v1`**：
+  §4 绑定链路图里的 `POST /api/wechat/mp-callback`、§9 Step 8 测试号后台要填的 URL 已改正，
+  §5.3 手工绑定的 curl 顺带修了段序（真实路径是 `/api/notify/internal/bind-mp-openid`）。
+- ⚠️ **这不是文字问题**：照旧文档填，微信侧永远 404 → `mp_openid` 永远为空 →
+  通道① 一条都发不出去，而站内消息照收 —— 现象正好是「小程序里能收到，微信里收不到」。
+
+### v1.0.4 – v1.0.1 · 早期四次收口
+
+| 版本 | 主题 | 要点 |
+| --- | --- | --- |
+| **v1.0.4** | 去掉 Redis | 绑定码改存 `users.mp_bind_code` 两列；订阅额度改存 MySQL `subscribe_quotas`。绑定链路、回调和额度记账的存储说明已同步 |
+| **v1.0.3** | 小程序码素材入库 | §8 Step 6 补「本项目的小程序码已生成并入库」，源图 `wxpush/assets/miniprogram-code.png`，只剩「上传 COS → 填 URL」两步；加一条**别拿错图**的警告（`miniprogram/assets/mp-account-qr.jpg` 是**公众号二维码**，填进 `MP_QRCODE_URL` 会让兜底路失效） |
+| **v1.0.2** | 通道二的模板补齐 | 新增 §10.7「小程序订阅消息模板」：三个模板的真实字段名、两条硬约束（`thing` ≤ 20 字 / `time` 格式）、额度池记账表、实探脚本；§9.1 文件清单补齐通道二全部文件；§9.4 补 `WX_TEMPLATE_*` 并加「两组模板 ID 不能互换」的警告；§10.6 自检入口改为已实现 |
+| **v1.0.1** | 时间口径勘误 | §10.4 原文「全链路 `TZ=Asia/Shanghai`，不转 UTC」→ 改为「存储 UTC + 本地 getter 即北京时间」 |
 
 ---
 
