@@ -78,7 +78,7 @@
 发布口径的两条硬事实，动手前先看：
 
 - **部署走云托管「绑定 GitHub 仓库」（master）** —— 本地没 push 的提交不会上线。
-- V0.1 **不公开上架**，wxpush 通道保留（2026-10-22 决定）；
+- V0.1 **不公开上架**，公众号模板消息通道保留（2026-10-22 决定；2026-11-12 起改为后端直连，不再经 Worker）；
   2026-11-10 起「功能只减不增」废止，新想法走 `docs/未来需求池.md` 排期。
 
 ---
@@ -92,7 +92,7 @@
 | 数据库 | 微信云托管 **MySQL 8.0**（12 张表） |
 | 存储 | 图片：**小程序端直传微信云托管对象存储**（`wx.cloud.uploadFile`，免密钥）；开发版仍走后端代传腾讯云 COS |
 | 部署 | 微信云托管（容器，自定义 Dockerfile） |
-| 推送 | **四通道降级**：公众号模板消息（wxpush）→ 小程序订阅消息 → 站内消息 → 首页 |
+| 推送 | **四通道降级**：公众号模板消息（后端直连微信 API）→ 小程序订阅消息 → 站内消息 → 首页 |
 
 > ⚠️ **Node 20 已于 2026-04-30 EOL，不要再用。** 全部用 Node 22 LTS。
 > ⚠️ **小程序端是原生开发，不是 uni-app / Taro。** 不要引入跨端框架。
@@ -120,7 +120,7 @@ mini-program-0/
 │   └── shared/               前后端共享枚举与类型（enums.ts 是枚举唯一来源）
 ├── miniprogram/              小程序端
 ├── server/                   后端（NestJS + Prisma）
-├── wxpush/                   推送 Worker（Cloudflare Workers，V0.1 验证期）
+├── wxpush/                   🕰 已退役的推送 Worker（2026-11-12 通道① 改后端直连；清理见 docs/08 §十四）
 ├── tools/                    check-*.mjs 静态校验 / smoke-m*.mjs 端到端冒烟 / test-*.mjs
 ├── prototypes/prototype.html 可视化原型（浏览器直接打开）
 ├── ui/风格参考/               视觉风格参考图
@@ -205,7 +205,9 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 **禁止硬编码任何密钥 / host / appid。** 全部走环境变量：
 
 - 后端 → `server/.env.example`（模板）+ 云托管控制台（生产值）
-- Worker → `wxpush/.env.example`（模板）+ `wrangler secret`（生产值）
+- 通道① 的公众号凭据也在后端这两个变量里：`MP_ACCOUNT_APPID` / `MP_ACCOUNT_SECRET`
+  （2026-11-12 起 Worker 退役，不再有 `wxpush/.env.example` + `wrangler secret` 这一套；
+  ⚠️ 它们与小程序的 `WX_APPID` / `WX_SECRET` **同名不同义**，不要互相抄）
 
 ### 4.6 代码风格
 
@@ -254,9 +256,16 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
   > 因此 5MB 上限必须在小程序端拦（`constants/upload.ts`），
   > 服务端只剩 `STORAGE_CLOUD_PREFIX` 前缀白名单这一道防线。完整口径见 `docs/01` §六、`docs/02` §8.2。
 - **页面里禁止做数据权限过滤**（见铁律 0.4）。
-- **提交等待期间还能不能改这份内容，决定要不要锁整页**：还能改（如 P18 发布记录）就整页遮罩 + 输入区 `disabled`；
-  改不出别的（如 P04 登录、只锁一个开关的页）就只锁按钮。判据与规格见 `docs/03` §5.2、`docs/07` §6.11。
-  ⚠️ 这类遮罩**不用 `wx.showLoading`** —— 它是系统白卡片，而且**不拦点击**。
+- **提交等待期间还能不能改这份内容，决定要不要锁整页**：还能改就整页遮罩 + 输入区 `disabled`
+  （现已覆盖 P05 / P06 / P07 / P08 / P09 / P16 改名 / P18 / P19 八个表单页，遮罩是共用组件
+  `components/busy-mask/`，页面里一行 `<busy-mask wx:if="{{submitting}}" text="…" />` + json 注册）；
+  改不出别的（P04 登录、P10「搞定啦」）就只锁按钮。判据与逐页清单见 `docs/03` §5.2、规格见 `docs/07` §6.11。
+  ⚠️ **`disabled` 才是真正冻住内容的那一下** —— 原生 `textarea` / `input` 浮在网页层之上，
+  键盘已弹起时光靠遮罩挡不住继续打字，**两处都要写**。
+  ⚠️ 不用 `wx.showLoading`：它和 `wx.showToast` 同时只能显示一个（我们每个提交成功后紧跟一句 toast），
+  而且是系统白卡片。注意 `mask: true` **确实拦点击**（旧记录称「不拦」只对默认值成立）。
+  ⚠️ **半屏表单（sheet）例外**：遮罩 `z-index: 90` 压不住 `z-index: 100` 的面板，
+  P17 加菜表单锁在 sheet 内部（字段 `disabled` + `onFormClose` 提交中直接 return）。
 - 全局样式变量唯一来源是 `docs/07-视觉设计规范.md` §11.1。
   > ⚠️ 早期版本的暖橙令牌（`#FF8A4C` / `#FFF7F0`）**已废弃**，现用「柔光粉彩」（主色 `#FF9DB4 → #FFB59B`、背景 `#FDF6F7`）。
 - Tab 结构是 **4 个**：家里 / 吃啥呢 / 留个念 / 我的。
@@ -299,7 +308,8 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 **四通道按优先级降级，任何一环失败都自动落到下一环：**
 
 ```text
-① 公众号模板消息（wxpush）  ← 无次数限制，但用户需先绑定
+① 公众号模板消息            ← 无次数限制，但用户需先绑定
+                                （后端 mp-account.client.ts 直连微信 API，中转页 GET /api/skin）
         ↓ 失败/未绑定
 ② 小程序订阅消息（一次性）  ← 需用户授权，一次授权一条
         ↓ 失败/无额度
@@ -312,10 +322,20 @@ Prisma 的 MySQL 连接器**不支持**该参数（feature request `prisma/orm#2
 
 - 推送失败**不得阻塞主流程**（必须降级 + 写日志）
 - `notification_logs` **无条件写入**（站内兜底是产品承诺，不能省）
-- 所有推送**必须走 `notify.service.ts`**，禁止绕过它直接调 wxpush / 微信 API
+- 所有推送**必须走 `notify.service.ts`**，禁止绕过它直接调 `mp-account.client.ts` / 微信 API
 - 新写的推送逻辑必须**不依赖** `NOTIFY_MP_ENABLED=true` 也能正常工作
-- `NOTIFY_MP_ENABLED` 是 wxpush 通道总开关；产品化拆除时置为 `false`，**业务代码一行都不用改**
-- 完整方案见 `docs/08-wxpush推送集成方案.md`
+- `NOTIFY_MP_ENABLED` 是通道① 总开关；产品化拆除时置为 `false`，**业务代码一行都不用改**
+- 完整方案见 `docs/08-wxpush推送集成方案.md`（文件名里的 wxpush 是历史标签，别当成「还有 Worker」）
+
+> ⚠️ **2026-11-12：Cloudflare Worker 这一跳已删除。** `*.workers.dev` 在大陆被 DNS 污染，
+> 上海容器出不去，通道① 全灭（`fetch failed` 且没有微信 errcode）。现在后端自己拿 access_token
+> 调 `cgi-bin/message/template/send`（用 `stable_token`，进程内缓存 + 并发合并），
+> 中转页由后端 `landing.controller.ts` 渲染。**没有 `WXPUSH_URL` / `WXPUSH_TOKEN` 了。**
+>
+> ⚠️ **两个新风险**（换方案换来的，别再当成老问题）：
+> ① 公众号后台的 **IP 白名单必须留空** —— 云托管出口 IP 不固定，填了就 `40164` 全灭；
+> ② 保活没了 —— 测试号长期无调用可能被回收，症状是通道① 集体 `40001`/`43004`，
+>    处理是重新登录测试号后台确认号还在（appid/secret 不变，环境变量不用动）。
 
 > ⚠️ **个人主体限制（不要忘记）：** URL Link（`wxaurl.cn`）官方只对**非个人主体**小程序开放，个人主体不可用。
 > 中转页跳回小程序**唯一可靠手段是小程序码长按识别**。
@@ -355,8 +375,9 @@ pnpm run smoke:m4                         # 留个念（76 项）
 pnpm run smoke:m5                         # 注销账号（42 项）
 
 # 推送
-cd wxpush && wrangler login && wrangler deploy
-node tools/test-wxpush.mjs                # 推送连通性测试
+node tools/test-mp-template.mjs           # 通道① 连通性测试（直连微信 API，只需 4 个变量）
+node tools/probe-subscribe.mjs            # 通道② 连通性测试（看微信原始 errcode）
+# ⚠️ 2026-11-12 起没有 `wrangler deploy` 这一步了：Worker 已退役，`wxpush/` 只剩历史代码
 
 # 上线（当前路线：云托管「绑定 GitHub 仓库」，见 §1；下面两条仍是日常要用的）
 pnpm run pack:deploy                      # 备用：手动上传代码包，产出 ≤2 MiB（仓库原样 4.8 MB，超限）
@@ -378,7 +399,7 @@ node tools/gen-prod-env.mjs               # 生成生产环境变量清单（轮
 | 任务拆分、里程碑变化 | `docs/05-开发计划与任务拆分.md` |
 | 推送通道逻辑变化 | `docs/08-wxpush推送集成方案.md`（必要时同步 `docs/01` §5） |
 | 视觉令牌、组件样式变化 | `docs/07-视觉设计规范.md` |
-| 环境变量增删 | `server/.env.example` / `wxpush/.env.example` + `docs/04` §7 |
+| 环境变量增删 | `server/.env.example` + `docs/04` §7（Worker 已退役，`wxpush/.env.example` 不再同步） |
 | 部署配置变化（`Dockerfile` / `.dockerignore` / 云托管参数） | `docs/04` §九 + `docs/06` §五（两者**都必须在仓库根**：`.dockerignore` 见 §九；`Dockerfile` 也必须在根 —— 云托管只扫代码包根目录，放 `server/` 下会报「本项目下没有 Dockerfile」） |
 | 新增或推翻产品决策 | `docs/产品需求文档.md`（并在变更记录里写明原因） |
 | 冒出新的产品想法 | `docs/未来需求池.md`（**先记下来排期**，想清楚价值和代价再实现） |

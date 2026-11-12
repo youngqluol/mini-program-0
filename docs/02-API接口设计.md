@@ -1,11 +1,24 @@
 # 02 · API 接口设计
 
-**版本：** v0.2.12
+**版本：** v0.2.15
+**v0.2.15 变更（2026-11-12）：新增 §10.6 推送中转页 `GET /api/skin`，接口总数 54 → 55。**
+它是从 Cloudflare Worker 搬回来的（Worker 在大陆出不去，`docs/08` §十五 第 8 行），
+所以**多了一个后端对外暴露的无鉴权路径**。要点三条：① 出参是 HTML，不走统一响应体；
+② 页面数据全来自 URL 参数、**不查库**，所以 `@Public()` 才成立，也所以参数必须转义；
+③ `MP_LANDING_URL` 必须带 `/api` 前缀，漏了就 404。
+同批：`WXPUSH_URL` / `WXPUSH_TOKEN` 两个环境变量作废，通道① 改用 `MP_ACCOUNT_APPID` /
+`MP_ACCOUNT_SECRET` + `MP_LANDING_URL` / `MP_QRCODE_URL` / `MP_NAME`（见 `docs/06` §5.B）。
+**v0.2.14 变更（2026-11-11）：手工绑定接口的路径写错了段序。** 真实路径是 `POST /api/notify/internal/bind-mp-openid`（`@Controller('notify')` + `@Post('internal/bind-mp-openid')`），旧文档写成 `/internal/notify/...` —— 照着调必然 404。§10.4、接口清单、v0.2.1 那条注一并改正。
+
+**v0.2.13 勘误（2026-11-11）：** §10.5 测试号消息回调的两条路径原先写成 `/api/v1/wechat/mp-callback`，
+与本文档自己「路径统一 `/api`」那条对不上，代码里也是 `/api`（`main.ts` 的 `setGlobalPrefix('api')`）。
+照旧文档去测试号后台填 URL 会拿到 404，绑定永远不成功、通道① 一条都发不出去 ——
+`docs/08` §9 Step 8 与 §5.3 那条 curl 同步修正（已升到 v1.0.5）。
 **v0.2.12 变更（2026-11-10）：图片上传拆成两条通道。** 新增 §8.2 —— 体验版/正式版由小程序端 `wx.cloud.uploadFile` **直传云托管对象存储**（免密钥、不受 `callContainer` 100KiB 限制），`POST /upload/image` 从此**只服务开发版**。附件的来源校验从「HTTP 桶前缀」扩成「HTTP 桶前缀 **或** `cloud://` 前缀（`STORAGE_CLOUD_PREFIX`）」。
 **v0.2.11 变更（2026-11-07）：补充调用方式。** 体验版/正式版经 `wx.cloud.callContainer`（`config.env` + `X-WX-SERVICE`），路径仍为 `/api`；开发版仍为 `http://localhost:3000/api`。
 **协议：** HTTPS + REST + JSON（体验版/正式版经 `wx.cloud.callContainer`，路径仍为 `/api`）
 **Base URL：** 路径统一 `/api`；开发版 `http://localhost:3000/api`，体验/正式版由 `callContainer` 的 `config.env` + `X-WX-SERVICE` 路由
-**鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback` 外全部必填）
+**鉴权：** `Authorization: Bearer <JWT>`（除 `/auth/login`、`/wechat/mp-callback`、`/skin` 外全部必填）
 
 **v0.2.10 变更（2026-10-24）：去掉 Redis 相关契约。** 绑定码存 `users.mp_bind_code`
 两列、订阅额度存 `subscribe_quotas` 表、调度器 `locked` 改指 MySQL `GET_LOCK`；
@@ -1925,7 +1938,7 @@ POST /internal/scheduler/recurring-things
 ### 10.4 手工绑定公众号 openid（保底方案）
 
 ```http
-POST /internal/notify/bind-mp-openid
+POST /api/notify/internal/bind-mp-openid
 X-Internal-Secret: <INTERNAL_CRON_SECRET>
 Content-Type: application/json
 
@@ -1937,8 +1950,8 @@ Content-Type: application/json
 ### 10.5 微信公众号（测试号）消息回调
 
 ```http
-GET  /api/v1/wechat/mp-callback    # 微信服务器配置校验（返回 echostr）
-POST /api/v1/wechat/mp-callback    # 接收用户消息 → 完成绑定
+GET  /api/wechat/mp-callback    # 微信服务器配置校验（返回 echostr）
+POST /api/wechat/mp-callback    # 接收用户消息 → 完成绑定
 ```
 
 | 项 | 说明 |
@@ -1955,6 +1968,29 @@ POST /api/v1/wechat/mp-callback    # 接收用户消息 → 完成绑定
 
 > ⚠️ 该接口**必须能在无鉴权情况下被公网访问**，安全性完全依赖签名校验。
 > 实现见 `server/src/modules/wechat/mp-callback.controller.ts`。
+
+### 10.6 推送中转页（落地页）
+
+```http
+GET /api/skin?title=..&message=..&date=..&kind=..
+```
+
+| 项 | 说明 |
+| --- | --- |
+| 鉴权 | **无**（`@Public()`）—— 打开它的是微信里的普通浏览器，没有 JWT |
+| 谁来调 | 模板消息体里的 `url` 字段，绝对地址由环境变量 `MP_LANDING_URL` 给出 |
+| 出参 | `text/html`（**不是**统一响应体 —— 它是一张网页，不是接口） |
+| 缓存 | `Cache-Control: no-store` |
+| `kind` | 通知种类，决定图标（值是 `MpTemplateKind` 原值，**大写**）：`TASK` 🎯 / `REMINDER` 🔔 / `DONE` ✅，其余 💬 |
+| 内容 | 标题 + 正文 + 北京时间 + 小程序码长按识别（`MP_QRCODE_URL` 未配则只给文字引导） |
+
+> ⚠️ **这一页不查数据库**：标题、正文、时间全部来自 URL 参数，所以页面里没有任何私有数据，
+> `@Public()` 才是安全的。代价是**参数必须逐字转义**（`escapeHtml` 处理 `& < > " '`），
+> 否则就是 XSS。实现见 `server/src/modules/notify/landing.controller.ts`。
+>
+> ⚠️ **文案纪律**：这一页属于用户可见文案，**不许**出现「测试号 / 公众号 / 关注 / 绑定 / 授权」。
+>
+> 🕰 2026-11-12 之前这一页在 Cloudflare Worker 的 `/skin` 上；Worker 出不到，就一起搬回后端了。
 
 ---
 
@@ -2016,13 +2052,14 @@ POST /api/v1/wechat/mp-callback    # 接收用户消息 → 完成绑定
 | Internal | POST | `/internal/scheduler/tick` | 调度心跳 |
 | Internal | POST | `/internal/scheduler/compensate` | 补偿任务 |
 | Internal | POST | `/internal/scheduler/recurring-things` | 重复任务生成 |
-| Internal | POST | `/internal/notify/bind-mp-openid` | 手工绑定 openid（保底） |
+| Internal | POST | `/notify/internal/bind-mp-openid` | 手工绑定 openid（保底） |
 | Wechat | GET | `/wechat/mp-callback` | 测试号回调校验 |
 | Wechat | POST | `/wechat/mp-callback` | 接收测试号消息，完成绑定 |
+| Notify | GET | `/skin` | 推送中转页（HTML，`@Public()`，2026-11-12 从 Worker 搬回后端） |
 
-**合计 54 个接口**，覆盖 V0.1 全部功能。
+**合计 55 个接口**，覆盖 V0.1 全部功能。
 
 > **v0.2.9 新增 1 个**：`DELETE /auth/account`（注销账号，提审硬性要求）。
 
-> **v0.2.1 新增 5 个**：`/notify/mp-bind/*`（3 个）+ `/internal/notify/bind-mp-openid` + `/wechat/mp-callback`（2 个方法）。
+> **v0.2.1 新增 5 个**：`/notify/mp-bind/*`（3 个）+ `/notify/internal/bind-mp-openid` + `/wechat/mp-callback`（2 个方法）。
 > 全部服务于 wxpush 推送通道，详见 `docs/08-wxpush推送集成方案.md`。

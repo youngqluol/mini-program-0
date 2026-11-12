@@ -1,6 +1,33 @@
 # 08 · wxpush 推送集成方案
 
-**版本：** v1.0.4
+**版本：** v1.1.0
+**v1.1.0 变更（2026-11-12）：通道① 改为后端直连微信 API，Cloudflare Worker 已拆除。**
+§十五 第 8 行那条「`*.workers.dev` 在大陆被 DNS 污染」的风险**已落地成真**：家人绑定完成后
+（`mp_openid` 有值了），云托管的运行日志里通道① 全部是 `errcode=undefined errmsg=fetch failed`
+—— 微信的 errcode 一个都没有，说明请求**根本没出容器**，第二次墙证实。
+既然 Worker 无论如何都要找一个大陆可达的入口，索性砍掉这一跳：
+后端自己拿 `access_token` 调 `cgi-bin/message/template/send`，中转页 `/skin` 也搬回后端渲染。
+**业务层（`notify.service.ts`）一行没改**，换掉的只有 `wxpush.client.ts` 那一个调用方。
+
+> ⚠️ **本文档里凡标 🕰「历史」的章节描述的是已删除的 Worker 方案**，留着是为了说明「为什么不用它」。
+> 现行实现看 §三 架构图、§九 后端对接、§9.4 环境变量。
+> `wxpush/` 目录与线上 Worker 仍在仓库/Cloudflare 控制台里，清理动作见 §十四。
+
+**v1.0.7 变更（2026-11-11）：实测确认 `*.workers.dev` 在大陆被 DNS 污染**，记入 §十五 第 8 行 + Step 4 + §十二 故障表。
+本机 `dig` 把 `pusher.youngqluol.workers.dev` 解析到 `108.160.165.141`（Dropbox 地址，每次查询都换一个），无代理 `curl` 超时；
+同机 `api.weixin.qq.com`（404 = 通）/ `www.cloudflare.com`（200）正常 —— **被封的是那个共享后缀，不是 Cloudflare**。
+而云托管环境在**上海**，所以通道① 有**两道墙**：① `users.mp_openid` 全员为空（现在卡在这里，日志停在 `status=5`，压根没发）
+→ 见 `docs/06` §3.1；② 绑定之后容器那次 `fetch` 可能出不到 Worker（**尚未证实**，症状是 `fetch failed` 且没有微信 errcode）。
+**（→ ② 已在 2026-11-11 晚上的绑定日志里证实，处置见上面的 v1.1.0。）**
+
+**v1.0.6 变更（2026-11-11）：§5.3 那条手工绑定的 curl 有一个会 400 的错。** `userId` 必须是**字符串**（`ManualBindDto` 上是 `@IsString()`，为了躲开 JS 大整数精度），原来示例写的是数字 `3`。已在示例下方标注。
+
+**v1.0.5 勘误（2026-11-11）：两处接口路径的前缀是错的。** 全局前缀是 `/api`
+（`main.ts` 的 `setGlobalPrefix('api')`），不是 `/api/v1`：
+§4 绑定链路图里的 `POST /api/wechat/mp-callback`、§9 Step 8 测试号后台要填的 URL 都已改正，
+§5.3 那条手工绑定的 curl 顺带修了段序（真实路径是 `/api/notify/internal/bind-mp-openid`）。
+**这一条不是文字问题**：照着旧文档填，微信侧永远 404 → `mp_openid` 永远为空 →
+通道① 一条都发不出去，而站内消息照收 —— 现象正好是「小程序里能收到，微信里收不到」。
 **v1.0.4 变更（2026-10-24）：去掉 Redis。** 绑定码改存 `users.mp_bind_code` 两列；
 订阅额度改存 MySQL `subscribe_quotas`。绑定链路、回调和额度记账的存储说明已同步。
 **v1.0.3 变更：** §8 Step 6 补「本项目的小程序码已经生成好并入库」——
@@ -13,7 +40,7 @@
 **v1.0.1 勘误：** §10.4 时间格式化的口径描述（原文「全链路 TZ=Asia/Shanghai，不转 UTC」→ 改为「存储 UTC + 本地 getter 即北京时间」）。
 **适用阶段：** V0.1 验证期（自己家人使用）
 **对应 PRD：** 6.5.7「增强通道：wxpush 公众号模板消息」
-**代码位置：** `wxpush/`（Cloudflare Workers）、`server/src/modules/notify/`（后端）
+**代码位置：** `server/src/modules/notify/`（通道①：`mp-account.client.ts` + `landing.controller.ts`）
 
 ---
 
@@ -42,11 +69,11 @@ v0.2 的 PRD 里有一个结论是**错的**：把「微信测试号推送」列
 
 ## 二、通道定位
 
-V0.1 一共有四条送达路径，wxpush 是**主力**：
+V0.1 一共有四条送达路径，通道① 是**主力**（v1.1.0 起由**后端直连微信 API**，不再经 Worker）：
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  ① wxpush 公众号模板消息        ← 主力，无限次，能推给别人   │
+│  ① 公众号模板消息             ← 主力，无限次，能推给别人     │
 │     └ 条件：接收人已绑定（关注过推送号）                      │
 ├─────────────────────────────────────────────────────────────┤
 │  ② 小程序订阅消息               ← 辅助，有额度就用           │
@@ -78,25 +105,17 @@ V0.1 一共有四条送达路径，wxpush 是**主力**：
 │  后端 NestJS（微信云托管）                 │
 │                                          │
 │  modules/notify/                         │
-│    ├─ notify.service.ts   ← 通道选择      │
-│    └─ wxpush.client.ts    ← 调 Worker     │
+│    ├─ notify.service.ts     ← 通道选择    │
+│    ├─ mp-account.client.ts  ← 调微信 API  │
+│    └─ landing.controller.ts ← 中转页      │
 │                                          │
 │  modules/wechat/                         │
-│    └─ mp-callback.controller.ts          │
-│        ← 接收测试号消息，完成 openid 绑定  │
+│    └─ mp-callback.controller.ts           │
+│        ← 接收公众号消息，完成 openid 绑定   │
 └───────┬──────────────────────▲───────────┘
-        │ ② POST /wxsend        │ ④ 用户发绑定码
-        │    (带 API_TOKEN)     │    微信推给测试号
-        ▼                      │    测试号转发到我们的回调
-┌──────────────────────┐        │
-│  Cloudflare Worker   │        │
-│  (wxpush)            │        │
-│    ├─ /wxsend 发消息  │        │
-│    ├─ /skin   中转页  │        │
-│    └─ scheduled 保活  │        │
-└───────┬──────────────┘        │
-        │ ③ cgi-bin/message/    │
-        │   template/send       │
+        │ ② POST               │ ④ 用户发绑定码
+        │  cgi-bin/message/    │    微信推给公众号
+        │  template/send       │
         ▼                      │
 ┌──────────────────────────────────────────┐
 │  微信服务器                                │
@@ -105,13 +124,15 @@ V0.1 一共有四条送达路径，wxpush 是**主力**：
 └──────────────────────────────────────────┘
 ```
 
-**关键设计决策：为什么绑定回调不放 Worker 里？**
+**为什么中间那一跳（Cloudflare Worker）没了？**
 
-Worker 没有数据库，绑定结果必须回写后端。既然后端已经有公网域名（云托管），让测试号的「接口配置信息」**直接指向后端**更简单：
+v1.0 把「取 token + 发模板消息」外包给 Worker，图的是不用在后端存 appsecret。但验证下来这层脚手架的代价大于收益：
 
-- Worker 只做**单向发消息**，职责单一
-- 绑定逻辑在后端，能直接读写 MySQL（绑定码存 `users.mp_bind_code`，v0.2.3 起不再用 Redis）
-- 少一跳网络，少一处故障点
+- **可达性**：Worker 用的是 `*.workers.dev` 共享域名，在大陆被 DNS 污染。云托管容器在上海，那次 `fetch` 根本出不去（2026-11-11 运行日志实测，见 §十五 第 8 行）。要救它就得再买/绑一个域名，等于把「能不能收到提醒」押在自有域名 + CF 边缘上。
+- **中转页也得跟着搬**：`/skin` 在 Worker 上，`WX_BASE_URL` 同样出不去；用户点了消息打不开中转页。
+- **多一处故障点、多一套密钥**：`API_TOKEN` 要在 Worker 和后端两边对齐，排查时得同时看两处日志。
+
+后端本来就是公网可达（云托管自带域名）、也有数据库，直连微信 API 少一跳、少一份凭据、少一个待清理的线上资源。
 
 ---
 
@@ -138,7 +159,7 @@ Worker 没有数据库，绑定结果必须回写后端。既然后端已经有�
 ① 模板消息 miniprogram 字段生效？
    ├─ 是 → 直接打开小程序对应页面                    [最优，待实测]
    └─ 否 ↓
-② 打开中转页 /skin?title=..&message=..&date=..
+② 打开中转页 <MP_LANDING_URL>（/api/skin?title=..&message=..&date=..）
    ├─ 展示消息全文（保证用户至少能看到内容）
    ├─ 展示小程序码图片 → 用户长按识别 → 打开小程序      [主力]
    └─ 未配置小程序码 ↓
@@ -146,6 +167,11 @@ Worker 没有数据库，绑定结果必须回写后端。既然后端已经有�
 ```
 
 ### 4.3 中转页长什么样
+
+> 这一页现在由后端 `landing.controller.ts` 渲染（`GET /api/skin`，v1.1.0 前在 Worker 上）。
+> 图标按通知种类换：派活 🎯 / 叮一下 🔔 / 完成 ✅ / 其他 💬；视觉规格见 `docs/07` §10.3。
+> **页面里没有任何私有数据** —— 标题、正文、时间全来自 URL 参数，所以它可以是 `@Public()`，
+> 也正因为如此，参数**必须逐字转义**（`escapeHtml`）后才进 HTML。
 
 ```
 ┌─────────────────────────────┐
@@ -209,7 +235,7 @@ Worker 没有数据库，绑定结果必须回写后端。既然后端已经有�
         │
         ▼
 【微信服务器 → 我们的后端】
-POST /api/v1/wechat/mp-callback   (XML 报文)
+POST /api/wechat/mp-callback   (XML 报文)
    报文里含：FromUserName = 公众号 openid
              Content      = "735241"
         │
@@ -238,11 +264,14 @@ POST /api/v1/wechat/mp-callback   (XML 报文)
 4. 调一次内部接口写入（或直接改数据库）：
 
 ```bash
-curl -X POST "https://<后端域名>/api/v1/internal/notify/bind-mp-openid" \
+curl -X POST "https://<后端域名>/api/notify/internal/bind-mp-openid" \
   -H "X-Internal-Secret: $INTERNAL_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{"userId": 3, "mpOpenid": "oY_bbb222xxxxx"}'
+  -d '{"userId": "3", "mpOpenid": "oY_bbb222xxxxx"}'
 ```
+
+> ⚠️ `userId` **必须是字符串**（`ManualBindDto` 上是 `@IsString()`，为了躲开 JS 大整数精度），
+> 传数字 `3` 会被 class-validator 直接打回 400。
 
 > **建议：** 先用保底方案把链路跑通（验证 A5/A6），再补自动绑定。不要一上来就啃回调。
 
@@ -262,6 +291,11 @@ UNIQUE KEY `uk_mp_openid` (`mp_openid`)
 ---
 
 ## 六、Worker 改造说明
+
+> 🕰 **已废弃（v1.1.0）。** 本章记录的 `wxpush/index.js` 改造不再在链路上：通道① 由后端
+> `mp-account.client.ts` 直连微信 API，中转页由后端 `landing.controller.ts` 渲染。
+> 内容保留是因为这四处改造（自定义 `data`、`miniprogram` 字段、`client_msg_id` 防重、中转页注入）
+> 正好是「微信模板消息能做什么」的实测笔记，产品化换成正式公众号时仍用得上。
 
 对 `wxpush/index.js` 共做了 **4 处**改造，全部向后兼容（不传新参数时行为与原生 wxpush 完全一致）。
 
@@ -314,6 +348,10 @@ node --check wxpush/index.js   # ✅ 通过
 ---
 
 ## 七、环境变量清单
+
+> 🕰 **已废弃（v1.1.0）：这是 Worker 侧的变量，现在不再需要。**
+> 现行配置在**后端**，见 §9.4； Worker 侧唯一还有用的是 `WX_APPID` / `WX_SECRET` 这两个值本身
+> （它们对应后端的 `MP_ACCOUNT_APPID` / `MP_ACCOUNT_SECRET`）。
 
 完整模板见 `wxpush/.env.example`。
 
@@ -374,6 +412,11 @@ MP_TEMPLATE_DONE=""        # 日程任务完成提醒（完成回执）
 
 ### Step 4 · 部署 Worker
 
+> 🕰 **已废弃（v1.1.0），跳过。** 后端直连微信 API，不需要 Worker，也不需要 `wrangler deploy`。
+> 线上那个 Worker 的清理动作见 §十四。
+> 当初要它，是因为「不想在后端存 appsecret」；后来发现它在大陆根本访问不到（§十五 第 8 行），
+> 而 appsecret 放云托管环境变量本来就是常规做法 —— 这层脚手架没有价值了。
+
 ```bash
 cd wxpush
 npm i -g wrangler
@@ -383,20 +426,27 @@ wrangler deploy
 
 部署成功后拿到 Worker 域名，形如 `https://jia-you-xiao-shi-push.xxx.workers.dev`。
 
+> 🔴 **`*.workers.dev` 在中国大陆被 DNS 污染，而云托管容器就在上海**（2026-11-11 实测，见 §十五 第 8 行）。
+> 也就是说后端往这条 URL 发的那次 `fetch` **很可能根本出不去**。它是通道① 的**第二道墙**
+> （第一道是没人绑定，见 `docs/06` §3.1），**绑定做完后必须当场验一次**：
+> 运行日志里出现 `fetch failed` / `ETIMEDOUT` 且**没有微信 errcode**，就是它。
+> ~~解法是给 Worker 绑一个**自定义域名**（Cloudflare 免费版就能加），只改 `WXPUSH_URL` 一个环境变量，业务代码零改动。~~
+> → **2026-11-12 没走这条路**：绑自定义域名要把可达性押在自有域名 + CF 边缘上，中转页也得跟着搬；
+> 直接砍掉 Worker 更省事，见 §三。
+
 ### Step 5 · 配置密钥
 
-```bash
-wrangler secret put API_TOKEN        # 随机串
-wrangler secret put WX_APPID
-wrangler secret put WX_SECRET
-wrangler secret put WX_USERID        # 上一步拿到的 openid
-wrangler secret put WX_TEMPLATE_ID
-wrangler secret put WX_BASE_URL      # https://<worker域名>/skin
-wrangler secret put MP_APPID
-wrangler secret put MP_QRCODE_URL    # 小程序码图片地址（可后补）
-```
+> 🕰 **`wrangler secret put` 那一套已废弃（v1.1.0）。** 现在凭据只配在**云托管控制台**的环境变量里：
 
-非敏感变量（`MP_NAME` / `MP_PAGEPATH` / `ALIVE_DAYS`）已在 `wrangler.toml` 的 `[vars]` 里。
+| 变量 | 值从哪来 |
+| --- | --- |
+| `MP_ACCOUNT_APPID` | Step 1 测试号的 appID |
+| `MP_ACCOUNT_SECRET` | Step 1 测试号的 appsecret |
+| `MP_TEMPLATE_TASK` / `MP_TEMPLATE_REMINDER` / `MP_TEMPLATE_DONE` | Step 2 建的三个模板 ID |
+| `MP_LANDING_URL` | 云托管后端域名 + `/api/skin`（见 §9.4 的警告：前缀不能漏） |
+| `MP_QRCODE_URL` | Step 6 上传后得到的公网 URL（可后补） |
+
+`node tools/gen-prod-env.mjs` 会把这些变量的名和值整理成一份清单（输出到仓库外），照抄进控制台即可。
 
 ### Step 6 · 生成小程序码
 
@@ -418,15 +468,21 @@ wrangler secret put MP_QRCODE_URL    # 小程序码图片地址（可后补）
 ### Step 7 · 跑通验证
 
 ```bash
-# 仓库自带测试脚本
-WXPUSH_URL="https://<worker域名>" \
-WXPUSH_TOKEN="<你的 API_TOKEN>" \
-WXPUSH_OPENID="<你的公众号 openid>" \
-WXPUSH_TEMPLATE_ID="<模板ID>" \
-node tools/test-wxpush.mjs
+# 通道一单独实探（绕过后端，直接打微信 API；只需 4 个变量）
+MP_ACCOUNT_APPID="wx..." \
+MP_ACCOUNT_SECRET="..." \
+MP_TEMPLATE_REMINDER="<模板ID>" \
+RECEIVER="<你的公众号 openid>" \
+node tools/test-mp-template.mjs
+
+# 中转页（后端渲染，浏览器直接打开）
+https://<后端域名>/api/skin?title=测试&message=内容&date=2026-11-12
 ```
 
 手机会收到一条模板消息 → **点一下，看能不能跳到小程序**。这一步的结论直接决定假设 A6 是否成立。
+
+> ⚠️ 这个脚本**测不了「家人能不能收到」**：它只验「公众号这个凭据 + 这个模板 + 这个 openid」通不通，
+> 收件人固定是 `RECEIVER` 一个人。真实链路要回小程序里派一次活，再看 `notification_logs` 的 `channel`/`status`。
 
 ### Step 8 · 配置绑定回调（可选，做自动绑定时才需要）
 
@@ -434,8 +490,12 @@ node tools/test-wxpush.mjs
 
 | 项 | 值 |
 | --- | --- |
-| URL | `https://<后端域名>/api/v1/wechat/mp-callback` |
+| URL | `https://<后端域名>/api/wechat/mp-callback` |
 | Token | 自己设一个随机串，与后端 `MP_CALLBACK_TOKEN` 保持一致 |
+
+> ⚠️ **前缀是 `/api`，不是 `/api/v1`**（`main.ts` 的 `setGlobalPrefix('api')`）。
+> 这一条早期文档写成了 `/api/v1/…`，照着填会得到 404，微信那边永远显示「配置失败」，
+> 于是 `mp_openid` 永远为空、通道① 一条都发不出去 —— 排查时很容易误判成推送代码坏了。
 
 点「提交」时微信会发一个 GET 请求验证签名，后端必须正确返回 `echostr`（见 `mp-callback.controller.ts`）。
 
@@ -454,7 +514,8 @@ server/src/modules/notify/          # 通道一 + 通道二 + 降级，全部收
 ├── notify.controller.ts            # 用户侧接口（绑定状态 / 生成绑定码 / 解绑）
 ├── notify.service.ts               # 通道选择 + 降级 + 日志（核心）
 ├── notify.templates.ts             # 通道一文案与字段组装（产品文案唯一定义处）
-├── wxpush.client.ts                # 调用 Worker 的 HTTP 客户端
+├── mp-account.client.ts            # 通道一：直连微信模板消息 API（含 stable_token 缓存）
+├── landing.controller.ts           # 通道一：中转页 GET /api/skin（后端渲染，无 Worker）
 ├── subscribe.templates.ts          # 通道二模板定义与字段组装（thing 截断 / time 格式化）
 ├── subscribe-quota.service.ts      # 通道二额度池（MySQL subscribe_quotas）
 ├── subscribe-message.port.ts       # 通道二端口契约（notify 只依赖它，不依赖微信）
@@ -466,7 +527,7 @@ server/src/modules/wechat/          # 微信侧能力
 └── mp-callback.controller.ts       # 测试号消息回调（验签 + 收码 + 绑定）
 
 tools/
-├── test-wxpush.mjs                 # 通道一连通性实探
+├── test-mp-template.mjs            # 通道一连通性实探（直连微信 API，不经后端）
 └── probe-subscribe.mjs             # 通道二连通性实探（看微信原始 errcode）
 ```
 
@@ -483,7 +544,7 @@ async send(thing: FamilyThing, receiver: FamilyMember) {
 
   // 通道 ① 公众号模板消息（主力）
   if (receiver.user.mpOpenid) {
-    const res = await this.wxpush.send({
+    const res = await this.mpAccount.send({
       title: this.buildTitle(thing),
       content: this.buildContent(thing, receiver),
       userid: receiver.user.mpOpenid,
@@ -510,7 +571,8 @@ async send(thing: FamilyThing, receiver: FamilyMember) {
 
 | 组件 | 只做 | 不做 |
 | --- | --- | --- |
-| `wxpush.client.ts` | 拼参数、发 HTTP、解析返回 | 不做通道选择、不写数据库 |
+| `mp-account.client.ts` | 取 access_token、拼参数、发 HTTP、解析微信错误码 | 不做通道选择、不写数据库、不组装文案 |
+| `landing.controller.ts` | 把消息参数渲染成中转页 HTML | 不查数据库、不做权限判断（页面里没有任何私有数据） |
 | `notify.templates.ts` | 组装**两条通道**的模板数据与站内文案 | 不发 HTTP、不碰数据库 |
 | `notify.service.ts` | 通道选择、降级、写日志 | 不直接发 HTTP、不管额度细节 |
 | `subscribe-message.adapter.ts` | 扣额度、调微信、按 errcode 退还/归零 | 不组装文案、不做通道选择 |
@@ -523,12 +585,20 @@ async send(thing: FamilyThing, receiver: FamilyMember) {
 
 ```bash
 # ---------- 通道总开关 ----------
-# 产品化拆除 wxpush 时，只把这个置为 false，业务代码一行都不用改
+# 产品化拆除通道① 时，只把这个置为 false，业务代码一行都不用改
 NOTIFY_MP_ENABLED=true
 
-# ---------- 通道一：Worker 接入 ----------
-WXPUSH_URL=https://<worker域名>
-WXPUSH_TOKEN=<与 Worker 的 API_TOKEN 一致>
+# ---------- 通道一：公众号凭据（直连微信 API，不再经 Worker）----------
+# ⚠️ 这是**第三套** appid/secret，与 WX_APPID/WX_SECRET（小程序）不能互换，
+#    也与 MP_APPID（模板消息里要跳的那个小程序）不同义。照抄必错。
+MP_ACCOUNT_APPID=<测试号/公众号 appID>
+MP_ACCOUNT_SECRET=<测试号/公众号 appsecret>
+
+# ---------- 通道一：中转页 ----------
+# ⚠️ 路由是 /api/skin —— 全局前缀 /api 不能漏（漏了微信侧点开是 404）
+MP_LANDING_URL=https://<后端域名>/api/skin
+MP_QRCODE_URL=<小程序码图片公网 URL，可后补>
+MP_NAME=家有小事
 
 # ---------- 通道一：公众号模板 ID（三个，见 §10.2）----------
 MP_TEMPLATE_TASK=<待办事项提醒模板 ID>       # 派活
@@ -557,13 +627,15 @@ WX_TEMPLATE_DONE=<日程任务完成提醒模板 ID>   # 完成回执
 > 曾经踩过这个坑：把订阅消息的模板 ID 复制进了 `MP_TEMPLATE_*` 槽位，
 > 结果通道一发出去就是 `47003`，而且完全看不出原因。
 
-> **模板 ID 是按类型分开发送的。** `wxpush.client.ts` 会把 `template_id` 显式传给 Worker ——
-> Worker 的 `env.WX_TEMPLATE_ID` 只是单个默认值，**不显式传的话三种通知会全用同一个模板**，
+> **模板 ID 是按类型分开发送的。** `mp-account.client.ts` 按 `templateKind` 从环境变量取对应的
+> `MP_TEMPLATE_*` 并**显式放进请求体** —— **不显式传的话三种通知会全用同一个模板**，
 > 字段对不上直接 47003。这是一个容易踩的坑，已在代码里注释。
 
 ### 9.5 一处关键的防御性设计
 
-`wxpush.client.ts` 里内置了一次**降级重试**：
+三段防御都在 `mp-account.client.ts` 里，共同点是**「消息送不出去」永远比「跳转降级」严重**：
+
+**① 带 `miniprogram` 失败 → 去掉该字段重发一次**
 
 ```text
 带 miniprogram 字段发送 → 失败？
@@ -574,9 +646,23 @@ WX_TEMPLATE_DONE=<日程任务完成提醒模板 ID>   # 完成回执
                     └─ 失败 → 返回第一次的错误（更接近根因）
 ```
 
-**为什么需要它：** 测试号能否使用 `miniprogram` 字段尚未验证（假设 A6）。如果该字段不合法会导致**整条消息发送失败**，那配置 `MP_APPID` 就会变成一个「按下就炸」的开关。
+**为什么需要它：** 测试号能否使用 `miniprogram` 字段尚未验证（假设 A6，测试号后台没有「关联小程序」的入口）。如果该字段不合法会导致**整条消息发送失败**，那配置 `MP_APPID` 就会变成一个「按下就炸」的开关。
 
 有了这层重试，**最坏情况只是跳转降级，消息永远送得出去**。
+
+**② `url` 永远一起带上（`MP_LANDING_URL` 配了的话）**
+
+`miniprogram` 和 `url` 同时存在时微信优先跳小程序，`url` 只在前面那条不生效时被用到。
+所以中转页不是「备胎的方案」，而是**每次发送都实打实带在报文里的兜底**。
+`MP_LANDING_URL` 没配则**整个 `url` 字段不出现** —— 代码里不拼任何写死的 host（AGENTS §4.5）。
+
+**③ access_token 用 `stable_token` + 进程内缓存 + 并发合并**
+
+| 做法 | 为什么 |
+| --- | --- |
+| 用 `cgi-bin/stable_token`（`force_refresh: false`）而不是老的 `cgi-bin/token` | 老接口是「后取的顶掉前一个」，云托管多副本 / 每次重启都会互相打飞，表现为一半通知 `40001`。`stable_token` 同一凭据重复取返回**同一个** token |
+| 进程内缓存到有效期前 **5 分钟** | 卡在有效期边界上容易拿到刚失效的 token |
+| `inflight` 合并并发请求 | 一批提醒同时进来时只打一次微信接口，不白耗调用配额 |
 
 ---
 
@@ -824,13 +910,19 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 `status`   TINYINT COMMENT '状态：1待发送 2发送成功 3发送失败 4无订阅额度跳过 5未绑定提醒跳过',
 ```
 
+> 那个 `(wxpush)` 是 COMMENT 里的**历史标签**（通道① 最初借 wxpush 这个第三方服务实现，v1.1.0 已拆）。
+> 枚举值 `3` 与语义都没变，**不值得为改一个字跑一次 DDL**：`db/schema.sql` 全是 `IF NOT EXISTS`，
+> 改了 COMMENT 现网也不会跟着变，只会造成「文档和库不一致」。看到它别当成漏改。
+
 ### 微信错误码 → 业务状态
 
 | 微信错误码 | 含义 | 系统处理 | 用户看到（PRD 6.5.6） |
 | --- | --- | --- | --- |
 | `ok` | 成功 | `status=2` | 「已经叮到阿妈啦 🔔」 |
 | `43004` | 用户未关注公众号 | `status=5`，降级到 ②③ | 「已记下，阿妈还没开微信提醒，她打开小程序就能看到」 |
+| `40164` | **调用方 IP 不在公众号「IP 白名单」内** | `status=3`，降级；**去后台清空白名单**即可（测试号没有白名单设置项，正式号有） | 同上 |
 | `40001` / `42001` | access_token 失效 | 重试 1 次 | 「没叮成功，稍后再试」 |
+| `40013` | `MP_ACCOUNT_APPID` 填错 | `status=3`，**不重试**（重试也不会好） | 同上 |
 | `47003` | 模板参数不匹配 | `status=3`，**打日志告警** | 同上 |
 | `45009` | 接口调用超限 | `status=3`，降级 | 同上 |
 | 网络异常 | — | 重试 1 次后降级 | 同上 |
@@ -843,14 +935,16 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 
 | 故障 | 表现 | 兜底 |
 | --- | --- | --- |
-| Worker 挂了 | ① 全部失败 | 降级到 ②③，站内消息照常 |
-| 测试号被回收 | 全部返回 `40001` / `43004` | 同上；Worker 日志会报错 |
-| `API_TOKEN` 泄露 | 别人可发消息 | 立即 `wrangler secret put API_TOKEN` 轮换 |
+| 公众号 API 挂了 / 拿不到 token | ① 全部失败 | 降级到 ②③，站内消息照常 |
+| 测试号被回收 | 全部返回 `40001` / `43004` | 同上；后端日志里 `拿不到公众号 access_token` 会先报错 |
+| `MP_ACCOUNT_SECRET` 泄露 | 别人可冒充你的号发消息 | 测试号后台**重置 appsecret** → 更新云托管环境变量（旧值立刻失效） |
 | 用户取关 | `43004` | `status=5`，站内消息兜底 |
 | 模板被改字段 | `47003` | 后端同步模板常量 |
 | 绑定码过期 / 被新码替换 | 绑定失败 | 重新生成绑定码即可（TTL 只有 10 分钟） |
+| ~~Worker 域名出不到（大陆 + `*.workers.dev`）~~ | ~~`fetch failed`，没有微信 errcode~~ | **已消除（v1.1.0）**：Worker 拆掉了，改由后端直连 `api.weixin.qq.com`（容器到这条路的连通性由登录链路证明，见 `docs/06` §5.17） |
+| 容器出口 IP 撞上 IP 白名单 | `40164` | 后台把 IP 白名单留空；云托管出口 IP 不固定，**不要**去填 |
 
-**核心原则：wxpush 的任何故障都不能影响主流程。** 发消息是异步的，失败只写日志，不阻塞用户操作，不弹错误给发起人以外的任何人。
+**核心原则：通道① 的任何故障都不能影响主流程。** 发消息是异步的，失败只写日志，不阻塞用户操作，不弹错误给发起人以外的任何人。
 
 ---
 
@@ -860,11 +954,11 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 
 | 层级 | 怎么测 | 通过标准 |
 | --- | --- | --- |
-| Worker 连通性 | `tools/test-wxpush.mjs` | 手机收到消息 |
+| 通道① 连通性 | `tools/test-mp-template.mjs` | 手机收到消息 |
 | 跳转能力 | 点消息 → 看落到哪 | 确认假设 A6（`miniprogram` 是否生效） |
-| 中转页 | 浏览器打开 `/skin?title=测试&message=内容&date=2026-10-06` | 页面正常渲染，小程序码可长按识别 |
+| 中转页 | 浏览器打开 `<后端域名>/api/skin?title=测试&message=内容&date=2026-11-12` | 页面正常渲染，小程序码可长按识别 |
 | 绑定链路 | 小程序生成码 → 公众号发码 | `users.mp_openid` 被正确写入 |
-| 后端降级 | 故意把 `API_TOKEN` 改错 | 通知记录 `status=3`，站内消息仍可见 |
+| 后端降级 | 故意把 `MP_TEMPLATE_DONE` 改成一个不存在的 ID | 通知记录 `status=3`，站内消息仍可见 |
 | 端到端 | 阿妈派活给阿爸 | 阿爸微信收到，点击能进小程序 |
 
 ### 13.2 必测的负向场景
@@ -893,20 +987,26 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 | 开关 | 位置 | 关闭后效果 |
 | --- | --- | --- |
 | `NOTIFY_MP_ENABLED=false` | 后端环境变量 | `notify.service.ts` 直接跳过通道 ① |
-| 删除 Worker | Cloudflare 控制台 | 通道 ① 自然失效 |
+| 清空 `MP_ACCOUNT_APPID` / `MP_ACCOUNT_SECRET` | 后端环境变量 | 客户端拿到空凭据 → `skipped`，通道 ① 自然失效 |
 | 清空 `users.mp_openid` | 数据迁移 | 无 openid → 不走通道 ① |
+
+> ⚠️ v1.1.0 起**没有「删除 Worker」这一道开关了** —— Worker 已经不在链路上。
+> 拆完业务代码同样一行不用改，但**控制台清理是另一回事**，见下面的清单。
 
 **拆除检查清单：**
 
 - [ ] 后端 `NOTIFY_MP_ENABLED` 置为 `false`
-- [ ] 下线 Cloudflare Worker
+- [ ] 删除云托管环境变量 `MP_ACCOUNT_APPID` / `MP_ACCOUNT_SECRET`
+- [ ] **清理线上 Cloudflare Worker**（`pusher.youngqluol.workers.dev` 那个）：`wrangler delete` 或控制台删除，
+      它已经没人调了，留着等于在公网挂一个「知道你的模板 ID 和 appid」的空转接口
+- [ ] **删除仓库里的 `wxpush/` 目录**（含 `.env.example`；小程序码原图 `wxpush/assets/miniprogram-code.png` 先搬到 `ui/` 或 `docs/assets/` 再删）
 - [ ] 移除测试号「接口配置信息」里的回调 URL
 - [ ] 数据迁移：`UPDATE users SET mp_openid = NULL, mp_bound_at = NULL`
 - [ ] 小程序端隐藏「微信提醒」绑定入口
 - [ ] 确认订阅消息通道已能独立支撑（或已找到替代方案）
 - [ ] 更新 PRD 6.5.7 的状态
 
-> **在完成替代方案之前不要拆。** 拆了之后推送能力会退回到「一次性订阅」，这比有 wxpush 差得多。
+> **在完成替代方案之前不要拆。** 拆了之后推送能力会退回到「一次性订阅」，这比有公众号模板消息差得多。
 
 ---
 
@@ -916,11 +1016,14 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 | --- | --- | --- | --- |
 | 1 | `miniprogram` 字段是否生效（A6） | 🟡 | M0 实测，不成立则走小程序码 |
 | 2 | 小程序码长按识别稳定性 | 🟢 | 微信原生能力，稳定 |
-| 3 | 测试号被回收 | 🟡 | Worker 保活心跳 + 站内消息兜底 |
+| 3 | 测试号被回收 | 🟡 | ~~Worker 保活心跳~~ **v1.1.0 起保活没了**：Worker 拆除后没人定期打测试号接口。当前缓解是家人日常使用本身会触发回调和模板消息；**兜底仍是站内消息**。若哪天通道① 集体 `43004`/`40001`，第一反应是去测试号后台确认号还在，重新扫码登录即可（appid/secret 不变，环境变量不用动） |
 | 4 | 测试号用户数上限 | 🟡 | 家人规模（≤8 人）远低于上限 |
 | 5 | 用户不愿关注测试号 | 🟡 | 不做强制，未绑定自动降级 |
 | 6 | 上架审核 | 🔴 | **提审时不应出现测试号相关内容**；建议 V0.1 先不上架，自己家先用 |
 | 7 | 测试号消息回调的稳定性 | 🟡 | 保底方案：手工录入 openid |
+| 8 | **`*.workers.dev` 在中国大陆被 DNS 污染** | ✅ **已消除（v1.1.0，2026-11-12）** | **当时的实测**：本机 `dig` 把 `pusher.youngqluol.workers.dev` 解析到 `108.160.165.141`（Dropbox 的地址，典型污染特征，且每次查询返回的 IP 都不一样），无代理 `curl` **直接超时**；同一台机器上 `api.weixin.qq.com`（404 = 通）和 `www.cloudflare.com`（200）都正常 —— **封的是 `*.workers.dev` 这个共享域名，不是 Cloudflare**。<br>**证实过程**：家人绑定完成后（`mp_openid` 有值），云托管运行日志里通道① 全部是 `errcode=undefined errmsg=fetch failed`，**一个微信 errcode 都没有** → 请求根本没出容器，第二道墙成立。<br>**处置**：没有走「给 Worker 绑自定义域名」，而是**删掉 Worker、后端直连微信 API**（见 §三、§十四）。`api.weixin.qq.com` 从容器可达已被登录链路证明（`docs/06` §5.17）。 |
+| 9 | **公众号「IP 白名单」撞上云托管** | 🟡 | **直连方案特有**的新风险，Worker 方案没有（那时出网 IP 是 Cloudflare 的）。云托管出口 IP 不固定，一旦在公众号后台填了白名单就是 `40164` 全灭。<br>**处置**：后台**把 IP 白名单留空**（默认就是空）。测试号没有白名单设置项，正式号转过来时记得这一条。 |
+| 10 | **中转页用的是云托管默认域名** | 🟡 | `MP_LANDING_URL` 指向 `...tcloudbase.com` 那个默认域名：它**没备案**、且属于「仅接口测试」性质的默认分配域名，微信网页里能否长期正常打开没有保证。<br>**处置**：家庭自用阶段可接受（打不开也只是看不到兜底页，`miniprogram` 生效时根本用不到它）。真出问题就给它挂一个自有域名。 |
 
 ---
 
@@ -928,11 +1031,14 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 
 | 文件 | 作用 |
 | --- | --- |
-| `wxpush/index.js` | Worker 代码（已改造，4 处） |
-| `wxpush/wrangler.toml` | Worker 部署配置（含保活 Cron） |
-| `wxpush/.env.example` | 环境变量模板 |
-| `wxpush/readme.md` | 上游原版文档（保留参考） |
-| `tools/test-wxpush.mjs` | 连通性测试脚本 |
+| `wxpush/index.js` | 🕰 Worker 代码（v1.1.0 起**不在链路上**，待清理，见 §十四） |
+| `wxpush/wrangler.toml` | 🕰 Worker 部署配置（含保活 Cron，同上） |
+| `wxpush/.env.example` | 🕰 Worker 环境变量模板（同上） |
+| `wxpush/readme.md` | 🕰 上游原版文档（保留参考） |
+| `wxpush/assets/miniprogram-code.png` | 小程序码原图 —— **删目录前先搬走**，`MP_QRCODE_URL` 靠它 |
+| `tools/test-mp-template.mjs` | 通道① 连通性测试脚本（直连微信 API，不经后端） |
+| `server/src/modules/notify/mp-account.client.ts` | 通道① 客户端：`stable_token` + `message/template/send` |
+| `server/src/modules/notify/landing.controller.ts` | 中转页 `GET /api/skin`（后端渲染） |
 | `db/schema.sql` | 已新增 `users.mp_openid` / `mp_bound_at` |
 | `server/src/modules/notify/` | 后端通知模块 |
 | `server/src/modules/wechat/mp-callback.controller.ts` | 测试号消息回调 |
