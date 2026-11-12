@@ -49,7 +49,7 @@
 | [db/schema.sql](../db/schema.sql) | 12 张表的可执行建表 DDL（系统菜谱已改为代码常量，不再入库） |
 | [packages/shared/](../packages/shared/) | 前后端共享的枚举与类型（`enums.ts` 是枚举唯一来源） |
 | [prototypes/prototype.html](../prototypes/prototype.html) | 10 屏核心页面的可视化原型 + 色彩系统 + 组件库（浏览器直接打开） |
-| [wxpush/](../wxpush/) | 🕰 **已退役**的推送 Worker 代码 + 部署配置（2026-11-12 通道① 改后端直连，见 `docs/08` §十四）。目前唯一还有用的是 `wxpush/assets/miniprogram-code.png` —— **中转页用的小程序码**源图（待上传后填 `MP_QRCODE_URL`），**删目录前先搬走它** |
+| [wxpush/](../wxpush/) | 🕰 **只剩一张图**：Worker 代码与部署配置已于 2026-11-12 从仓库删除（通道① 改后端直连，见 `docs/08` §十四），目录里现在只有 `assets/miniprogram-code.png` —— **中转页用的小程序码**源图，待上传后填 `MP_QRCODE_URL`，那条做完这个目录就能一起删 |
 | [tools/](../tools/) | `check-ts.mjs`（TS 语法校验）、`check-links.mjs`（MD 链接校验）、`check-shared.mjs`（`@shared` 镜像漂移校验）、`check-mp.mjs`（小程序端静态自查）、`check-docker.mjs`（Docker 构建上下文：COPY 源有没有被 `.dockerignore` 误伤）、`test-view.mjs`（**展示模型行为断言**，251 项）、`smoke-m1.mjs`（M1 认证 + 家庭域冒烟）、`smoke-m2-things.mjs`（M2 小事 / 提醒 / 消息域冒烟，215 项）、`smoke-m3-menu.mjs`（M3 吃啥呢冒烟，180 项）、`smoke-m4-memory.mjs`（M4 留个念冒烟，76 项）、`smoke-m5-account.mjs`（M5 注销账号冒烟，42 项）、`pack-deploy.mjs`（**云托管代码包打包器**：以 `.dockerignore` 为准裁出 ≤2 MiB 的上传包）、`gen-prod-env.mjs`（**生成生产环境变量清单**：轮换密钥、输出到仓库外）、`gen-tab-icons.mjs`（**Tab 图标生成**：`ui/tabbar/*.svg` → 8 张 81×81 PNG，用 macOS 自带的 `qlmanage` + `sips`，不引依赖）、`test-mp-template.mjs`（通道一**直连微信 API** 连通性，原 `test-wxpush.mjs` 已随 Worker 下线）、`probe-subscribe.mjs`（通道二连通性）、`probe-seccheck.mjs`（内容安全实探） |
 | [ui/风格参考/](../ui/风格参考/) | 视觉风格参考图（仅参考样式，功能与人群定位无关） |
 
@@ -109,7 +109,7 @@ access_token 用进程内缓存。云托管只需 MySQL，`docker-compose.yml` �
 | 做什么、按什么顺序做 | `docs/05-开发计划与任务拆分.md` | 任务编号的唯一来源 |
 | 推送通道的技术细节 | `docs/08-wxpush推送集成方案.md` | — |
 | **通知模板的字段名与文案** | `notify.templates.ts`（公众号）+ `subscribe.templates.ts`（订阅消息） | 代码是唯一来源；docs/08 §10 只是镜像。`cd server && pnpm run check:templates` 校验 |
-| 环境变量清单 | `server/.env.example` | 代码级模板，比文档更可信（Worker 已退役，`wxpush/.env.example` 不再同步） |
+| 环境变量清单 | `server/.env.example` | 代码级模板，比文档更可信（Worker 已退役，`wxpush/.env.example` 已于 2026-11-12 删除） |
 | 中转页样式 | `docs/07` 第十章 | 实现在 `server/src/modules/notify/landing.controller.ts`（`GET /api/skin`） |
 
 **已消除的历史矛盾（v0.2.1 修复）：**

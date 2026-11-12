@@ -10,9 +10,6 @@ prototypes/
 ui/
 *.md
 
-# 上游第三方代码保持原样
-wxpush/index.js
-
 # shell 脚本同样没有 prettier 解析器（同 WXML 的理由）
 *.sh
 

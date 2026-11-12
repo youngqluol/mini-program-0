@@ -120,7 +120,7 @@ mini-program-0/
 │   └── shared/               前后端共享枚举与类型（enums.ts 是枚举唯一来源）
 ├── miniprogram/              小程序端
 ├── server/                   后端（NestJS + Prisma）
-├── wxpush/                   🕰 已退役的推送 Worker（2026-11-12 通道① 改后端直连；清理见 docs/08 §十四）
+├── wxpush/                   🕰 只剩 assets/miniprogram-code.png（Worker 代码与配置已于 2026-11-12 删除；清理口径见 docs/08 §十四）
 ├── tools/                    check-*.mjs 静态校验 / smoke-m*.mjs 端到端冒烟 / test-*.mjs
 ├── prototypes/prototype.html 可视化原型（浏览器直接打开）
 ├── ui/风格参考/               视觉风格参考图
@@ -377,7 +377,7 @@ pnpm run smoke:m5                         # 注销账号（42 项）
 # 推送
 node tools/test-mp-template.mjs           # 通道① 连通性测试（直连微信 API，只需 4 个变量）
 node tools/probe-subscribe.mjs            # 通道② 连通性测试（看微信原始 errcode）
-# ⚠️ 2026-11-12 起没有 `wrangler deploy` 这一步了：Worker 已退役，`wxpush/` 只剩历史代码
+# ⚠️ 2026-11-12 起没有 `wrangler deploy` 这一步了：Worker 已退役，代码也从仓库删了，`wxpush/` 只剩一张小程序码
 
 # 上线（当前路线：云托管「绑定 GitHub 仓库」，见 §1；下面两条仍是日常要用的）
 pnpm run pack:deploy                      # 备用：手动上传代码包，产出 ≤2 MiB（仓库原样 4.8 MB，超限）

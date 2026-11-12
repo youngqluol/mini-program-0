@@ -353,7 +353,7 @@ node --check wxpush/index.js   # ✅ 通过
 > 现行配置在**后端**，见 §9.4； Worker 侧唯一还有用的是 `WX_APPID` / `WX_SECRET` 这两个值本身
 > （它们对应后端的 `MP_ACCOUNT_APPID` / `MP_ACCOUNT_SECRET`）。
 
-完整模板见 `wxpush/.env.example`。
+~~完整模板见 `wxpush/.env.example`~~ —— 该文件已于 2026-11-12 随 Worker 代码一起从仓库删除，本节只作历史记录。
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
@@ -999,7 +999,8 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 - [ ] 删除云托管环境变量 `MP_ACCOUNT_APPID` / `MP_ACCOUNT_SECRET`
 - [ ] **清理线上 Cloudflare Worker**（`pusher.youngqluol.workers.dev` 那个）：`wrangler delete` 或控制台删除，
       它已经没人调了，留着等于在公网挂一个「知道你的模板 ID 和 appid」的空转接口
-- [ ] **删除仓库里的 `wxpush/` 目录**（含 `.env.example`；小程序码原图 `wxpush/assets/miniprogram-code.png` 先搬到 `ui/` 或 `docs/assets/` 再删）
+- [x] ~~删除仓库里的 `wxpush/` 目录~~ **2026-11-12 已删代码与配置**（`index.js` / `wrangler.toml` / `.env.example` / `readme.md` / `LICENSE`），
+      目录里只剩 `assets/miniprogram-code.png` —— 等 `MP_QRCODE_URL` 上传完就可以连它一起删
 - [ ] 移除测试号「接口配置信息」里的回调 URL
 - [ ] 数据迁移：`UPDATE users SET mp_openid = NULL, mp_bound_at = NULL`
 - [ ] 小程序端隐藏「微信提醒」绑定入口
@@ -1031,11 +1032,11 @@ node tools/probe-subscribe.mjs <小程序openid> TASK
 
 | 文件 | 作用 |
 | --- | --- |
-| `wxpush/index.js` | 🕰 Worker 代码（v1.1.0 起**不在链路上**，待清理，见 §十四） |
-| `wxpush/wrangler.toml` | 🕰 Worker 部署配置（含保活 Cron，同上） |
-| `wxpush/.env.example` | 🕰 Worker 环境变量模板（同上） |
-| `wxpush/readme.md` | 🕰 上游原版文档（保留参考） |
-| `wxpush/assets/miniprogram-code.png` | 小程序码原图 —— **删目录前先搬走**，`MP_QRCODE_URL` 靠它 |
+| `wxpush/index.js` | 🕰 Worker 代码 —— **已于 2026-11-12 从仓库删除**（v1.1.0 起不在链路上） |
+| `wxpush/wrangler.toml` | 🕰 Worker 部署配置（含保活 Cron）—— 同上，已删除 |
+| `wxpush/.env.example` | 🕰 Worker 环境变量模板 —— 同上，已删除；现凭据只走 `server/.env.example` |
+| `wxpush/readme.md` | 🕰 上游原版文档 —— 同上，已删除（要看原始设计去上游仓库，别在本文档里找） |
+| `wxpush/assets/miniprogram-code.png` | 小程序码原图 —— `wxpush/` 现在**只剩它**，`MP_QRCODE_URL` 靠它（待上传） |
 | `tools/test-mp-template.mjs` | 通道① 连通性测试脚本（直连微信 API，不经后端） |
 | `server/src/modules/notify/mp-account.client.ts` | 通道① 客户端：`stable_token` + `message/template/send` |
 | `server/src/modules/notify/landing.controller.ts` | 中转页 `GET /api/skin`（后端渲染） |

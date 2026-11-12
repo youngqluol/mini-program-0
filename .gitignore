@@ -14,7 +14,7 @@ miniprogram/miniprogram_npm/
 .env.local
 .env.*.local
 !.env.example
-# wrangler 本地开发变量与构建缓存（wxpush 用）
+# wrangler 的本地产物（Worker 已于 2026-11-12 退役，留着只是防止本地误跑 wrangler 又提交）
 .dev.vars
 .dev.vars.*
 .wrangler/
@@ -43,6 +43,15 @@ Thumbs.db
 
 # ---------- 微信开发者工具本地配置 ----------
 miniprogram/project.private.config.json
+
+# ---------- 第三方小程序工具（WorkBuddy）的本地产物 ----------
+# 这些是那个工具在自己机器上生成的应用描述与过程记忆，与本项目源码无关。
+# 2026-11-12 已从仓库删除；加进这里防止它下次又被顺手提交。
+# ⚠️ 唯一例外：miniprogram/.wbapp_*.privacy.json 是「隐私接口用途说明」文案的
+#    本地副本，要不要留由人决定 —— 现在仍被 git 跟踪，所以没忽略。
+.workbuddy/
+.workbuddy-ai/
+.wbapp_*.genie
 
 # ---------- 小程序上传脚本的本地产物 ----------
 # mini.sh 把 miniprogram-ci 装到这里（不写进 package.json、不污染仓库依赖）

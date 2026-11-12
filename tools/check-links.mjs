@@ -11,7 +11,7 @@
  *   node tools/check-links.mjs
  *
  * 行为：
- *   - 递归扫描仓库内所有 .md（跳过 node_modules / .git / .workbuddy-ai）
+ *   - 递归扫描仓库内所有 .md（跳过 node_modules / .git / .workbuddy* 工具记忆目录）
  *   - 校验 [文本](目标) 形式的链接，解析为绝对路径后检查文件是否存在
  *   - 跳过 http(s) / mailto / 纯锚点(#)
  *   - 发现失效链接时以非 0 退出码结束，可直接用于 CI 或 pre-commit
@@ -22,7 +22,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const ROOT = process.cwd();
-const SKIP_DIRS = new Set(['node_modules', '.git', '.workbuddy-ai', 'dist', 'build']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.workbuddy', '.workbuddy-ai', 'dist', 'build']);
 
 /** 递归收集所有 .md 文件 */
 function collectMarkdownFiles(dir, acc = []) {
