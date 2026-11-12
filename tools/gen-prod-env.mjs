@@ -101,11 +101,14 @@ const SPEC = [
     ],
   },
   {
-    group: '公众号模板消息（主力通道 wxpush）',
+    group: '公众号模板消息（主力通道，后端直连微信 API）',
     items: [
       { key: 'NOTIFY_MP_ENABLED', kind: 'copy' },
-      { key: 'WXPUSH_URL', kind: 'copy' },
-      { key: 'WXPUSH_TOKEN', kind: 'copy', sensitive: true },
+      // ⚠️ 这对是**公众号/测试号**的凭据，和 WX_APPID/WX_SECRET（小程序的）是两套
+      { key: 'MP_ACCOUNT_APPID', kind: 'copy' },
+      { key: 'MP_ACCOUNT_SECRET', kind: 'copy', sensitive: true },
+      { key: 'MP_LANDING_URL', kind: 'copy' },
+      { key: 'MP_QRCODE_URL', kind: 'copy' },
       { key: 'MP_TEMPLATE_TASK', kind: 'copy' },
       { key: 'MP_TEMPLATE_REMINDER', kind: 'copy' },
       { key: 'MP_TEMPLATE_DONE', kind: 'copy' },

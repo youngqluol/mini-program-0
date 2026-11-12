@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotifyChannel, NotifyStatus, NotifyType } from '@shared/enums';
 import { DeliveryResult } from '@shared/dto/notify';
-import { WxpushClient, WX_ERRCODE } from './wxpush.client';
+import { MpAccountClient, WX_ERRCODE } from './mp-account.client';
 import { buildTemplate, BuiltTemplate, TemplateContext } from './notify.templates';
 import { subPageOf } from './subscribe.templates';
 import {
@@ -68,7 +68,7 @@ export class NotifyService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly wxpush: WxpushClient,
+    private readonly mpAccount: MpAccountClient,
     @Inject(SUBSCRIBE_MESSAGE_PORT)
     private readonly subscribe: SubscribeMessagePort,
   ) {}
@@ -173,7 +173,7 @@ export class NotifyService {
     logId: bigint,
     attempt = 0,
   ): Promise<{ channel: NotifyChannel; status: NotifyStatus; result: DeliveryResult; errcode?: number } | null> {
-    if (!this.wxpush.enabled) return null;
+    if (!this.mpAccount.enabled) return null;
 
     // 该通知类型没有对应的公众号模板（例如「加入家庭」）→ 正常降级，不是错误
     if (!built.mpKind) return null;
@@ -184,7 +184,7 @@ export class NotifyService {
     });
     if (!user?.mpOpenid) return null; // 未绑定，交给下一通道
 
-    const res = await this.wxpush.send({
+    const res = await this.mpAccount.send({
       userid: user.mpOpenid,
       title: built.title,
       content: built.content,

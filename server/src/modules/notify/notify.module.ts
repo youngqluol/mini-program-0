@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { WxpushClient } from './wxpush.client';
+import { MpAccountClient } from './mp-account.client';
+import { LandingController } from './landing.controller';
 import { NotifyService } from './notify.service';
 import { NotifyController } from './notify.controller';
 import { NotificationController } from './notification.controller';
@@ -13,7 +14,8 @@ import { WechatModule } from '../wechat/wechat.module';
  * 通知模块 —— 三通道降级全部收在这里。
  *
  * 装的东西：
- *   - `WxpushClient`            通道一：公众号模板消息（主力，走 Cloudflare Worker）
+ *   - `MpAccountClient`           通道一：公众号模板消息（主力，**后端直连微信 API**）
+ *   - `LandingController`       通道一的落地页 `GET /api/skin`（点不进小程序时那张网页）
  *   - `SubscribeMessageAdapter` 通道二：小程序订阅消息（辅助，实现 SubscribeMessagePort）
  *   - `SubscribeQuotaService`   通道二的额度池（MySQL `subscribe_quotas` 记账）
  *   - `NotifyService`           通道选择 + 降级 + 写 notification_logs
@@ -36,9 +38,9 @@ import { WechatModule } from '../wechat/wechat.module';
  */
 @Module({
   imports: [WechatModule],
-  controllers: [NotifyController, NotificationController],
+  controllers: [NotifyController, NotificationController, LandingController],
   providers: [
-    WxpushClient,
+    MpAccountClient,
     NotifyService,
     NotificationService,
     SubscribeQuotaService,
@@ -50,6 +52,6 @@ import { WechatModule } from '../wechat/wechat.module';
       useExisting: SubscribeMessageAdapter,
     },
   ],
-  exports: [NotifyService, WxpushClient, SubscribeQuotaService],
+  exports: [NotifyService, MpAccountClient, SubscribeQuotaService],
 })
 export class NotifyModule {}

@@ -36,7 +36,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
  */
 @Module({
   imports: [
-    // isGlobal 是刻意的：各处直接 config.get('WXPUSH_URL') 读扁平环境变量名
+    // isGlobal 是刻意的：各处直接 config.get('MP_ACCOUNT_APPID') 读扁平环境变量名
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env'],

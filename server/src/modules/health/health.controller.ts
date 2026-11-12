@@ -96,8 +96,12 @@ export class HealthController {
     return {
       // ---- 通道一：公众号模板消息 ----
       mpChannelEnabled: this.config.get<string>('NOTIFY_MP_ENABLED') !== 'false',
-      wxpushUrlConfigured: Boolean(this.config.get<string>('WXPUSH_URL')?.trim()),
-      wxpushTokenConfigured: Boolean(this.config.get<string>('WXPUSH_TOKEN')?.trim()),
+      mpAccountConfigured: Boolean(
+        this.config.get<string>('MP_ACCOUNT_APPID')?.trim() &&
+          this.config.get<string>('MP_ACCOUNT_SECRET')?.trim(),
+      ),
+      // 中转页地址：没配只是点开消息没有降级跳转，不影响消息送达
+      landingUrlConfigured: Boolean(this.config.get<string>('MP_LANDING_URL')?.trim()),
       allTemplatesConfigured: templates.every((t) => t.configured),
       templates,
 

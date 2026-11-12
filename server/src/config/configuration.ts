@@ -2,7 +2,7 @@
  * 环境变量校验与类型化配置。
  *
  * 设计取舍：
- *   - `ConfigModule` 用 `isGlobal: true`，各处直接 `config.get('WXPUSH_URL')`
+ *   - `ConfigModule` 用 `isGlobal: true`，各处直接 `config.get('MP_ACCOUNT_APPID')`
  *     读**扁平**的环境变量名。所以这里不做 namespace 嵌套 —— 嵌套会让
  *     已有代码里的 `config.get('XXX')` 全部失效。
  *   - 校验分两档：
@@ -20,11 +20,15 @@ const ESSENTIAL_KEYS = [
 
 /**
  * 缺失只告警 —— 对应的功能会**自动降级**，不影响启动。
- * 例如没配 WXPUSH_* 时，通知通道一会跳过，走订阅消息 / 站内消息。
+ * 例如没配 MP_ACCOUNT_* 时，通知通道一会跳过，走订阅消息 / 站内消息。
  */
 const OPTIONAL_KEYS = [
-  'WXPUSH_URL',
-  'WXPUSH_TOKEN',
+  // 通道一（公众号模板消息）—— 后端直连微信 API，**不是**小程序那对 WX_APPID/WX_SECRET
+  'MP_ACCOUNT_APPID',
+  'MP_ACCOUNT_SECRET',
+  // 中转页绝对地址 + 小程序码图；没配只是点开消息没有跳转目标，消息照发
+  'MP_LANDING_URL',
+  'MP_QRCODE_URL',
   'MP_TEMPLATE_TASK',
   'MP_TEMPLATE_REMINDER',
   'MP_TEMPLATE_DONE',
