@@ -184,6 +184,11 @@
   margin-top: 22px;
 }
 
+/* 提交中：按钮变灰但仍可点，点了只会被 onFormSubmit 的守卫挡回去 */
+.sheet__submit--busy {
+  opacity: 0.7;
+}
+
 .sheet__cancel {
   margin-top: 4px;
   padding: 12px 0 2px;

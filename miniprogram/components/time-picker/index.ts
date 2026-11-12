@@ -121,19 +121,14 @@ Component({
       }
 
       if (seg === 'TODAY') {
+        const date = todayDate();
+        // 「现在 + 2 小时」跨过午夜时（22:00 之后），今天只剩 23:59 这一截。
+        // 收敛到当天末尾，而不是把选中项甩回「指定」—— 用户点的是「今天」，
+        // 界面就该停在今儿；甩回去的观感是「这个按钮点不动」。
         const plus2 = beijingAfterHours(2);
-        const date = plus2.slice(0, 10);
-        const time = plus2.slice(11, 16);
+        const time = plus2.slice(0, 10) === date ? plus2.slice(11, 16) : '23:59';
 
-        // 23:30 的时候「现在 + 2 小时」已经跨到明天了。
-        // 与其显示「今天 01:30」这种假话，不如把选择切到「指定」、把日期摆在明面上。
-        const crossed = date !== todayDate();
-        this.setData({
-          segment: crossed ? 'CUSTOM' : 'TODAY',
-          date,
-          time,
-          dateText: dayText(date),
-        });
+        this.setData({ segment: 'TODAY', date, time, dateText: dayText(date) });
         this.emit();
         return;
       }

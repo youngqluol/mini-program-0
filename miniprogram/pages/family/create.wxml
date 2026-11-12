@@ -15,6 +15,7 @@
         placeholder="例如：我们家"
         placeholder-class="field__placeholder"
         maxlength="50"
+        disabled="{{submitting}}"
         bindinput="onFamilyNameInput"
       />
     </view>
@@ -27,6 +28,7 @@
         placeholder="例如：阿爸"
         placeholder-class="field__placeholder"
         maxlength="30"
+        disabled="{{submitting}}"
         bindinput="onRoleNameInput"
       />
       <view class="chips">
@@ -46,4 +48,7 @@
   </view>
 
   <view class="create__alt" bindtap="onJoinFamily">家里已经有人建好了？<text class="create__alt-link">去加入</text></view>
+
+  <!-- 创建中整页锁住：等待期间还能改家名 / 换称呼，建出来的却是按下那一刻的那份 -->
+  <busy-mask wx:if="{{submitting}}" text="正在把家建起来，稍等一下…" />
 </view>

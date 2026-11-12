@@ -94,6 +94,7 @@
         class="field__input"
         value="{{formName}}"
         maxlength="100"
+        disabled="{{submitting}}"
         placeholder="比如 可乐鸡翅"
         placeholder-class="field__placeholder"
         bindinput="onFormName"
@@ -102,14 +103,22 @@
 
     <view class="field field--last">
       <view class="field__label">归到哪一类</view>
-      <picker mode="selector" range="{{categoryPicker}}" value="{{categoryIndex}}" bindchange="onFormCategory">
+      <picker
+        mode="selector"
+        range="{{categoryPicker}}"
+        value="{{categoryIndex}}"
+        disabled="{{submitting}}"
+        bindchange="onFormCategory"
+      >
         <view class="field__picker">{{categoryLabel}}</view>
       </picker>
       <view class="field__hint">分类会影响「今天吃什么」怎么搭配，不确定就选「不分类」</view>
     </view>
 
-    <view class="btn-primary sheet__submit" bindtap="onFormSubmit">
-      {{formMode === 'create' ? '加进菜谱' : '保存'}}
+    <!-- 半屏表单自己就是那一屏，锁在它内部：字段 disabled + 遮罩点不掉（onFormClose 已拦）。
+         整页遮罩压不住 z-index 100 的面板，这里用不上。 -->
+    <view class="btn-primary sheet__submit {{submitting ? 'sheet__submit--busy' : ''}}" bindtap="onFormSubmit">
+      {{submitting ? '正在存…' : formMode === 'create' ? '加进菜谱' : '保存'}}
     </view>
     <view class="sheet__cancel" bindtap="onFormClose">再想想</view>
   </view>

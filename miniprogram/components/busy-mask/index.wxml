@@ -1,0 +1,12 @@
+<!--
+  整页遮罩。用法：`<busy-mask wx:if="{{submitting}}" text="正在叮，稍等一下…" />`
+  放在页面根节点的**最后**（它自己 fixed 定位，写在哪儿都是盖满全屏）。
+-->
+<view class="busy" catchtap="onTap">
+  <view class="busy__dots">
+    <view class="busy__dot"></view>
+    <view class="busy__dot"></view>
+    <view class="busy__dot"></view>
+  </view>
+  <view class="busy__text">{{text}}</view>
+</view>

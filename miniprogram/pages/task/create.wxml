@@ -8,6 +8,7 @@
         class="field__input"
         value="{{title}}"
         maxlength="200"
+        disabled="{{submitting}}"
         placeholder="帮我拿一下快递"
         placeholder-class="field__placeholder"
         bindinput="onTitleInput"
@@ -75,6 +76,7 @@
         value="{{content}}"
         maxlength="1000"
         auto-height
+        disabled="{{submitting}}"
         placeholder="一楼驿站"
         placeholder-class="field__placeholder"
         bindinput="onContentInput"
@@ -103,4 +105,8 @@
     class="btn-primary task__submit {{submitting ? 'task__submit--off' : ''}}"
     bindtap="onSubmit"
   >{{submitting ? '派出去了…' : '派出去'}}</view>
+
+  <!-- 正在派的那几秒整页锁住：等待期间还能改标题 / 换执行人 / 换时间，
+       派出去的却是按下那一刻的那份。判据见 docs/07 §6.11 -->
+  <busy-mask wx:if="{{submitting}}" text="正在派，稍等一下…" />
 </view>

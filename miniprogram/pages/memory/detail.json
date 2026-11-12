@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "留个念",
-  "usingComponents": {}
+  "usingComponents": {
+    "busy-mask": "/components/busy-mask/index"
+  }
 }

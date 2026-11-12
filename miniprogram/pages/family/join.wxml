@@ -17,6 +17,7 @@
           placeholder="6 位字母数字"
           placeholder-class="field__placeholder"
           maxlength="6"
+          disabled="{{loading}}"
           bindinput="onCodeInput"
         />
       </view>
@@ -55,6 +56,7 @@
           placeholder="例如：阿妈"
           placeholder-class="field__placeholder"
           maxlength="30"
+          disabled="{{accepting}}"
           bindinput="onRoleInput"
         />
         <view class="chips">
@@ -76,4 +78,11 @@
 
     <view class="join__alt" bindtap="onBackToInput">换个邀请码</view>
   </block>
+
+  <!-- 提交中整页锁住：等待期间还能改邀请码 / 换称谓，提交的是按下那一刻的那份。
+       「换个邀请码」也在遮罩下面 —— 正在加入时把它点回去，状态就散了 -->
+  <busy-mask
+    wx:if="{{loading || accepting}}"
+    text="{{loading ? '正在找这个家，稍等一下…' : '正在进来，稍等一下…'}}"
+  />
 </view>

@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "设置称谓",
-  "usingComponents": {}
+  "usingComponents": {
+    "busy-mask": "/components/busy-mask/index"
+  }
 }

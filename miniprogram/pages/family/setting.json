@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "家庭设置",
-  "usingComponents": {}
+  "usingComponents": {
+    "busy-mask": "/components/busy-mask/index"
+  }
 }

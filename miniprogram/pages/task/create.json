@@ -3,6 +3,7 @@
   "usingComponents": {
     "member-picker": "/components/member-picker/index",
     "time-picker": "/components/time-picker/index",
-    "repeat-picker": "/components/repeat-picker/index"
+    "repeat-picker": "/components/repeat-picker/index",
+    "busy-mask": "/components/busy-mask/index"
   }
 }

@@ -23,6 +23,7 @@
         maxlength="200"
         auto-height
         focus="{{autoFocus}}"
+        disabled="{{submitting}}"
         placeholder="明天记得给宝宝带水杯"
         placeholder-class="field__placeholder"
         bindinput="onContentInput"
@@ -66,4 +67,8 @@
     class="btn-primary nudge__submit {{submitting ? 'nudge__submit--off' : ''}}"
     bindtap="onSubmit"
   >{{submitting ? '正在叮…' : '叮 一 下'}}</view>
+
+  <!-- 正在叮的那几秒整页锁住：等待期间还能改正文 / 换叮谁 / 换时间，
+       发出去的却是按下那一刻的内容。判据见 docs/07 §6.11 -->
+  <busy-mask wx:if="{{submitting}}" text="正在叮，稍等一下…" />
 </view>

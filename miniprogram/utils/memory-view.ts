@@ -22,9 +22,6 @@ import { MEMORY_LIMITS } from '../constants/memory';
  */
 export const MAX_PHOTO_GRID = MEMORY_LIMITS.MAX_ATTACHMENTS;
 
-/** 首页预览卡片上那句话的长度上限 —— 再长就被卡片截掉了 */
-const PREVIEW_MAX = 18;
-
 // =============================================================
 // 日期与时间
 // =============================================================
@@ -257,32 +254,10 @@ export function prefillContent(thingTitle: string): string {
 }
 
 // =============================================================
-// 空状态与首页预览
+// 空状态
 // =============================================================
 
 /** P03 的空状态（docs/03 P03 原文） */
 export function emptyTimelineHint(): string {
   return '这里还空空的，记点什么吧 📖';
-}
-
-/**
- * P01 那张「留个念」跳转卡片的副标题（M4-11）。
- *
- * 没有记录时说「还没有记录」；有的话用最新一条 ——
- * 卡片上放不下整段，截断到 `PREVIEW_MAX` 个字并加省略号。
- * 只有图片没有文字时**不拼一个空句子**，直接说「记了一张照片」。
- */
-export function describeLatestMemory(item: MemoryItem | null): string {
-  if (!item) return '还没有记录';
-
-  const who = (item.creator && item.creator.roleName) || '家人';
-  const text = (item.content || '').trim();
-
-  if (!text) {
-    const n = (item.attachments || []).length;
-    return n > 0 ? `${who}记了 ${n} 张照片` : `${who}记了一笔`;
-  }
-
-  const short = text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX)}…` : text;
-  return `${who}：${short}`;
 }

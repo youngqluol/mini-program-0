@@ -302,10 +302,4 @@ Page({
   onCancel() {
     wx.navigateBack();
   },
-
-  /**
-   * 发布中遮罩的 `catchtap` 目标。**空实现** —— 它存在的唯一意义是让遮罩
-   * 吃掉这一页所有的点击（没有方法名时微信会在控制台报一条 warning）。
-   */
-  onBusyTap() {},
 });

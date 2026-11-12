@@ -176,57 +176,6 @@
   margin-top: 8px;
 }
 
-/* ---------- 吃啥呢 / 留个念 ---------- */
-
-.jump {
-  display: flex;
-  align-items: center;
-  margin-top: 14px;
-  padding: 16px 20px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-}
-
-.jump:active {
-  opacity: 0.86;
-}
-
-.jump__emoji {
-  flex: 0 0 auto;
-  width: 34px;
-  font-size: 20px;
-  line-height: 1;
-}
-
-.jump__main {
-  flex: 1;
-  /* 没有 min-width:0，长的留念文案会把右边的箭头挤出屏幕 */
-  min-width: 0;
-}
-
-.jump__title {
-  font-size: var(--fs-h3);
-  font-weight: 600;
-  color: var(--ink-1);
-}
-
-.jump__sub {
-  margin-top: 2px;
-  font-size: var(--fs-cap);
-  color: var(--ink-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.jump__arrow {
-  flex: 0 0 auto;
-  margin-left: 8px;
-  font-size: 16px;
-  color: var(--ink-3);
-}
-
 /* ---------- 隐私协议提示（M5-5） ---------- */
 
 .privacy {

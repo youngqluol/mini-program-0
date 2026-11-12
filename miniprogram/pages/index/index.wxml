@@ -74,25 +74,8 @@
     </block>
   </block>
 
-  <!-- 吃啥呢 -->
-  <view class="jump" bindtap="onMenu">
-    <text class="jump__emoji">🍽️</text>
-    <view class="jump__main">
-      <view class="jump__title">吃啥呢</view>
-      <view class="jump__sub">今天吃什么？</view>
-    </view>
-    <text class="jump__arrow">›</text>
-  </view>
-
-  <!-- 留个念（M4-11）：副标题是**最新一条**，没有就直说没有 -->
-  <view class="jump" bindtap="onMemory">
-    <text class="jump__emoji">📖</text>
-    <view class="jump__main">
-      <view class="jump__title">留个念</view>
-      <view class="jump__sub">{{memoryPreview}}</view>
-    </view>
-    <text class="jump__arrow">›</text>
-  </view>
+  <!-- 「吃啥呢」「留个念」不再在这里放跳转卡片：它们各自是底部 Tab 页，
+       挂在这里只会和上面「最近的活」混成一堆看起来同类的条目（2026-11-11 去掉）。 -->
 
   <!-- 隐私协议提示（M5-5）：只在「首次进入」且微信说还没同步过时出现。
        「同意」走 open-type，微信据此记录同步状态，不需要我们调接口；

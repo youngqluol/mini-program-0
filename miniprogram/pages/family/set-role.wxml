@@ -14,6 +14,7 @@
         placeholder="例如：阿妈"
         placeholder-class="field__placeholder"
         maxlength="30"
+        disabled="{{saving}}"
         bindinput="onRoleInput"
       />
       <view class="chips">
@@ -31,4 +32,7 @@
   <view class="btn-primary setrole__submit {{saving ? 'setrole__submit--busy' : ''}}" bindtap="onSave">
     {{saving ? '正在保存…' : '保存'}}
   </view>
+
+  <!-- 保存中整页锁住：等待期间还能接着改称谓，存进去的是按下那一刻的那份 -->
+  <busy-mask wx:if="{{saving}}" text="正在改，稍等一下…" />
 </view>

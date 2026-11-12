@@ -128,7 +128,6 @@ const {
   appendGroups,
   buildMemoryCard,
   buildVisibilityOptions,
-  describeLatestMemory,
   describeMemoryDate,
   describeMemoryTime,
   describeThingBanner,
@@ -1220,29 +1219,8 @@ function expiresInMinutes(n) {
   check('留个念 · 关联标记（P18 顶部那行）', describeThingBanner('买牛奶'), '来自 🎯 买牛奶');
   check('留个念 · 没有关联时标记为空', describeThingBanner(''), '');
 
-  // ---- 空状态与首页预览 ----
+  // ---- 空状态 ----
   check('留个念 · 空状态文案', emptyTimelineHint(), '这里还空空的，记点什么吧 📖');
-  check('留个念 · 没有记录时的预览', describeLatestMemory(null), '还没有记录');
-  check(
-    '留个念 · 预览 = 称谓 + 正文',
-    describeLatestMemory(mem()),
-    '阿妈：宝宝今天第一次自己穿鞋。',
-  );
-  check(
-    '留个念 · 预览超长要截断加省略号（23 字 → 18 字 + …）',
-    describeLatestMemory(mem({ content: '一二三四五六七八九十一二三四五六七八九十一二三' })),
-    '阿妈：一二三四五六七八九十一二三四五六七八…',
-  );
-  check(
-    '留个念 · 只有图片的预览不说空话',
-    describeLatestMemory(mem({ content: '', attachments: pics(2) })),
-    '阿妈记了 2 张照片',
-  );
-  check(
-    '留个念 · 称谓缺失时的预览兜底',
-    describeLatestMemory(mem({ creator: { memberId: 0, roleName: '', avatarUrl: null } })),
-    '家人：宝宝今天第一次自己穿鞋。',
-  );
 }
 
 // ---------------------------------------------------------------

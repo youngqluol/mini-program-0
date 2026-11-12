@@ -21,6 +21,7 @@
           placeholder-class="field__placeholder"
           maxlength="50"
           focus="{{true}}"
+          disabled="{{saving}}"
           bindinput="onNameInput"
         />
       </view>
@@ -51,4 +52,7 @@
   </view>
 
   <view class="setting__hint">解散或退出都不会删掉记过的事，它们会一直留着</view>
+
+  <!-- 改名保存中整页锁住：等待期间还能接着打字，「先不改」也点不动 -->
+  <busy-mask wx:if="{{saving}}" text="正在改，稍等一下…" />
 </view>

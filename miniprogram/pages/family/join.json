@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "加入家庭",
-  "usingComponents": {}
+  "usingComponents": {
+    "busy-mask": "/components/busy-mask/index"
+  }
 }

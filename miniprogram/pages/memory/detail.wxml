@@ -23,6 +23,7 @@
           class="editor"
           value="{{draftContent}}"
           maxlength="{{contentMax}}"
+          disabled="{{saving}}"
           placeholder="写点什么…"
           placeholder-class="editor__ph"
           auto-height
@@ -98,4 +99,7 @@
     <text class="empty__title">这条找不到了</text>
     <text class="empty__hint">可能已经被删掉了</text>
   </view>
+
+  <!-- 保存中整页锁住：等待期间还能接着改正文 / 换可见范围，存进去的却是按下那一刻的那份 -->
+  <busy-mask wx:if="{{saving}}" text="正在存好，稍等一下…" />
 </view>
